@@ -94,6 +94,7 @@ export default function Home() {
               alt="HOODPrinter logo"
               width={36}
               height={36}
+              unoptimized
             />
             HOODPrinter
           </a>
@@ -369,6 +370,7 @@ export default function Home() {
                 alt="HOODPrinter logo"
                 width={40}
                 height={40}
+                unoptimized
               />
               <span>
                 HOODPrinter <span style={{ color: "#00c805" }}>$PRINT</span>
