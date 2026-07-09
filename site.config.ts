@@ -5,7 +5,7 @@
 
 export const PLACEHOLDER_CONTRACT_ADDRESS = "0xPLACEHOLDER_CONTRACT_ADDRESS";
 export const PLACEHOLDER_BUY_LINK = "https://PLACEHOLDER_BUY_LINK";
-export const PLACEHOLDER_TELEGRAM = "https://t.me/+8EIlOqo7O3tiYjdh";
+export const PLACEHOLDER_TELEGRAM = "https://t.me/+hiSJrR0HDZxiNDAx";
 export const PLACEHOLDER_TWITTER = "https://x.com/PLACEHOLDER_TWITTER";
 
 export const siteConfig = {
