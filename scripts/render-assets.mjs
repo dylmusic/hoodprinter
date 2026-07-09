@@ -84,3 +84,7 @@ await renderComposite({
 // --- favicon (Next serves app/icon.png automatically) ---
 await sharp(await iconPng(64)).toFile(path.join(root, "app", "icon.png"));
 console.log("wrote app/icon.png");
+
+// --- apple touch icon (Next serves app/apple-icon.png automatically) ---
+await sharp(await iconPng(180)).toFile(path.join(root, "app", "apple-icon.png"));
+console.log("wrote app/apple-icon.png");
