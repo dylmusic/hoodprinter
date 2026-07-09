@@ -90,7 +90,7 @@ export default function Home() {
         <div className="container nav-inner">
           <a href="#" className="nav-logo">
             <Image
-              src="/brand/logo-icon.svg"
+              src="/brand/logo-icon.svg?v=2"
               alt="HOODPrinter logo"
               width={36}
               height={36}
@@ -365,7 +365,7 @@ export default function Home() {
           <div className="footer-top">
             <div className="footer-brand">
               <Image
-                src="/brand/logo-icon.svg"
+                src="/brand/logo-icon.svg?v=2"
                 alt="HOODPrinter logo"
                 width={40}
                 height={40}
