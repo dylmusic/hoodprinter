@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 512">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00e006"/>
+      <stop offset="1" stop-color="#009a04"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#0e2b17"/>
+      <stop offset="1" stop-color="#07130b"/>
+    </radialGradient>
+  </defs>
+
+  <!-- icon tile -->
+  <g>
+    <rect width="512" height="512" rx="104" fill="url(#glow)"/>
+    <rect x="6" y="6" width="500" height="500" rx="100" fill="none" stroke="#1d2b22" stroke-width="4"/>
+    <rect x="196" y="84" width="120" height="42" rx="5" fill="#c9f9d6"/>
+    <line x1="208" y1="98" x2="304" y2="98" stroke="#7fce97" stroke-width="4"/>
+    <line x1="208" y1="112" x2="304" y2="112" stroke="#7fce97" stroke-width="4"/>
+    <rect x="176" y="118" width="160" height="42" rx="12" fill="#046b21"/>
+    <rect x="106" y="146" width="300" height="160" rx="28" fill="url(#body)"/>
+    <rect x="106" y="146" width="300" height="40" rx="20" fill="#0fd414" opacity="0.55"/>
+    <circle cx="366" cy="192" r="10" fill="#c9f9d6"/>
+    <rect x="128" y="184" width="110" height="18" rx="9" fill="#04140a" opacity="0.35"/>
+    <rect x="128" y="214" width="70" height="18" rx="9" fill="#04140a" opacity="0.25"/>
+    <path d="M128,178 Q256,270 384,178" fill="none" stroke="#8a6a10" stroke-width="4" opacity="0.6"/>
+    <g fill="none" stroke="#f7c948" stroke-width="6">
+      <circle cx="128" cy="178" r="10"/>
+      <circle cx="153.6" cy="194.6" r="10"/>
+      <circle cx="179.2" cy="207.4" r="10"/>
+      <circle cx="204.8" cy="216.6" r="10"/>
+      <circle cx="230.4" cy="222.2" r="10"/>
+      <circle cx="256" cy="224" r="10"/>
+      <circle cx="281.6" cy="222.2" r="10"/>
+      <circle cx="307.2" cy="216.6" r="10"/>
+      <circle cx="332.8" cy="207.4" r="10"/>
+      <circle cx="358.4" cy="194.6" r="10"/>
+      <circle cx="384" cy="178" r="10"/>
+    </g>
+    <circle cx="256" cy="248" r="26" fill="#f7c948" stroke="#a87b12" stroke-width="4"/>
+    <circle cx="256" cy="248" r="19" fill="#ffe071"/>
+    <polygon points="256,234 269,250 256,257 243,250" fill="#0b4d1e"/>
+    <polygon points="243,254 256,261 269,254 256,266" fill="#177a34"/>
+    <rect x="132" y="288" width="248" height="20" rx="10" fill="#04140a"/>
+    <rect x="152" y="306" width="208" height="122" rx="12" fill="#dffbe5" stroke="#0b4d1e" stroke-width="4"/>
+    <rect x="164" y="318" width="184" height="98" rx="8" fill="none" stroke="#7fce97" stroke-width="3" stroke-dasharray="6 6"/>
+    <polygon points="256,326 284,366 256,381 228,366" fill="#0b4d1e"/>
+    <polygon points="228,372 256,388 284,372 256,410" fill="#177a34"/>
+    <circle cx="180" cy="334" r="5" fill="#7fce97"/>
+    <circle cx="332" cy="334" r="5" fill="#7fce97"/>
+    <circle cx="180" cy="400" r="5" fill="#7fce97"/>
+    <circle cx="332" cy="400" r="5" fill="#7fce97"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="576" y="286" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="800" font-size="150" letter-spacing="-3">
+    <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan>
+  </text>
+  <text x="580" y="368" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="600" font-size="52" letter-spacing="4" fill="#8fa898">
+    $PRINT · PRINTS ETH TO HOLDERS
+  </text>
+</svg>
