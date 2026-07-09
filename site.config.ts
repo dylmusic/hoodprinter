@@ -5,7 +5,7 @@
 
 export const PLACEHOLDER_CONTRACT_ADDRESS = "0xPLACEHOLDER_CONTRACT_ADDRESS";
 export const PLACEHOLDER_BUY_LINK = "https://PLACEHOLDER_BUY_LINK";
-export const PLACEHOLDER_TELEGRAM = "https://t.me/+hiSJrR0HDZxiNDAx";
+export const PLACEHOLDER_TELEGRAM = "https://t.me/HOODPrint";
 export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinter";
 
 export const siteConfig = {
