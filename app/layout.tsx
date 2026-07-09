@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/brand/og.png?v=2",
+        url: "/brand/og.png?v=3",
         width: 1200,
         height: 630,
         alt: `${siteConfig.name} — ${siteConfig.tagline}`,
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${siteConfig.name} (${siteConfig.symbol})`,
     description: siteConfig.tagline,
-    images: ["/brand/og.png?v=2"],
+    images: ["/brand/og.png?v=3"],
   },
 };
 

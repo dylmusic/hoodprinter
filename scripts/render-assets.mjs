@@ -36,7 +36,9 @@ async function renderComposite({ w, h, textSvg, iconSize, iconPos, out }) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${backdrop(w, h)}${textSvg}</svg>`
   );
   const icon = await iconPng(iconSize);
-  await sharp(bg, { density: 96 })
+  // no density option: render the SVG at its declared pixel size so the
+  // canvas is exactly w x h and composite positions line up
+  await sharp(bg)
     .composite([{ input: icon, left: iconPos.left, top: iconPos.top }])
     .png()
     .toFile(out);
