@@ -15,8 +15,15 @@
     <rect width="512" height="512" rx="104" fill="url(#glow)"/>
     <rect x="6" y="6" width="500" height="500" rx="100" fill="none" stroke="#1d2b22" stroke-width="4"/>
     <rect x="196" y="84" width="120" height="42" rx="5" fill="#c9f9d6"/>
-    <line x1="208" y1="98" x2="304" y2="98" stroke="#7fce97" stroke-width="4"/>
-    <line x1="208" y1="112" x2="304" y2="112" stroke="#7fce97" stroke-width="4"/>
+    <line x1="208" y1="107" x2="304" y2="107" stroke="#7fce97" stroke-width="3"/>
+    <line x1="208" y1="114" x2="304" y2="114" stroke="#7fce97" stroke-width="3"/>
+    <path d="M302,92 C308,64 326,44 350,36 C354,54 344,78 318,94 Z" fill="#f0b429"/>
+    <path d="M304,94 L350,36" fill="none" stroke="#b8860b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M320,74 L333,67 M312,84 L326,77" fill="none" stroke="#b8860b" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M198,88 C202,60 224,40 252,34 C290,38 316,62 320,88 Q258,98 198,88 Z" fill="#0d7f2c"/>
+    <path d="M252,34 C290,38 316,62 320,88 Q286,94 254,92 C248,72 248,52 252,34 Z" fill="#065c1e" opacity="0.85"/>
+    <path d="M252,36 C246,54 244,72 246,90" fill="none" stroke="#04401a" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <path d="M174,78 C180,94 212,102 256,102 C300,102 332,94 338,78 C346,92 322,112 256,112 C190,112 166,92 174,78 Z" fill="#05541c"/>
     <rect x="176" y="118" width="160" height="42" rx="12" fill="#046b21"/>
     <rect x="106" y="146" width="300" height="160" rx="28" fill="url(#body)"/>
     <rect x="106" y="146" width="300" height="40" rx="20" fill="#0fd414" opacity="0.55"/>

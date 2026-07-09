@@ -78,8 +78,18 @@ export default function MoneyPrinter() {
 
           {/* paper feed on top */}
           <rect x="148" y="58" width="104" height="34" rx="4" fill="#c9f9d6" />
-          <line x1="158" y1="68" x2="242" y2="68" stroke="#7fce97" strokeWidth="2" />
-          <line x1="158" y1="78" x2="242" y2="78" stroke="#7fce97" strokeWidth="2" />
+
+          {/* Robin Hood cap with feather (same paths as the brand icon, scaled) */}
+          <g transform="translate(-22.7,-15.1) scale(0.87)">
+            <path d="M302,92 C308,64 326,44 350,36 C354,54 344,78 318,94 Z" fill="#f0b429" />
+            <path d="M304,94 L350,36" fill="none" stroke="#b8860b" strokeWidth="3" strokeLinecap="round" />
+            <path d="M320,74 L333,67 M312,84 L326,77" fill="none" stroke="#b8860b" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M198,88 C202,60 224,40 252,34 C290,38 316,62 320,88 Q258,98 198,88 Z" fill="#0d7f2c" />
+            <path d="M252,34 C290,38 316,62 320,88 Q286,94 254,92 C248,72 248,52 252,34 Z" fill="#065c1e" opacity="0.85" />
+            <path d="M252,36 C246,54 244,72 246,90" fill="none" stroke="#04401a" strokeWidth="4" strokeLinecap="round" opacity="0.7" />
+            <path d="M174,78 C180,94 212,102 256,102 C300,102 332,94 338,78 C346,92 322,112 256,112 C190,112 166,92 174,78 Z" fill="#05541c" />
+          </g>
+
           <rect x="132" y="86" width="136" height="36" rx="10" fill="#046b21" />
 
           {/* main body */}
