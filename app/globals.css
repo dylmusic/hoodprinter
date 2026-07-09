@@ -136,6 +136,10 @@ a {
   padding: 9px 20px;
 }
 
+.nav-links .btn-primary {
+  color: #04140a;
+}
+
 /* ---------- hero ---------- */
 .hero {
   position: relative;
