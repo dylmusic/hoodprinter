@@ -23,6 +23,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: "@HOODPrinter",
     title: `${siteConfig.name} (${siteConfig.symbol})`,
     description: siteConfig.tagline,
     images: ["/brand/og.png?v=3"],
