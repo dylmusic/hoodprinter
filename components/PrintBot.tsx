@@ -112,6 +112,12 @@ export default function PrintBot() {
   const [startTok, setStartTok] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
+  // shared platform + personal counters (server-verified, all-time)
+  const [platBuys, setPlatBuys] = useState<number | null>(null);
+  const [platEth, setPlatEth] = useState<number | null>(null);
+  const [myBuys, setMyBuys] = useState<number | null>(null);
+  const [myEth, setMyEth] = useState<number | null>(null);
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const busyRef = useRef(false);
@@ -279,6 +285,30 @@ export default function PrintBot() {
     const id = setInterval(refreshBalances, 10000);
     return () => clearInterval(id);
   }, [refreshBalances]);
+
+  // Pull the shared platform totals (+ this wallet's, when we have one).
+  const refreshStats = useCallback(async () => {
+    try {
+      const q = burnerAddr ? `?wallet=${burnerAddr}` : "";
+      const res = await fetch(`/api/stats${q}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const s = await res.json();
+      setPlatBuys(typeof s.buys === "number" ? s.buys : 0);
+      setPlatEth(typeof s.eth === "number" ? s.eth : 0);
+      if (s.wallet) {
+        setMyBuys(s.wallet.buys ?? 0);
+        setMyEth(s.wallet.eth ?? 0);
+      }
+    } catch {
+      /* stats are best-effort */
+    }
+  }, [burnerAddr]);
+
+  useEffect(() => {
+    refreshStats();
+    const id = setInterval(refreshStats, 12000);
+    return () => clearInterval(id);
+  }, [refreshStats]);
 
   function loadPastedKey() {
     if (runningRef.current) return alert("Stop the loop before switching wallets.");
@@ -471,10 +501,26 @@ export default function PrintBot() {
     const rec = await tx.wait();
     if (rec && rec.status === 1) {
       addLog(`✅ Confirmed in block ${rec.blockNumber} — ${tx.hash}`, "ok");
-      return true;
+      return tx.hash as string;
     }
     addLog(`⚠️ Tx reverted — ${tx.hash}`, "err");
-    return false;
+    return null;
+  }
+
+  // Report a confirmed buy to the shared platform counters (fire-and-forget).
+  // The server re-verifies the tx on-chain, so a failed post just means it
+  // won't be counted — never blocks or breaks the buy loop.
+  async function reportBuy(wallet: string, txHash: string) {
+    try {
+      await fetch("/api/buy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wallet, txHash }),
+      });
+      refreshStats();
+    } catch {
+      /* stats are best-effort */
+    }
   }
 
   // ---- network ----
@@ -525,10 +571,11 @@ export default function PrintBot() {
       const amt = fmtAmount(Math.max(0, jitter(baseAmt, pct)));
       const provider = readProvider();
       const wallet = new ethers.Wallet(normalizeKey(pk), provider);
-      const ok = await sendBuy(wallet, provider, amt);
-      if (ok) {
+      const txHash = await sendBuy(wallet, provider, amt);
+      if (txHash) {
         setBuys((b) => b + 1);
         setEthSpent((e) => e + parseFloat(amt));
+        reportBuy(wallet.address, txHash);
       }
       refreshBalances();
     } catch (e: any) {
@@ -684,6 +731,36 @@ export default function PrintBot() {
 
   return (
     <div className="pb">
+      <section className="pb-stats" aria-label="Platform totals">
+        <div className="pb-stats-main">
+          <div className="pb-stat">
+            <div className="pb-stat-num">
+              {platBuys == null ? "—" : platBuys.toLocaleString("en-US")}
+            </div>
+            <div className="pb-stat-label">Total buys</div>
+          </div>
+          <div className="pb-stat-div" />
+          <div className="pb-stat">
+            <div className="pb-stat-num">
+              {platEth == null ? "—" : fmtBal(platEth)}{" "}
+              <span className="pb-stat-unit">ETH</span>
+            </div>
+            <div className="pb-stat-label">Total volume</div>
+          </div>
+        </div>
+        {burnerAddr && (myBuys != null || myEth != null) && (
+          <div className="pb-stats-you">
+            <span className="pb-you-tag">You</span>
+            <span>
+              <strong>{(myBuys ?? 0).toLocaleString("en-US")}</strong> buys
+            </span>
+            <span className="pb-you-dot">·</span>
+            <span>
+              <strong>{fmtBal(myEth ?? 0)}</strong> ETH volume
+            </span>
+          </div>
+        )}
+      </section>
       {running && (
         <section className="pb-monitor" ref={monitorRef}>
           <div className="pb-mon-top">
