@@ -282,6 +282,11 @@ export default function PrintBot() {
   // the LP pair for our known tokens (and clear a stale one otherwise) so WETH
   // resolves from the correct pool.
   function pickToken(ca: string) {
+    if (runningRef.current)
+      return showAlert(
+        "Stop buying before switching to a different token.",
+        "Buying is active"
+      );
     const knownPair = KNOWN_PAIRS[ca.trim().toLowerCase()] || "";
     setToken(ca);
     setPair(knownPair);
@@ -947,6 +952,7 @@ export default function PrintBot() {
                 className="pb-trend"
                 title={`${t.ca} — ${t.buys} buys`}
                 onClick={() => pickToken(t.ca)}
+                disabled={running}
               >
                 <span className="pb-trend-sym">{t.sym || shortAddr(t.ca)}</span>
                 <span className="pb-trend-vol">{fmtBal(t.eth)} Ξ</span>
@@ -1075,6 +1081,7 @@ export default function PrintBot() {
                   className="pb-recent pinned"
                   title={t.ca}
                   onClick={() => pickToken(t.ca)}
+                  disabled={running}
                 >
                   {t.sym}
                 </button>
@@ -1085,6 +1092,7 @@ export default function PrintBot() {
                   className="pb-recent"
                   title={r.ca}
                   onClick={() => pickToken(r.ca)}
+                  disabled={running}
                 >
                   {r.sym}
                 </button>
@@ -1095,6 +1103,7 @@ export default function PrintBot() {
                   className="pb-recent"
                   title={r.ca}
                   onClick={() => pickToken(r.ca)}
+                  disabled={running}
                 >
                   {r.sym}
                 </button>
@@ -1207,6 +1216,8 @@ export default function PrintBot() {
             onChange={(e) => setToken(e.target.value)}
             onBlur={() => saveSettings()}
             placeholder="0x… token contract address"
+            disabled={running}
+            title={running ? "Stop buying to change the token" : undefined}
           />
           <label>Uniswap V2 Router (Robinhood Chain)</label>
           <input

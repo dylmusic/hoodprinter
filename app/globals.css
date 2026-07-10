@@ -2148,6 +2148,19 @@ footer {
   background: rgba(0, 200, 5, 0.09);
 }
 
+.pb-trending .pb-trend:disabled,
+.pb-recents .pb-recent:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pb-trending .pb-trend:disabled:hover,
+.pb-recents .pb-recent:disabled:hover {
+  border-color: rgba(0, 200, 5, 0.3);
+  background: rgba(0, 200, 5, 0.04);
+  color: var(--muted);
+}
+
 .pb-trend-sym {
   font-size: 0.72rem;
   font-weight: 800;
