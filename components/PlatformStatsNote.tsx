@@ -6,10 +6,11 @@ import { useEffect, useState } from "react";
 // Self-fetches the CDN-cached platform totals; no wallet needed.
 function fmt(v: number | null): string {
   if (v == null) return "—";
+  if (v === 0) return "0";
   if (v >= 1000) return v.toLocaleString("en-US", { maximumFractionDigits: 2 });
   if (v >= 1) return v.toLocaleString("en-US", { maximumFractionDigits: 4 });
-  if (v === 0) return "0";
-  return v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  // Small balances (testing): show down to 0.00001 ETH.
+  return v.toFixed(5).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 export default function PlatformStatsNote() {
