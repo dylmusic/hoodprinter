@@ -78,6 +78,7 @@ export default function PrintBot() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const busyRef = useRef(false);
+  const monitorRef = useRef<HTMLDivElement>(null);
 
   const addLog = (msg: string, level: LogLevel = "info") =>
     setLog((l) =>
@@ -454,6 +455,10 @@ export default function PrintBot() {
     setEthSpent(0);
     setStartedAt(Date.now());
     setStartTok(tokBal != null ? parseFloat(tokBal) : 0);
+    // Bring the live monitor (top of the column) into view.
+    requestAnimationFrame(() =>
+      monitorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
     await doBuy(); // fire immediately
     scheduleNext();
   }
@@ -541,7 +546,7 @@ export default function PrintBot() {
       </div>
 
       {running && (
-        <section className="pb-monitor">
+        <section className="pb-monitor" ref={monitorRef}>
           <div className="pb-mon-top">
             <div className="pb-live">
               <span className="pb-live-dot" /> LIVE · BUYING
