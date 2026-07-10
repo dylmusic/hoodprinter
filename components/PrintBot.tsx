@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { siteConfig } from "@/site.config";
 
@@ -138,52 +138,41 @@ export default function PrintBot() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [running]);
 
-  // Poll the burner's live balances so the pill/panel stay current.
-  useEffect(() => {
+  // Fetch the burner's live ETH + token balances.
+  const refreshBalances = useCallback(async () => {
     if (!burnerAddr) {
       setEthBal(null);
       setTokBal(null);
       return;
     }
-    let alive = true;
-    const refresh = async () => {
-      try {
-        const provider = readProvider();
-        const eth = await provider.getBalance(burnerAddr);
-        if (alive) setEthBal(parseFloat(ethers.formatEther(eth)).toFixed(4));
-        if (!ethers.isAddress(token.trim())) {
-          if (alive) {
-            setTokBal(null);
-            setTokSym("TOKEN");
-          }
-          return;
-        }
-        try {
-          const erc = new ethers.Contract(token.trim(), ERC20_ABI, provider);
-          const [b, d, s] = await Promise.all([
-            erc.balanceOf(burnerAddr),
-            erc.decimals().catch(() => 18),
-            erc.symbol().catch(() => "TOKEN"),
-          ]);
-          if (alive) {
-            setTokBal(parseFloat(ethers.formatUnits(b, d)).toFixed(2));
-            setTokSym(s);
-          }
-        } catch {
-          /* token not live yet */
-        }
-      } catch {
-        /* rpc hiccup */
+    try {
+      const provider = readProvider();
+      const eth = await provider.getBalance(burnerAddr);
+      setEthBal(parseFloat(ethers.formatEther(eth)).toFixed(4));
+      if (!ethers.isAddress(token.trim())) {
+        setTokBal(null);
+        setTokSym("TOKEN");
+        return;
       }
-    };
-    refresh();
-    const id = setInterval(refresh, 20000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      const erc = new ethers.Contract(token.trim(), ERC20_ABI, provider);
+      const [b, d, s] = await Promise.all([
+        erc.balanceOf(burnerAddr),
+        erc.decimals().catch(() => 18),
+        erc.symbol().catch(() => "TOKEN"),
+      ]);
+      setTokBal(parseFloat(ethers.formatUnits(b, d)).toFixed(2));
+      setTokSym(s);
+    } catch {
+      /* rpc hiccup / token not live yet */
+    }
   }, [burnerAddr, token]);
+
+  // Poll every 10s so the wallet + monitor stay current.
+  useEffect(() => {
+    refreshBalances();
+    const id = setInterval(refreshBalances, 10000);
+    return () => clearInterval(id);
+  }, [refreshBalances]);
 
   function loadPastedKey() {
     if (runningRef.current) return alert("Stop the loop before switching wallets.");
@@ -422,6 +411,7 @@ export default function PrintBot() {
         setBuys((b) => b + 1);
         setEthSpent((e) => e + parseFloat(amt));
       }
+      refreshBalances();
     } catch (e: any) {
       addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
     } finally {
@@ -497,6 +487,7 @@ export default function PrintBot() {
       addLog(`Sent: ${tx.hash}`);
       await tx.wait();
       addLog("✅ ETH withdrawn", "ok");
+      refreshBalances();
     } catch (e: any) {
       addLog("ETH withdraw failed: " + (e.shortMessage || e.message || e), "err");
     }
@@ -521,6 +512,7 @@ export default function PrintBot() {
       addLog(`Sent: ${tx.hash}`);
       await tx.wait();
       addLog(`✅ ${sym} withdrawn (minus the token's transfer tax)`, "ok");
+      refreshBalances();
     } catch (e: any) {
       addLog("Token withdraw failed: " + (e.shortMessage || e.message || e), "err");
     }
