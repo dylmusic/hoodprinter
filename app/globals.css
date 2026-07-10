@@ -2051,6 +2051,87 @@ footer {
   opacity: 0.45;
 }
 
+/* ---------- print bot: rank / level-up bar ---------- */
+.pb-level {
+  margin: 10px 0 2px;
+}
+
+.pb-level-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.pb-level-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  text-shadow: 0 0 12px currentColor;
+}
+
+.pb-level-next {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-level-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 210, 90, 0.18);
+  overflow: hidden;
+}
+
+.pb-level-fill {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b8860b, #ffd24a 55%, #fff3b0);
+  box-shadow: 0 0 12px rgba(255, 200, 60, 0.75),
+    inset 0 0 6px rgba(255, 255, 255, 0.4);
+  transition: width 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* Moving sheen so the gold "shimmers" like a game XP bar. */
+.pb-level-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: pbShimmer 2.2s linear infinite;
+}
+
+@keyframes pbShimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-level-fill::after {
+    animation: none;
+  }
+}
+
 /* ---------- print bot: tile withdraw button ---------- */
 .pb-balrow > div {
   position: relative;

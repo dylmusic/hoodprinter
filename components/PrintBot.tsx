@@ -67,6 +67,17 @@ const PAIR_ABI = [
 
 // Which venue a token trades on. Resolved once when the loop starts.
 type Route = { kind: "v2" } | { kind: "v3"; fee: number };
+
+// Wallet ranks by all-time buy count — a little level-up game under My stats.
+type Tier = { name: string; at: number; emoji: string; color: string };
+const ROOKIE_TIER: Tier = { name: "Rookie", at: 0, emoji: "⚡", color: "#8b93a7" };
+const TIERS: Tier[] = [
+  { name: "Bronze", at: 100, emoji: "🥉", color: "#cd7f32" },
+  { name: "Silver", at: 1000, emoji: "🥈", color: "#cbd3dc" },
+  { name: "Gold", at: 10000, emoji: "🥇", color: "#ffd24a" },
+  { name: "Platinum", at: 100000, emoji: "🏆", color: "#6ad0ff" },
+  { name: "Diamond", at: 1000000, emoji: "💎", color: "#b9f2ff" },
+];
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function decimals() view returns (uint8)",
@@ -496,6 +507,23 @@ export default function PrintBot() {
   const gasPct =
     gasCostEth > 0 && buyNum > 0 ? (gasCostEth / buyNum) * 100 : 0;
   const showGasWarn = gasPct >= GAS_WARN_PCT;
+
+  // Rank the wallet by its all-time buy count — a little game to level up.
+  const myBuysN = myBuys ?? 0;
+  const reachedTier = TIERS.reduce(
+    (acc, t, i) => (myBuysN >= t.at ? i : acc),
+    -1
+  );
+  const currentTier =
+    reachedTier >= 0 ? TIERS[reachedTier] : ROOKIE_TIER;
+  const nextTier = TIERS[reachedTier + 1] ?? null;
+  const tierFloor = reachedTier >= 0 ? TIERS[reachedTier].at : 0;
+  const tierPct = nextTier
+    ? Math.min(
+        100,
+        ((myBuysN - tierFloor) / (nextTier.at - tierFloor)) * 100
+      )
+    : 100;
 
   function openGasWarning() {
     const pctRounded = Math.round(gasPct);
@@ -1422,6 +1450,41 @@ export default function PrintBot() {
               <span>
                 <strong>{fmtBal(myEth ?? 0)}</strong> ETH volume
               </span>
+            </div>
+
+            <div className="pb-level">
+              <div className="pb-level-top">
+                <span
+                  className="pb-level-badge"
+                  style={{
+                    color: currentTier.color,
+                    borderColor: currentTier.color,
+                  }}
+                >
+                  {currentTier.emoji} {currentTier.name}
+                </span>
+                <span className="pb-level-next">
+                  {nextTier ? (
+                    <>
+                      {myBuysN.toLocaleString("en-US")} /{" "}
+                      {nextTier.at.toLocaleString("en-US")} →{" "}
+                      <span style={{ color: nextTier.color }}>
+                        {nextTier.emoji} {nextTier.name}
+                      </span>
+                    </>
+                  ) : (
+                    <span style={{ color: currentTier.color }}>
+                      MAX RANK — Diamond 💎
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="pb-level-bar">
+                <div
+                  className="pb-level-fill"
+                  style={{ width: `${tierPct}%` }}
+                />
+              </div>
             </div>
 
             <label>Deposit address — send ETH here to fund</label>
