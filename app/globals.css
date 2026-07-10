@@ -1736,3 +1736,41 @@ footer {
   color: var(--green);
   border-color: var(--green);
 }
+
+/* ---------- print bot: recent tokens strip ---------- */
+.pb-recents {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+
+.pb-recents-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.pb-recent {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pb-recent:hover {
+  color: var(--green);
+  border-color: var(--green);
+}

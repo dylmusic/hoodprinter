@@ -42,7 +42,9 @@ const ERC20_ABI = [
 
 const PK_STORAGE_KEY = "hoodprint_burner_pk";
 const SETTINGS_STORAGE_KEY = "hoodprint_settings";
+const RECENTS_STORAGE_KEY = "hoodprint_recent_tokens";
 
+type RecentToken = { ca: string; sym: string };
 type LogLevel = "info" | "ok" | "err";
 
 // Balance formatter: comma-group big numbers, keep small amounts visible.
@@ -72,6 +74,7 @@ export default function PrintBot() {
   const [ethBal, setEthBal] = useState<string | null>(null);
   const [tokBal, setTokBal] = useState<string | null>(null);
   const [tokSym, setTokSym] = useState("TOKEN");
+  const [recents, setRecents] = useState<RecentToken[]>([]);
 
   const [mmAccount, setMmAccount] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -117,6 +120,12 @@ export default function PrintBot() {
       if (typeof s.withdrawTo === "string") setWithdrawTo(s.withdrawTo);
     } catch {
       /* no saved settings */
+    }
+    try {
+      const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "[]");
+      if (Array.isArray(r)) setRecents(r.slice(0, 4));
+    } catch {
+      /* no recents */
     }
     return () => {
       runningRef.current = false;
@@ -206,9 +215,11 @@ export default function PrintBot() {
       ]);
       setTokBal(ethers.formatUnits(b, d));
       setTokSym(s);
+      addRecent(token.trim(), s);
     } catch {
       /* rpc hiccup / token not live yet */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [burnerAddr, token]);
 
   // Poll every 10s so the wallet + monitor stay current.
@@ -229,6 +240,32 @@ export default function PrintBot() {
   }
 
   const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
+  // Remember a token so it's one tap to re-select later (max 4, newest first).
+  function addRecent(ca: string, sym?: string) {
+    const a = ca.trim();
+    if (!ethers.isAddress(a)) return;
+    const label = sym && sym !== "TOKEN" ? sym : shortAddr(a);
+    setRecents((prev) => {
+      if (
+        prev[0] &&
+        prev[0].ca.toLowerCase() === a.toLowerCase() &&
+        prev[0].sym === label
+      ) {
+        return prev; // already at front, no change
+      }
+      const next = [
+        { ca: a, sym: label },
+        ...prev.filter((x) => x.ca.toLowerCase() !== a.toLowerCase()),
+      ].slice(0, 4);
+      try {
+        localStorage.setItem(RECENTS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* storage blocked */
+      }
+      return next;
+    });
+  }
 
   function generateWallet() {
     if (runningRef.current)
@@ -686,6 +723,22 @@ export default function PrintBot() {
                 </button>
               </div>
             </div>
+
+            {recents.length > 0 && (
+              <div className="pb-recents">
+                <span className="pb-recents-label">Recent</span>
+                {recents.map((r) => (
+                  <button
+                    key={r.ca}
+                    className="pb-recent"
+                    title={r.ca}
+                    onClick={() => setToken(r.ca)}
+                  >
+                    {r.sym}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <label>Deposit address — send ETH here to fund</label>
             <div className="pb-addr">
