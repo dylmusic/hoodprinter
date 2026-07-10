@@ -75,6 +75,7 @@ export default function PrintBot() {
   const [tokBal, setTokBal] = useState<string | null>(null);
   const [tokSym, setTokSym] = useState("TOKEN");
   const [recents, setRecents] = useState<RecentToken[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(true);
 
   const [mmAccount, setMmAccount] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -111,6 +112,8 @@ export default function PrintBot() {
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
       if (typeof s.token === "string") setToken(s.token);
+      // Collapse trade settings if they've already configured a token.
+      if (typeof s.token === "string" && s.token.trim()) setSettingsOpen(false);
       if (typeof s.router === "string" && s.router) setRouter(s.router);
       if (typeof s.pair === "string") setPair(s.pair);
       if (typeof s.amount === "string" && s.amount) setAmount(s.amount);
@@ -618,12 +621,6 @@ export default function PrintBot() {
     }
   }
 
-  const canStart =
-    !!burnerAddr &&
-    ethers.isAddress(token.trim()) &&
-    parseFloat(amount || "0") > 0 &&
-    parseFloat(interval || "0") > 0 &&
-    parseFloat(ethBal || "0") > 0;
   const upMs = startedAt ? now - startedAt : 0;
   const countdown = Math.max(0, Math.ceil((nextAt - now) / 1000));
   const tokAcquired =
@@ -686,9 +683,8 @@ export default function PrintBot() {
         </section>
       )}
 
-      {/* Load wallet */}
+      {/* Single control panel */}
       <section className="pb-card">
-        <h2>Load wallet</h2>
         {burnerAddr ? (
           <div className="pb-wallet-live">
             <div className="pb-wl-top">
@@ -744,12 +740,6 @@ export default function PrintBot() {
                   </button>
                 ))}
               </div>
-            )}
-
-            {canStart && !running && (
-              <button className="pb-primary pb-bigstart" onClick={startLoop}>
-                Start buying {tokSym}
-              </button>
             )}
 
             <label>Deposit address — send ETH here to fund</label>
@@ -822,86 +812,90 @@ export default function PrintBot() {
             </button>
           </div>
         )}
-      </section>
 
-      {/* Trade settings */}
-      <section className="pb-card">
-        <h2>Trade settings</h2>
-        <label>Token to buy</label>
-        <input
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="0x… token contract address"
-        />
-        <label>Uniswap V2 Router (Robinhood Chain)</label>
-        <input value={router} onChange={(e) => setRouter(e.target.value)} />
-        <label>LP / Pair address (recommended — auto-detects WETH)</label>
-        <input
-          value={pair}
-          onChange={(e) => setPair(e.target.value)}
-          placeholder="0x… the token's WETH pair"
-        />
-        <div className="pb-row">
-          <div>
-            <label>Slippage %</label>
-            <input value={slippage} onChange={(e) => setSlippage(e.target.value)} />
+        <details
+          className="pb-sub pb-settings"
+          open={settingsOpen}
+          onToggle={(e) => setSettingsOpen(e.currentTarget.open)}
+        >
+          <summary>
+            Trade settings
+            {ethers.isAddress(token.trim()) ? ` · ${tokSym}` : ""}
+          </summary>
+          <label style={{ marginTop: 10 }}>Token to buy</label>
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="0x… token contract address"
+          />
+          <label>Uniswap V2 Router (Robinhood Chain)</label>
+          <input value={router} onChange={(e) => setRouter(e.target.value)} />
+          <label>LP / Pair address (recommended — auto-detects WETH)</label>
+          <input
+            value={pair}
+            onChange={(e) => setPair(e.target.value)}
+            placeholder="0x… the token's WETH pair"
+          />
+          <div className="pb-row">
+            <div>
+              <label>Slippage %</label>
+              <input
+                value={slippage}
+                onChange={(e) => setSlippage(e.target.value)}
+              />
+            </div>
+            <div>
+              <label>Base buy amount (ETH)</label>
+              <input value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
           </div>
-          <div>
-            <label>Base buy amount (ETH)</label>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <button className="pb-ghost" onClick={addOrSwitchNetwork}>
+            Add / switch MetaMask to {CHAIN.name}
+          </button>
+        </details>
+
+        <div className="pb-autobuy">
+          <div className="pb-row">
+            <div>
+              <label>Buy every (seconds)</label>
+              <input
+                value={interval}
+                onChange={(e) => setIntervalSecs(e.target.value)}
+              />
+            </div>
+            <div>
+              <label>Randomize ±% (time &amp; amount)</label>
+              <input
+                value={randomize}
+                onChange={(e) => setRandomize(e.target.value)}
+              />
+            </div>
           </div>
         </div>
-        <button className="pb-ghost" onClick={addOrSwitchNetwork}>
-          Add / switch MetaMask to {CHAIN.name}
-        </button>
-      </section>
 
-      <section className="pb-card">
-        <h2>Auto-buy loop</h2>
-        <p className="pb-hint">
-          Buys on a randomized timer with no popups, signed by your burner
-          wallet. Fund the wallet with ETH first.
-        </p>
-        <div className="pb-row">
-          <div>
-            <label>Buy every (seconds)</label>
-            <input
-              value={interval}
-              onChange={(e) => setIntervalSecs(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>Randomize ±% (time &amp; amount)</label>
-            <input
-              value={randomize}
-              onChange={(e) => setRandomize(e.target.value)}
-            />
-          </div>
-        </div>
-        <p className="pb-hint" style={{ marginTop: 12, marginBottom: 0 }}>
-          Each buy jitters both the delay and the ETH amount by up to ±
-          {parseFloat(randomize || "0") || 0}% — e.g. {interval || "60"}s and{" "}
-          {amount || "0"} ETH, each ±{randomize || "0"}%. Set 0 for fixed.
-        </p>
         <div className="pb-loopbtns" style={{ marginTop: 4 }}>
           {running ? (
-            <button className="pb-stop" onClick={stopLoop}>
+            <button className="pb-stop pb-bigstart" onClick={stopLoop}>
               Stop buying
             </button>
           ) : (
             <button
-              className="pb-primary"
+              className="pb-primary pb-bigstart"
               onClick={startLoop}
               disabled={!burnerAddr}
             >
-              {burnerAddr ? "Start buying" : "Generate a wallet first"}
+              {!burnerAddr
+                ? "Generate a wallet first"
+                : `Start buying${
+                    ethers.isAddress(token.trim()) ? " " + tokSym : ""
+                  }`}
             </button>
           )}
         </div>
         {!running && burnerAddr && (
           <p className="pb-hint" style={{ marginTop: 10, marginBottom: 0 }}>
-            Buying runs in this browser tab — you&rsquo;ll need to keep the
-            window open while it&rsquo;s active.
+            Buying runs in this browser tab — keep the window open while it&rsquo;s
+            active.
           </p>
         )}
       </section>

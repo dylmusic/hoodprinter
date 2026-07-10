@@ -1781,3 +1781,19 @@ footer {
   color: var(--green);
   border-color: var(--green);
 }
+
+/* ---------- print bot: merged control panel ---------- */
+.pb-settings {
+  margin-top: 16px;
+}
+
+.pb-settings > summary {
+  font-size: 0.9rem;
+  color: var(--green);
+}
+
+.pb-autobuy {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
