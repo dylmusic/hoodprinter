@@ -38,7 +38,7 @@ const V3_FEE_TIERS = [10000, 3000, 500, 100];
 // Rough gas a swap burns (real ~131k for V2; a bit more for V3/taxed) — used
 // only to warn when a buy is so small that fees eat a big share of it.
 const GAS_UNITS_ESTIMATE = 200000n;
-const GAS_WARN_PCT = 20; // warn when est. fees ≥ this % of the buy amount
+const GAS_WARN_PCT = 10; // warn when est. fees ≥ this % of the buy amount
 const ADDRESS_THIS = "0x0000000000000000000000000000000000000002"; // UR: keep in router
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -122,7 +122,7 @@ export default function PrintBot() {
   const [token, setToken] = useState<string>("");
   const [router, setRouter] = useState<string>(DEFAULT_ROUTER);
   const [pair, setPair] = useState("");
-  const [amount, setAmount] = useState("0.0001");
+  const [amount, setAmount] = useState("0.0002");
   const [interval, setIntervalSecs] = useState("3");
   const [randomize, setRandomize] = useState("50");
   const [slippage, setSlippage] = useState("2");
