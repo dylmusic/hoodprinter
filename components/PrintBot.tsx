@@ -1630,8 +1630,7 @@ export default function PrintBot() {
             <div className="pb-modal-icon">➕</div>
             <h3 className="pb-modal-title">Add a token</h3>
             <div className="pb-modal-body">
-              Paste any Robinhood Chain token&apos;s contract address. We&apos;ll
-              auto-detect the pool (V2 or V3) — no pair needed.
+              Paste any Robinhood Chain token&apos;s contract address.
             </div>
             <input
               className="pb-modal-input"
