@@ -1150,10 +1150,21 @@ export default function PrintBot() {
       const bal = await provider.getBalance(wallet.address);
       const fee = await provider.getFeeData();
       const gasPrice = fee.maxFeePerGas ?? fee.gasPrice ?? 0n;
-      const reserve = gasPrice * 21000n * 3n; // buffer for L2 data fee
-      if (bal <= reserve) return showAlert("ETH balance too low to cover gas.");
+      // Leave ~5x a plain transfer's gas so the withdrawal itself lands AND a
+      // little dust remains — never sweep the wallet fully dry.
+      const reserve = gasPrice * 21000n * 5n;
+      if (bal <= reserve)
+        return showAlert(
+          <>
+            Balance is <strong>{fmtBal(ethers.formatEther(bal))} ETH</strong> —
+            too low to cover the withdrawal&apos;s gas fee. Nothing was sent.
+          </>,
+          "Not enough to withdraw"
+        );
       const value = bal - reserve;
-      addLog(`Withdrawing ${ethers.formatEther(value)} ETH → ${dest}…`);
+      addLog(
+        `Withdrawing ${ethers.formatEther(value)} ETH → ${dest} (leaving ~${ethers.formatEther(reserve)} for gas)…`
+      );
       const tx = await wallet.sendTransaction({ to: dest, value });
       addLog(`Sent: ${tx.hash}`);
       await tx.wait();
