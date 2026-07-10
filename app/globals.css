@@ -1740,31 +1740,27 @@ footer {
 /* ---------- print bot: recent tokens strip ---------- */
 .pb-recents {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 12px;
-  flex-wrap: wrap;
-}
-
-.pb-recents-label {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--muted);
-  margin-right: 2px;
+  align-items: stretch;
+  gap: 5px;
+  margin: 0 0 10px;
 }
 
 .pb-recent {
-  padding: 1px 6px;
-  border-radius: 999px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 3px 4px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
   font-size: 0.55rem;
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1.4;
   cursor: pointer;
+  text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: color 0.15s, border-color 0.15s;
 }
 

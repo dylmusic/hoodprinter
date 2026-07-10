@@ -126,7 +126,7 @@ export default function PrintBot() {
     }
     try {
       const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "[]");
-      if (Array.isArray(r)) setRecents(r.slice(0, 4));
+      if (Array.isArray(r)) setRecents(r.slice(0, 5));
     } catch {
       /* no recents */
     }
@@ -260,7 +260,7 @@ export default function PrintBot() {
       const next = [
         { ca: a, sym: label },
         ...prev.filter((x) => x.ca.toLowerCase() !== a.toLowerCase()),
-      ].slice(0, 4);
+      ].slice(0, 5);
       try {
         localStorage.setItem(RECENTS_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -728,7 +728,6 @@ export default function PrintBot() {
 
             {recents.length > 0 && (
               <div className="pb-recents">
-                <span className="pb-recents-label">Recent</span>
                 {recents.map((r) => (
                   <button
                     key={r.ca}
@@ -845,19 +844,11 @@ export default function PrintBot() {
             onChange={(e) => setPair(e.target.value)}
             placeholder="0x… the token's WETH pair"
           />
-          <div className="pb-row">
-            <div>
-              <label>Slippage %</label>
-              <input
-                value={slippage}
-                onChange={(e) => setSlippage(e.target.value)}
-              />
-            </div>
-            <div>
-              <label>Base buy amount (ETH)</label>
-              <input value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </div>
-          </div>
+          <label>Slippage %</label>
+          <input
+            value={slippage}
+            onChange={(e) => setSlippage(e.target.value)}
+          />
           <button className="pb-ghost" onClick={addOrSwitchNetwork}>
             Add / switch MetaMask to {CHAIN.name}
           </button>
@@ -866,14 +857,18 @@ export default function PrintBot() {
         <div className="pb-autobuy">
           <div className="pb-row">
             <div>
-              <label>Buy every (seconds)</label>
+              <label>Buy amount (ETH)</label>
+              <input value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <div>
+              <label>Buy every (s)</label>
               <input
                 value={interval}
                 onChange={(e) => setIntervalSecs(e.target.value)}
               />
             </div>
             <div>
-              <label>Randomize ±% (time &amp; amount)</label>
+              <label>Randomize ±%</label>
               <input
                 value={randomize}
                 onChange={(e) => setRandomize(e.target.value)}
