@@ -104,6 +104,22 @@ export default function PrintBot() {
     []
   );
 
+  // Transaction feed — the actual buys, each linkable to the block explorer.
+  type TxRow = {
+    hash: string;
+    nonce: number;
+    amt: string;
+    status: "pending" | "ok" | "fail";
+    t: string;
+  };
+  const [txs, setTxs] = useState<TxRow[]>([]);
+  const addTx = (row: TxRow) =>
+    setTxs((prev) => [row, ...prev].slice(0, 25));
+  const setTxStatus = (hash: string, status: "ok" | "fail") =>
+    setTxs((prev) =>
+      prev.map((r) => (r.hash === hash ? { ...r, status } : r))
+    );
+
   // live monitor
   const [buys, setBuys] = useState(0);
   const [ethSpent, setEthSpent] = useState(0);
@@ -603,21 +619,26 @@ export default function PrintBot() {
 
     try {
       const tx = await sendBuyNoWait(wallet, provider, amt, myNonce);
-      addLog(`Sent #${myNonce} · ${amt} ETH — ${tx.hash}`, "info");
+      addTx({
+        hash: tx.hash,
+        nonce: myNonce,
+        amt,
+        status: "pending",
+        t: new Date().toLocaleTimeString(),
+      });
       // Confirm + count in the background; don't block the next send.
       tx.wait()
         .then((rec) => {
           if (rec && rec.status === 1) {
             setBuys((b) => b + 1);
             setEthSpent((e) => e + parseFloat(amt));
+            setTxStatus(tx.hash, "ok");
             reportBuy(wallet.address, tx.hash);
           } else {
-            addLog(`Reverted #${myNonce} — ${tx.hash}`, "err");
+            setTxStatus(tx.hash, "fail");
           }
         })
-        .catch((e: any) =>
-          addLog(`Tx #${myNonce} dropped: ${e.shortMessage || e.message || e}`, "err")
-        );
+        .catch(() => setTxStatus(tx.hash, "fail"));
     } catch (e: any) {
       addLog(`Send #${myNonce} failed: ${e.shortMessage || e.message || e}`, "err");
       // A failed broadcast leaves a nonce gap that would stall later txs —
@@ -683,6 +704,7 @@ export default function PrintBot() {
     setRunning(true);
     setBuys(0);
     setEthSpent(0);
+    setTxs([]);
     setStartedAt(Date.now());
     setStartTok(tokBal != null ? parseFloat(tokBal) : 0);
     // Scroll all the way to the top of the page.
@@ -1150,14 +1172,30 @@ export default function PrintBot() {
       </section>
 
       <section className="pb-card">
-        <h2>Activity</h2>
-        <div className="pb-log">
-          {log.length === 0 && <div className="pb-log-empty">No activity yet.</div>}
-          {log.map((l, i) => (
-            <div key={i} className={`pb-log-line ${l.level}`}>
-              <span className="pb-log-t">{l.t}</span>
-              <span>{l.msg}</span>
+        <h2>Transactions</h2>
+        <div className="pb-txs">
+          {txs.length === 0 && (
+            <div className="pb-log-empty">
+              No transactions yet — start buying to see them land here.
             </div>
+          )}
+          {txs.map((tx) => (
+            <a
+              key={tx.hash}
+              className={`pb-tx ${tx.status}`}
+              href={`${CHAIN.explorer}/tx/${tx.hash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`nonce ${tx.nonce} · ${tx.status}`}
+            >
+              <span className="pb-tx-status" />
+              <span className="pb-tx-amt">{tx.amt} ETH</span>
+              <span className="pb-tx-hash">
+                {tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}
+              </span>
+              <span className="pb-tx-t">{tx.t}</span>
+              <span className="pb-tx-arrow">↗</span>
+            </a>
           ))}
         </div>
       </section>

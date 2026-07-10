@@ -1070,6 +1070,15 @@ footer {
   margin-bottom: 26px;
 }
 
+.pb-logo {
+  display: block;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  margin: 0 auto 12px;
+  border-radius: 10px;
+}
+
 .pb-head h1 {
   font-size: 2rem;
   font-weight: 800;
@@ -1209,26 +1218,101 @@ footer {
 
 .pb-log-empty {
   color: var(--muted);
+  font-size: 0.85rem;
+  padding: 6px 0;
 }
 
-.pb-log-line {
+/* ---------- print bot: transaction feed ---------- */
+.pb-txs {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.pb-tx {
   display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 3px 0;
+  padding: 8px 4px;
   border-bottom: 1px solid rgba(29, 43, 34, 0.5);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background 0.12s;
 }
 
-.pb-log-t {
+.pb-tx:hover {
+  background: rgba(0, 200, 5, 0.05);
+}
+
+.pb-tx-status {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d0a72a;
+  box-shadow: 0 0 8px rgba(255, 190, 40, 0.7);
+}
+
+.pb-tx.pending .pb-tx-status {
+  animation: pbBlink 1s ease-in-out infinite;
+}
+
+.pb-tx.ok .pb-tx-status {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+  animation: none;
+}
+
+.pb-tx.fail .pb-tx-status {
+  background: #ff5c5c;
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes pbBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pb-tx-amt {
+  flex: 0 0 auto;
+  font-weight: 700;
+  min-width: 76px;
+}
+
+.pb-tx-hash {
+  flex: 1 1 auto;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pb-tx-t {
+  flex: 0 0 auto;
   color: #5f7266;
-  flex-shrink: 0;
+  font-size: 0.72rem;
 }
 
-.pb-log-line.ok span:last-child {
-  color: var(--green);
+.pb-tx-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
 }
 
-.pb-log-line.err span:last-child {
-  color: #ff7a7a;
+.pb-tx.fail .pb-tx-amt {
+  color: #ff9a9a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-tx.pending .pb-tx-status {
+    animation: none;
+  }
 }
 
 /* ---------- print bot: burner wallet ---------- */

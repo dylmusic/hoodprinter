@@ -17,6 +17,8 @@ export default function PrintPage() {
   return (
     <main className="pb-page">
       <div className="pb-head">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="pb-logo" src="/logo.png" alt="HOOD Printer" />
         <h1>
           Robinhood Chain <span className="green">Buy Bot</span>
         </h1>
