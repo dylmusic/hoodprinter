@@ -768,12 +768,6 @@ export default function PrintBot() {
         <span>
           <strong>{platEth == null ? "—" : fmtBal(platEth)}</strong> ETH volume
         </span>
-        {burnerAddr && (myBuys != null || myEth != null) && (
-          <span className="pb-stats-you">
-            (you: {(myBuys ?? 0).toLocaleString("en-US")} · {fmtBal(myEth ?? 0)}{" "}
-            ETH)
-          </span>
-        )}
       </div>
       {running && (
         <section className="pb-monitor" ref={monitorRef}>
@@ -929,6 +923,17 @@ export default function PrintBot() {
                 Start buying {tokSym}
               </button>
             )}
+
+            <div className="pb-mystats">
+              <span className="pb-mystats-label">My stats</span>
+              <span>
+                <strong>{(myBuys ?? 0).toLocaleString("en-US")}</strong> buys
+              </span>
+              <span className="pb-mystats-sep">·</span>
+              <span>
+                <strong>{fmtBal(myEth ?? 0)}</strong> ETH volume
+              </span>
+            </div>
 
             <label>Deposit address — send ETH here to fund</label>
             <div className="pb-addr">

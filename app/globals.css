@@ -1741,9 +1741,36 @@ footer {
   opacity: 0.45;
 }
 
-.pb-stats-you {
-  opacity: 0.7;
-  font-size: 0.75rem;
+/* Personal totals — a compact line inside the wallet, above the deposit addr. */
+.pb-mystats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.pb-mystats strong {
+  color: #fff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-mystats-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--green);
+  border: 1px solid rgba(0, 200, 5, 0.4);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.pb-mystats-sep {
+  opacity: 0.45;
 }
 
 /* ---------- print bot: tile withdraw button ---------- */
