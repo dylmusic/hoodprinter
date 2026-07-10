@@ -50,6 +50,23 @@ const RECENTS_STORAGE_KEY = "hoodprint_recent_tokens";
 type RecentToken = { ca: string; sym: string };
 type LogLevel = "info" | "ok" | "err";
 
+// Pinned tokens — always shown first in the quick-select row, never removable.
+const CASHCAT_TOKEN = ""; // TODO: real CASHCAT contract address
+const PINNED_TOKENS: RecentToken[] = [
+  { ca: PRINT_TOKEN, sym: "PRINT" },
+  { ca: CASHCAT_TOKEN, sym: "CASHCAT" },
+];
+// Seed recents (positions 3+) until the user selects their own tokens.
+const DEFAULT_RECENTS: RecentToken[] = [
+  { ca: "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", sym: "ARROW" },
+  { ca: "0x8e62f281f282686fca6dcb39288069a93fc23f1c", sym: "HOODRAT" },
+  { ca: "0xd7321801caae694090694ff55a9323139f043b88", sym: "JUGGERNAUT" },
+];
+const RECENTS_CAP = 3; // keeps pinned + recents to a single row of 5
+const PINNED_ADDRS = PINNED_TOKENS.filter((t) => t.ca).map((t) =>
+  t.ca.toLowerCase()
+);
+
 // Balance formatter: comma-group big numbers, keep small amounts visible.
 function fmtBal(v: string | number | null): string {
   if (v == null) return "0";
@@ -130,10 +147,23 @@ export default function PrintBot() {
       /* no saved settings */
     }
     try {
-      const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "[]");
-      if (Array.isArray(r)) setRecents(r.slice(0, 5));
+      const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "null");
+      if (Array.isArray(r) && r.length) {
+        setRecents(
+          r
+            .filter(
+              (x) =>
+                x &&
+                typeof x.ca === "string" &&
+                !PINNED_ADDRS.includes(x.ca.toLowerCase())
+            )
+            .slice(0, RECENTS_CAP)
+        );
+      } else {
+        setRecents(DEFAULT_RECENTS);
+      }
     } catch {
-      /* no recents */
+      setRecents(DEFAULT_RECENTS);
     }
     return () => {
       runningRef.current = false;
@@ -258,10 +288,12 @@ export default function PrintBot() {
 
   const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-  // Remember a token so it's one tap to re-select later (max 4, newest first).
+  // Remember a token in the recents row (newest first). Pinned tokens are
+  // handled separately and never enter recents.
   function addRecent(ca: string, sym?: string) {
     const a = ca.trim();
     if (!ethers.isAddress(a)) return;
+    if (PINNED_ADDRS.includes(a.toLowerCase())) return;
     const label = sym && sym !== "TOKEN" ? sym : shortAddr(a);
     setRecents((prev) => {
       if (
@@ -274,7 +306,7 @@ export default function PrintBot() {
       const next = [
         { ca: a, sym: label },
         ...prev.filter((x) => x.ca.toLowerCase() !== a.toLowerCase()),
-      ].slice(0, 5);
+      ].slice(0, RECENTS_CAP);
       try {
         localStorage.setItem(RECENTS_STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -765,20 +797,28 @@ export default function PrintBot() {
               </div>
             </div>
 
-            {recents.length > 0 && (
-              <div className="pb-recents">
-                {recents.map((r) => (
-                  <button
-                    key={r.ca}
-                    className="pb-recent"
-                    title={r.ca}
-                    onClick={() => setToken(r.ca)}
-                  >
-                    {r.sym}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="pb-recents">
+              {PINNED_TOKENS.filter((t) => ethers.isAddress(t.ca)).map((t) => (
+                <button
+                  key={t.ca}
+                  className="pb-recent pinned"
+                  title={t.ca}
+                  onClick={() => setToken(t.ca)}
+                >
+                  {t.sym}
+                </button>
+              ))}
+              {recents.map((r) => (
+                <button
+                  key={r.ca}
+                  className="pb-recent"
+                  title={r.ca}
+                  onClick={() => setToken(r.ca)}
+                >
+                  {r.sym}
+                </button>
+              ))}
+            </div>
 
             {canStart && !running && (
               <button

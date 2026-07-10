@@ -1740,28 +1740,34 @@ footer {
 /* ---------- print bot: recent tokens strip ---------- */
 .pb-recents {
   display: flex;
-  align-items: stretch;
-  gap: 5px;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 10px;
+  flex-wrap: wrap;
 }
 
 .pb-recent {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 3px 4px;
-  border-radius: 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
-  font-size: 0.55rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 1;
   cursor: pointer;
-  text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transition: color 0.15s, border-color 0.15s;
+}
+
+.pb-recent.pinned {
+  color: var(--text);
+  border-color: rgba(0, 200, 5, 0.35);
+}
+
+.pb-recent:hover {
+  color: var(--green);
+  border-color: var(--green);
 }
 
 .pb-bigstart {
@@ -1769,11 +1775,6 @@ footer {
   margin: 4px 0 6px;
   padding: 14px;
   font-size: 1rem;
-}
-
-.pb-recent:hover {
-  color: var(--green);
-  border-color: var(--green);
 }
 
 /* ---------- print bot: merged control panel ---------- */
