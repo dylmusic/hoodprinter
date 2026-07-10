@@ -168,7 +168,7 @@ export default function PrintBot() {
     };
   }, []);
 
-  function saveSettings() {
+  function saveSettings(overrides?: Partial<Record<string, string>>) {
     try {
       const s: Record<string, string> = {
         token,
@@ -179,11 +179,18 @@ export default function PrintBot() {
         randomize,
         slippage,
         withdrawTo,
+        ...overrides,
       };
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s));
     } catch {
       /* storage blocked */
     }
+  }
+
+  // Select a token and persist it immediately so a reload keeps it.
+  function pickToken(ca: string) {
+    setToken(ca);
+    saveSettings({ token: ca });
   }
 
   // Keep the derived deposit address + local backup in sync with the key.
@@ -796,7 +803,7 @@ export default function PrintBot() {
                   key={t.ca}
                   className="pb-recent pinned"
                   title={t.ca}
-                  onClick={() => setToken(t.ca)}
+                  onClick={() => pickToken(t.ca)}
                 >
                   {t.sym}
                 </button>
@@ -806,7 +813,7 @@ export default function PrintBot() {
                   key={r.ca}
                   className="pb-recent"
                   title={r.ca}
-                  onClick={() => setToken(r.ca)}
+                  onClick={() => pickToken(r.ca)}
                 >
                   {r.sym}
                 </button>
@@ -816,7 +823,7 @@ export default function PrintBot() {
                   key={r.ca}
                   className="pb-recent"
                   title={r.ca}
-                  onClick={() => setToken(r.ca)}
+                  onClick={() => pickToken(r.ca)}
                 >
                   {r.sym}
                 </button>
@@ -916,20 +923,27 @@ export default function PrintBot() {
           <input
             value={token}
             onChange={(e) => setToken(e.target.value)}
+            onBlur={saveSettings}
             placeholder="0x… token contract address"
           />
           <label>Uniswap V2 Router (Robinhood Chain)</label>
-          <input value={router} onChange={(e) => setRouter(e.target.value)} />
+          <input
+            value={router}
+            onChange={(e) => setRouter(e.target.value)}
+            onBlur={saveSettings}
+          />
           <label>LP / Pair address (recommended — auto-detects WETH)</label>
           <input
             value={pair}
             onChange={(e) => setPair(e.target.value)}
+            onBlur={saveSettings}
             placeholder="0x… the token's WETH pair"
           />
           <label>Slippage %</label>
           <input
             value={slippage}
             onChange={(e) => setSlippage(e.target.value)}
+            onBlur={saveSettings}
           />
           <button className="pb-ghost" onClick={addOrSwitchNetwork}>
             Add / switch MetaMask to {CHAIN.name}
@@ -940,13 +954,18 @@ export default function PrintBot() {
           <div className="pb-row">
             <div>
               <label>Buy amount (ETH)</label>
-              <input value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <input
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onBlur={saveSettings}
+              />
             </div>
             <div>
               <label>Buy every (s)</label>
               <input
                 value={interval}
                 onChange={(e) => setIntervalSecs(e.target.value)}
+                onBlur={saveSettings}
               />
             </div>
             <div>
@@ -954,6 +973,7 @@ export default function PrintBot() {
               <input
                 value={randomize}
                 onChange={(e) => setRandomize(e.target.value)}
+                onBlur={saveSettings}
               />
             </div>
           </div>
