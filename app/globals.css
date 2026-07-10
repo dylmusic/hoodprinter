@@ -2174,6 +2174,29 @@ footer {
   font-variant-numeric: tabular-nums;
 }
 
+/* Gas warning shown under the buy amount when fees eat a big share of it. */
+.pb-autobuy .pb-gaswarn {
+  display: inline-block;
+  width: auto;
+  margin: 6px 0 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 92, 92, 0.5);
+  background: rgba(255, 92, 92, 0.1);
+  color: #ff7a7a;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  animation: pbBlink 1.4s ease-in-out infinite;
+}
+
+.pb-autobuy .pb-gaswarn:hover {
+  background: rgba(255, 92, 92, 0.18);
+  border-color: #ff5c5c;
+  animation: none;
+}
+
 .pb-bigstart {
   width: 100%;
   margin: 4px 0 6px;

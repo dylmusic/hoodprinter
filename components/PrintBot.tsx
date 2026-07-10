@@ -35,6 +35,10 @@ const V2_FACTORY = "0x8bceaa40b9acdfaedf85adf4ff01f5ad6517937f";
 const V3_FACTORY = "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA";
 const UNIVERSAL_ROUTER = "0x8876789976dEcBfCbBbe364623C63652db8C0904";
 const V3_FEE_TIERS = [10000, 3000, 500, 100];
+// Rough gas a swap burns (real ~131k for V2; a bit more for V3/taxed) — used
+// only to warn when a buy is so small that fees eat a big share of it.
+const GAS_UNITS_ESTIMATE = 200000n;
+const GAS_WARN_PCT = 20; // warn when est. fees ≥ this % of the buy amount
 const ADDRESS_THIS = "0x0000000000000000000000000000000000000002"; // UR: keep in router
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -215,6 +219,9 @@ export default function PrintBot() {
   const [trending, setTrending] = useState<
     { ca: string; sym: string | null; buys: number; eth: number }[]
   >([]);
+
+  // live gas price (wei) for the "buy too low" warning
+  const [gasPriceWei, setGasPriceWei] = useState<bigint | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
@@ -444,6 +451,58 @@ export default function PrintBot() {
       clearInterval(id);
     };
   }, []);
+
+  // Keep a live gas price so we can warn on tiny buys.
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const fd = await readProvider().getFeeData();
+        if (alive && fd.gasPrice) setGasPriceWei(fd.gasPrice);
+      } catch {
+        /* best-effort */
+      }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Estimated gas cost (ETH) and its share of the current buy amount.
+  const gasCostEth = gasPriceWei
+    ? Number(GAS_UNITS_ESTIMATE * gasPriceWei) / 1e18
+    : 0;
+  const buyNum = parseFloat(amount || "0");
+  const gasPct =
+    gasCostEth > 0 && buyNum > 0 ? (gasCostEth / buyNum) * 100 : 0;
+  const showGasWarn = gasPct >= GAS_WARN_PCT;
+
+  function openGasWarning() {
+    const pctRounded = Math.round(gasPct);
+    showAlert(
+      gasPct >= 100 ? (
+        <>
+          At <strong>{amount} ETH</strong> per buy, estimated gas (~
+          {gasCostEth.toFixed(6)} ETH) costs <strong>more than the buy
+          itself</strong>. Raise your buy amount so most of your spend actually
+          buys tokens.
+        </>
+      ) : (
+        <>
+          Buy amount very low — about{" "}
+          <strong>{pctRounded}% of each spend goes to gas fees</strong> (~
+          {gasCostEth.toFixed(6)} ETH per buy at current network rates). Raise
+          the buy amount to keep more of it buying tokens.
+        </>
+      ),
+      "Gas warning",
+      "⛽"
+    );
+  }
 
   function loadPastedKey() {
     if (runningRef.current) return showAlert("Stop the loop before switching wallets.");
@@ -1427,6 +1486,16 @@ export default function PrintBot() {
                 onChange={(e) => setAmount(e.target.value)}
                 onBlur={() => saveSettings()}
               />
+              {showGasWarn && (
+                <button
+                  type="button"
+                  className="pb-gaswarn"
+                  onClick={openGasWarning}
+                  title="Estimated fees are a large share of this buy"
+                >
+                  ⛽ Gas warning
+                </button>
+              )}
             </div>
             <div>
               <label>Buy every (s)</label>
