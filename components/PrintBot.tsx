@@ -1485,6 +1485,10 @@ export default function PrintBot() {
                   style={{ width: `${tierPct}%` }}
                 />
               </div>
+              <div className="pb-level-note">
+                Level up to earn rewards.{" "}
+                <span className="pb-level-soon">Coming soon.</span>
+              </div>
             </div>
 
             <label>Deposit address — send ETH here to fund</label>
