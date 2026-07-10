@@ -748,10 +748,8 @@ export default function PrintBot() {
                 </button>
                 {showHelp && (
                   <div className="pb-help-pop">
-                    Just holding <strong>$PRINT</strong> pays you{" "}
-                    <strong>ETH rewards</strong> straight to this wallet,
-                    automatically. This bot then spends that ETH to auto-buy any
-                    token you choose — including more $PRINT.
+                    Hold <strong>$PRINT</strong> here and use the ETH rewards to
+                    auto-buy any token. You can even buy more $PRINT.
                   </div>
                 )}
               </div>
