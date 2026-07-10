@@ -37,7 +37,10 @@ const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
+  "function transfer(address to, uint256 amount) returns (bool)",
 ];
+
+const PK_STORAGE_KEY = "hoodprint_burner_pk";
 
 type LogLevel = "info" | "ok" | "err";
 
@@ -50,6 +53,9 @@ export default function PrintBot() {
   const [randomize, setRandomize] = useState("30");
   const [slippage, setSlippage] = useState("20");
   const [pk, setPk] = useState("");
+  const [burnerAddr, setBurnerAddr] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [withdrawTo, setWithdrawTo] = useState("");
 
   const [mmAccount, setMmAccount] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -66,12 +72,95 @@ export default function PrintBot() {
       [{ t: new Date().toLocaleTimeString(), msg, level }, ...l].slice(0, 200)
     );
 
+  // Restore a previously generated burner from this device.
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PK_STORAGE_KEY);
+      if (saved) setPk(saved);
+    } catch {
+      /* storage blocked */
+    }
     return () => {
       runningRef.current = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  // Keep the derived deposit address + local backup in sync with the key.
+  useEffect(() => {
+    const addr = deriveAddr(pk);
+    setBurnerAddr(addr);
+    try {
+      if (addr) localStorage.setItem(PK_STORAGE_KEY, normalizeKey(pk));
+    } catch {
+      /* storage blocked */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pk]);
+
+  function deriveAddr(k: string): string | null {
+    const t = k.trim();
+    if (!t) return null;
+    try {
+      return new ethers.Wallet(normalizeKey(t)).address;
+    } catch {
+      return null;
+    }
+  }
+
+  function generateWallet() {
+    if (runningRef.current)
+      return alert("Stop the loop before switching wallets.");
+    if (
+      pk.trim() &&
+      !confirm(
+        "This replaces the current burner wallet. Make sure you've withdrawn its funds and backed up its key. Continue?"
+      )
+    )
+      return;
+    const w = ethers.Wallet.createRandom();
+    setShowKey(false);
+    setPk(w.privateKey);
+    addLog(`New burner wallet generated: ${w.address}`, "ok");
+  }
+
+  function forgetWallet() {
+    if (runningRef.current)
+      return alert("Stop the loop before forgetting the wallet.");
+    if (
+      !confirm(
+        "Forget this wallet and clear its key from this device? Withdraw any funds first — this cannot be undone."
+      )
+    )
+      return;
+    try {
+      localStorage.removeItem(PK_STORAGE_KEY);
+    } catch {
+      /* noop */
+    }
+    setPk("");
+    setShowKey(false);
+    addLog("Burner wallet cleared from this device", "info");
+  }
+
+  function copy(text: string, label: string) {
+    navigator.clipboard?.writeText(text).then(() => addLog(`${label} copied`));
+  }
+
+  function downloadKey() {
+    if (!pk.trim() || !burnerAddr) return;
+    const body = `HOODPrinter burner wallet\nAddress: ${burnerAddr}\nPrivate key: ${normalizeKey(
+      pk
+    )}\nChain: ${CHAIN.name} (${CHAIN.chainIdDec})\nSaved: ${new Date().toISOString()}\n`;
+    const url = URL.createObjectURL(
+      new Blob([body], { type: "text/plain" })
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hoodprinter-burner-${burnerAddr.slice(0, 8)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // ---- helpers ----
   // Uniformly jitter a base value by ±pct%. pct=0 returns the base unchanged.
@@ -288,6 +377,54 @@ export default function PrintBot() {
     addLog("Loop stopped", "info");
   }
 
+  // ---- withdraw (sweep the burner) ----
+  async function withdrawEth() {
+    const dest = withdrawTo.trim();
+    if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
+    if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
+    try {
+      const provider = readProvider();
+      const wallet = new ethers.Wallet(normalizeKey(pk), provider);
+      const bal = await provider.getBalance(wallet.address);
+      const fee = await provider.getFeeData();
+      const gasPrice = fee.maxFeePerGas ?? fee.gasPrice ?? 0n;
+      const reserve = gasPrice * 21000n * 3n; // buffer for L2 data fee
+      if (bal <= reserve) return alert("ETH balance too low to cover gas.");
+      const value = bal - reserve;
+      addLog(`Withdrawing ${ethers.formatEther(value)} ETH → ${dest}…`);
+      const tx = await wallet.sendTransaction({ to: dest, value });
+      addLog(`Sent: ${tx.hash}`);
+      await tx.wait();
+      addLog("✅ ETH withdrawn", "ok");
+    } catch (e: any) {
+      addLog("ETH withdraw failed: " + (e.shortMessage || e.message || e), "err");
+    }
+  }
+
+  async function withdrawToken() {
+    const dest = withdrawTo.trim();
+    if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
+    if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
+    try {
+      const provider = readProvider();
+      const wallet = new ethers.Wallet(normalizeKey(pk), provider);
+      const erc = new ethers.Contract(token.trim(), ERC20_ABI, wallet);
+      const [bal, dec, sym] = await Promise.all([
+        erc.balanceOf(wallet.address),
+        erc.decimals().catch(() => 18),
+        erc.symbol().catch(() => "TOKEN"),
+      ]);
+      if (bal === 0n) return alert("No token balance to withdraw.");
+      addLog(`Withdrawing ${ethers.formatUnits(bal, dec)} ${sym} → ${dest}…`);
+      const tx = await erc.transfer(dest, bal);
+      addLog(`Sent: ${tx.hash}`);
+      await tx.wait();
+      addLog(`✅ ${sym} withdrawn (minus the token's transfer tax)`, "ok");
+    } catch (e: any) {
+      addLog("Token withdraw failed: " + (e.shortMessage || e.message || e), "err");
+    }
+  }
+
   async function checkBalances() {
     try {
       const provider = readProvider();
@@ -381,12 +518,57 @@ export default function PrintBot() {
       </section>
 
       <section className="pb-card">
-        <h2>2b · Auto loop (burner private key)</h2>
+        <h2>2b · Burner wallet + auto loop</h2>
         <p className="pb-hint">
-          Signs and fires a buy on a randomized timer with no popups. Requires a
-          throwaway key funded with ETH on {CHAIN.name}.
+          Generate a throwaway wallet right here, send it ETH, and it buys on a
+          randomized timer with no popups. The key is created in your browser
+          and saved only on this device — back it up before funding.
         </p>
-        <label>Burner private key</label>
+
+        <button className="pb-primary" onClick={generateWallet}>
+          {burnerAddr ? "Generate a new burner wallet" : "Generate burner wallet"}
+        </button>
+
+        {burnerAddr && (
+          <div className="pb-wallet">
+            <label>Deposit ETH to this address</label>
+            <div className="pb-addr">
+              <code>{burnerAddr}</code>
+              <button
+                className="pb-mini"
+                onClick={() => copy(burnerAddr, "Address")}
+              >
+                Copy
+              </button>
+            </div>
+
+            <label>Private key (back this up)</label>
+            <div className="pb-addr">
+              <code>{showKey ? normalizeKey(pk) : "•".repeat(40)}</code>
+              <button className="pb-mini" onClick={() => setShowKey((s) => !s)}>
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </div>
+            <div className="pb-walletbtns">
+              <button
+                className="pb-mini"
+                onClick={() => copy(normalizeKey(pk), "Private key")}
+              >
+                Copy key
+              </button>
+              <button className="pb-mini" onClick={downloadKey}>
+                Download backup
+              </button>
+              <button className="pb-mini danger" onClick={forgetWallet}>
+                Forget wallet
+              </button>
+            </div>
+          </div>
+        )}
+
+        <label style={{ marginTop: 16 }}>
+          …or paste an existing burner key
+        </label>
         <input
           type="password"
           value={pk}
@@ -394,7 +576,8 @@ export default function PrintBot() {
           placeholder="0x…"
           autoComplete="off"
         />
-        <div className="pb-row">
+
+        <div className="pb-row" style={{ marginTop: 4 }}>
           <div>
             <label>Buy every (seconds)</label>
             <input
@@ -426,6 +609,29 @@ export default function PrintBot() {
               Start loop
             </button>
           )}
+        </div>
+      </section>
+
+      <section className="pb-card">
+        <h2>3 · Withdraw</h2>
+        <p className="pb-hint">
+          Sweep the burner back to your main wallet. ETH sends the full balance
+          minus gas; $PRINT sends the whole token balance (the token&rsquo;s 5%
+          transfer tax still applies).
+        </p>
+        <label>Destination address</label>
+        <input
+          value={withdrawTo}
+          onChange={(e) => setWithdrawTo(e.target.value)}
+          placeholder="0x… your main wallet"
+        />
+        <div className="pb-row" style={{ marginTop: 12 }}>
+          <button className="pb-ghost" onClick={withdrawEth} style={{ marginTop: 0 }}>
+            Send all ETH
+          </button>
+          <button className="pb-ghost" onClick={withdrawToken} style={{ marginTop: 0 }}>
+            Send all $PRINT
+          </button>
         </div>
       </section>
 

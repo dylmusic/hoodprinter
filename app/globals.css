@@ -1230,3 +1230,61 @@ footer {
 .pb-log-line.err span:last-child {
   color: #ff7a7a;
 }
+
+/* ---------- print bot: burner wallet ---------- */
+.pb-wallet {
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.pb-addr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.pb-addr code {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--mint);
+  word-break: break-all;
+}
+
+.pb-mini {
+  margin: 0 !important;
+  width: auto !important;
+  padding: 6px 12px !important;
+  font-size: 0.75rem !important;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border) !important;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pb-mini:hover {
+  color: var(--green);
+  border-color: var(--green) !important;
+}
+
+.pb-mini.danger:hover {
+  color: #ff7a7a;
+  border-color: #ff7a7a !important;
+}
+
+.pb-walletbtns {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
