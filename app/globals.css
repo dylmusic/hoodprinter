@@ -1501,3 +1501,86 @@ footer {
 .pb-collapse details[open] summary::before {
   content: "▾ ";
 }
+
+/* ---------- print bot: inline wallet card (step 1) ---------- */
+.pb-wallet-live {
+  display: flex;
+  flex-direction: column;
+}
+
+.pb-wl-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 200, 5, 0.12),
+    rgba(0, 200, 5, 0.03)
+  );
+  border: 1px solid rgba(0, 200, 5, 0.35);
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
+.pb-wl-id {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.pb-wl-id code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pb-wl-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  flex-shrink: 0;
+}
+
+.pb-sub {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.pb-sub summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+  list-style: none;
+}
+
+.pb-sub summary::-webkit-details-marker {
+  display: none;
+}
+
+.pb-sub summary::before {
+  content: "▸ ";
+  color: var(--green);
+}
+
+.pb-sub[open] summary::before {
+  content: "▾ ";
+}
+
+.pb-wallet-empty .pb-primary,
+.pb-wallet-empty .pb-ghost {
+  width: 100%;
+}

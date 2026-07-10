@@ -5,10 +5,10 @@ import { ethers } from "ethers";
 import { siteConfig } from "@/site.config";
 
 /**
- * Private $PRINT buy bot for Robinhood Chain (Uniswap V2).
- * Unlisted tool — not linked anywhere, noindex. Two modes:
+ * Generic buy bot for any token on Robinhood Chain (Uniswap V2).
+ * Two modes:
+ *  - Burner wallet: an in-browser key signs an unattended randomized buy loop.
  *  - MetaMask: one-click manual buys, no key exposure (confirm each tx in MM).
- *  - Local key: burner private key signs an unattended interval buy loop.
  * The key never leaves the browser; txs go straight to the Robinhood Chain RPC.
  */
 
@@ -45,7 +45,7 @@ const PK_STORAGE_KEY = "hoodprint_burner_pk";
 type LogLevel = "info" | "ok" | "err";
 
 export default function PrintBot() {
-  const [token, setToken] = useState<string>(siteConfig.contractAddress);
+  const [token, setToken] = useState<string>("");
   const [router, setRouter] = useState<string>(DEFAULT_ROUTER);
   const [pair, setPair] = useState("");
   const [amount, setAmount] = useState("0.01");
@@ -57,10 +57,9 @@ export default function PrintBot() {
   const [showKey, setShowKey] = useState(false);
   const [withdrawTo, setWithdrawTo] = useState("");
   const [pastedKey, setPastedKey] = useState("");
-  const [walletOpen, setWalletOpen] = useState(false);
   const [ethBal, setEthBal] = useState<string | null>(null);
   const [tokBal, setTokBal] = useState<string | null>(null);
-  const [tokSym, setTokSym] = useState("PRINT");
+  const [tokSym, setTokSym] = useState("TOKEN");
 
   const [mmAccount, setMmAccount] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -126,12 +125,19 @@ export default function PrintBot() {
         const provider = readProvider();
         const eth = await provider.getBalance(burnerAddr);
         if (alive) setEthBal(parseFloat(ethers.formatEther(eth)).toFixed(4));
+        if (!ethers.isAddress(token.trim())) {
+          if (alive) {
+            setTokBal(null);
+            setTokSym("TOKEN");
+          }
+          return;
+        }
         try {
           const erc = new ethers.Contract(token.trim(), ERC20_ABI, provider);
           const [b, d, s] = await Promise.all([
             erc.balanceOf(burnerAddr),
             erc.decimals().catch(() => 18),
-            erc.symbol().catch(() => "PRINT"),
+            erc.symbol().catch(() => "TOKEN"),
           ]);
           if (alive) {
             setTokBal(parseFloat(ethers.formatUnits(b, d)).toFixed(2));
@@ -178,7 +184,6 @@ export default function PrintBot() {
     const w = ethers.Wallet.createRandom();
     setShowKey(false);
     setPk(w.privateKey);
-    setWalletOpen(true);
     addLog(`New burner wallet generated: ${w.address}`, "ok");
   }
 
@@ -239,7 +244,7 @@ export default function PrintBot() {
   }
 
   async function resolveWeth(provider: ethers.Provider): Promise<string> {
-    // Prefer deriving from the actual LP pair (the non-$PRINT side).
+    // Prefer deriving from the actual LP pair (the non-token side).
     if (pair.trim()) {
       const p = new ethers.Contract(pair.trim(), PAIR_ABI, provider);
       const [t0, t1] = await Promise.all([p.token0(), p.token1()]);
@@ -407,7 +412,9 @@ export default function PrintBot() {
 
   async function startLoop() {
     if (runningRef.current) return;
-    if (!pk.trim()) return alert("Enter the burner private key first.");
+    if (!pk.trim()) return alert("Load a wallet first (step 1).");
+    if (!ethers.isAddress(token.trim()))
+      return alert("Enter a valid token address in Trade settings.");
     let addr = "";
     try {
       addr = new ethers.Wallet(normalizeKey(pk)).address;
@@ -485,183 +492,150 @@ export default function PrintBot() {
 
   return (
     <div className="pb">
-      {/* ---- fixed top-right wallet widget ---- */}
-      <div className="pb-wallet-widget">
-        <button
-          className={`pb-wallet-pill ${burnerAddr ? "connected" : "empty"}`}
-          onClick={() => setWalletOpen((o) => !o)}
-        >
-          {burnerAddr ? (
-            <>
-              <span className="pb-dot" />
-              <span className="pb-pill-addr">{shortAddr(burnerAddr)}</span>
-              <span className="pb-pill-bal">
-                {ethBal ?? "…"} ETH
-              </span>
-            </>
-          ) : (
-            <>＋ Generate Wallet</>
-          )}
-        </button>
-
-        {walletOpen && (
-          <>
-            <div
-              className="pb-wallet-backdrop"
-              onClick={() => setWalletOpen(false)}
-            />
-            <div className="pb-wallet-panel">
-              {burnerAddr ? (
-                <>
-                  <div className="pb-panel-head">
-                    <span>Burner wallet</span>
-                    <span className="pb-net">{CHAIN.name}</span>
-                  </div>
-
-                  <div className="pb-balrow">
-                    <div>
-                      <div className="pb-balnum">{ethBal ?? "…"}</div>
-                      <div className="pb-ballabel">ETH</div>
-                    </div>
-                    <div>
-                      <div className="pb-balnum">{tokBal ?? "0.00"}</div>
-                      <div className="pb-ballabel">{tokSym}</div>
-                    </div>
-                  </div>
-
-                  <label>Deposit address</label>
-                  <div className="pb-addr">
-                    <code>{burnerAddr}</code>
-                    <button
-                      className="pb-mini"
-                      onClick={() => copy(burnerAddr, "Address")}
-                    >
-                      Copy
-                    </button>
-                  </div>
-
-                  <label>Private key</label>
-                  <div className="pb-addr">
-                    <code>{showKey ? normalizeKey(pk) : "•".repeat(30)}</code>
-                    <button
-                      className="pb-mini"
-                      onClick={() => setShowKey((s) => !s)}
-                    >
-                      {showKey ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                  <div className="pb-walletbtns">
-                    <button
-                      className="pb-mini"
-                      onClick={() => copy(normalizeKey(pk), "Private key")}
-                    >
-                      Copy key
-                    </button>
-                    <button className="pb-mini" onClick={downloadKey}>
-                      Backup
-                    </button>
-                  </div>
-
-                  <div className="pb-panel-divider" />
-
-                  <label>Withdraw to</label>
-                  <input
-                    value={withdrawTo}
-                    onChange={(e) => setWithdrawTo(e.target.value)}
-                    placeholder="0x… your main wallet"
-                  />
-                  <div className="pb-row" style={{ marginTop: 10 }}>
-                    <button
-                      className="pb-ghost"
-                      onClick={withdrawEth}
-                      style={{ marginTop: 0 }}
-                    >
-                      Send all ETH
-                    </button>
-                    <button
-                      className="pb-ghost"
-                      onClick={withdrawToken}
-                      style={{ marginTop: 0 }}
-                    >
-                      Send all {tokSym}
-                    </button>
-                  </div>
-
-                  <div className="pb-panel-divider" />
-                  <div className="pb-walletbtns">
-                    <button className="pb-mini" onClick={generateWallet}>
-                      New wallet
-                    </button>
-                    <button className="pb-mini danger" onClick={forgetWallet}>
-                      Forget
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="pb-panel-head">
-                    <span>Set up a burner</span>
-                    <span className="pb-net">{CHAIN.name}</span>
-                  </div>
-                  <p className="pb-hint">
-                    Generate a throwaway wallet in your browser, then deposit
-                    ETH to it. The key is created locally and saved only on this
-                    device — back it up before funding.
-                  </p>
-                  <button
-                    className="pb-primary"
-                    onClick={generateWallet}
-                    style={{ marginTop: 4 }}
-                  >
-                    Generate new wallet
-                  </button>
-                  <div className="pb-or">or load an existing key</div>
-                  <input
-                    type="password"
-                    value={pastedKey}
-                    onChange={(e) => setPastedKey(e.target.value)}
-                    placeholder="0x…"
-                    autoComplete="off"
-                  />
-                  <button
-                    className="pb-ghost"
-                    onClick={loadPastedKey}
-                    style={{ marginTop: 8 }}
-                  >
-                    Load wallet
-                  </button>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
       <div className="pb-warn">
-        ⚠️ <strong>Unlisted tool.</strong> Burner wallets only. The key is
-        generated and stored in this browser and used solely to sign
-        transactions sent straight to the {CHAIN.name} RPC — never uploaded.
+        ⚠️ Burner wallets only. The key is generated and stored in this browser
+        and used solely to sign transactions sent straight to the {CHAIN.name}{" "}
+        RPC — never uploaded.
       </div>
 
-      {!burnerAddr && (
-        <div className="pb-gate">
-          Start by generating or loading a wallet from the
-          <strong> Generate Wallet</strong> button in the top-right corner, then
-          fund it with ETH.
-        </div>
-      )}
-
+      {/* 1 · Load wallet */}
       <section className="pb-card">
-        <h2>1 · Trade settings</h2>
-        <label>Token ($PRINT)</label>
-        <input value={token} onChange={(e) => setToken(e.target.value)} />
+        <h2>1 · Load wallet</h2>
+        {burnerAddr ? (
+          <div className="pb-wallet-live">
+            <div className="pb-wl-top">
+              <div className="pb-wl-id">
+                <span className="pb-dot" />
+                <code>{shortAddr(burnerAddr)}</code>
+                <span className="pb-net">{CHAIN.name}</span>
+              </div>
+              <div className="pb-wl-actions">
+                <button className="pb-mini" onClick={generateWallet}>
+                  New
+                </button>
+                <button className="pb-mini danger" onClick={forgetWallet}>
+                  Forget
+                </button>
+              </div>
+            </div>
+
+            <div className="pb-balrow">
+              <div>
+                <div className="pb-balnum">{ethBal ?? "…"}</div>
+                <div className="pb-ballabel">ETH</div>
+              </div>
+              <div>
+                <div className="pb-balnum">{tokBal ?? "0.00"}</div>
+                <div className="pb-ballabel">{tokSym}</div>
+              </div>
+            </div>
+
+            <label>Deposit address — send ETH here to fund</label>
+            <div className="pb-addr">
+              <code>{burnerAddr}</code>
+              <button
+                className="pb-mini"
+                onClick={() => copy(burnerAddr, "Address")}
+              >
+                Copy
+              </button>
+            </div>
+
+            <details className="pb-sub">
+              <summary>Back up private key</summary>
+              <div className="pb-addr" style={{ marginTop: 10 }}>
+                <code>{showKey ? normalizeKey(pk) : "•".repeat(30)}</code>
+                <button
+                  className="pb-mini"
+                  onClick={() => setShowKey((s) => !s)}
+                >
+                  {showKey ? "Hide" : "Show"}
+                </button>
+              </div>
+              <div className="pb-walletbtns">
+                <button
+                  className="pb-mini"
+                  onClick={() => copy(normalizeKey(pk), "Private key")}
+                >
+                  Copy key
+                </button>
+                <button className="pb-mini" onClick={downloadKey}>
+                  Download backup
+                </button>
+              </div>
+            </details>
+
+            <details className="pb-sub">
+              <summary>Withdraw funds</summary>
+              <label style={{ marginTop: 10 }}>Destination address</label>
+              <input
+                value={withdrawTo}
+                onChange={(e) => setWithdrawTo(e.target.value)}
+                placeholder="0x… your main wallet"
+              />
+              <div className="pb-row" style={{ marginTop: 10 }}>
+                <button
+                  className="pb-ghost"
+                  onClick={withdrawEth}
+                  style={{ marginTop: 0 }}
+                >
+                  Send all ETH
+                </button>
+                <button
+                  className="pb-ghost"
+                  onClick={withdrawToken}
+                  style={{ marginTop: 0 }}
+                >
+                  Send all {tokSym}
+                </button>
+              </div>
+            </details>
+          </div>
+        ) : (
+          <div className="pb-wallet-empty">
+            <p className="pb-hint">
+              Generate a throwaway wallet in your browser, then deposit ETH to
+              it. The key is created locally and saved only on this device —
+              back it up before funding.
+            </p>
+            <button className="pb-primary" onClick={generateWallet}>
+              Generate new wallet
+            </button>
+            <div className="pb-or">or load an existing key</div>
+            <input
+              type="password"
+              value={pastedKey}
+              onChange={(e) => setPastedKey(e.target.value)}
+              placeholder="0x…"
+              autoComplete="off"
+            />
+            <button
+              className="pb-ghost"
+              onClick={loadPastedKey}
+              style={{ marginTop: 8 }}
+            >
+              Load wallet
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* 2 · Trade settings */}
+      <section className="pb-card">
+        <h2>2 · Trade settings</h2>
+        <label>Token to buy</label>
+        <input
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="0x… token contract address"
+        />
         <label>Uniswap V2 Router (Robinhood Chain)</label>
         <input value={router} onChange={(e) => setRouter(e.target.value)} />
         <label>LP / Pair address (recommended — auto-detects WETH)</label>
         <input
           value={pair}
           onChange={(e) => setPair(e.target.value)}
-          placeholder="0x… paste the $PRINT/WETH pair once you have it"
+          placeholder="0x… the token's WETH pair"
         />
         <div className="pb-row">
           <div>
@@ -679,7 +653,7 @@ export default function PrintBot() {
       </section>
 
       <section className="pb-card">
-        <h2>2 · Auto-buy loop</h2>
+        <h2>3 · Auto-buy loop</h2>
         <p className="pb-hint">
           Buys on a randomized timer with no popups, signed by your burner
           wallet. Fund the wallet with ETH first.

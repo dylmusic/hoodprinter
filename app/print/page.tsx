@@ -17,9 +17,9 @@ export default function PrintPage() {
     <main className="pb-page">
       <div className="pb-head">
         <h1>
-          $PRINT <span className="green">Buy Bot</span>
+          Robinhood Chain <span className="green">Buy Bot</span>
         </h1>
-        <p>Robinhood Chain · Uniswap V2</p>
+        <p>Auto-buy any token · Uniswap V2</p>
       </div>
       <PrintBot />
     </main>
