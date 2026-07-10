@@ -117,6 +117,11 @@ export default function PrintBot() {
   const [myBuys, setMyBuys] = useState<number | null>(null);
   const [myEth, setMyEth] = useState<number | null>(null);
 
+  // trending tokens — top by platform ETH volume
+  const [trending, setTrending] = useState<
+    { ca: string; sym: string | null; buys: number; eth: number }[]
+  >([]);
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const busyRef = useRef(false);
@@ -309,6 +314,27 @@ export default function PrintBot() {
     const id = setInterval(refreshStats, 45000);
     return () => clearInterval(id);
   }, [refreshStats]);
+
+  // Trending tokens — CDN-cached leaderboard, cheap to poll.
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/stats?top=8");
+        if (!res.ok) return;
+        const s = await res.json();
+        if (alive && Array.isArray(s.top)) setTrending(s.top);
+      } catch {
+        /* best-effort */
+      }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
 
   function loadPastedKey() {
     if (runningRef.current) return alert("Stop the loop before switching wallets.");
@@ -731,6 +757,24 @@ export default function PrintBot() {
 
   return (
     <div className="pb">
+      {trending.length > 0 && (
+        <div className="pb-trending">
+          <span className="pb-trending-label">🔥 Trending</span>
+          <div className="pb-trend-row">
+            {trending.map((t) => (
+              <button
+                key={t.ca}
+                className="pb-trend"
+                title={`${t.ca} — ${t.buys} buys`}
+                onClick={() => pickToken(t.ca)}
+              >
+                <span className="pb-trend-sym">{t.sym || shortAddr(t.ca)}</span>
+                <span className="pb-trend-vol">{fmtBal(t.eth)} Ξ</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {running && (
         <section className="pb-monitor" ref={monitorRef}>
           <div className="pb-mon-top">

@@ -1756,6 +1756,34 @@ footer {
   background: rgba(0, 200, 5, 0.3);
 }
 
+/* Gold flash when a number ticks up — replayed via a changing React key. */
+.pb-hstat-num.pb-pulse {
+  animation: pbGoldPulse 0.75s ease-out;
+}
+
+@keyframes pbGoldPulse {
+  0% {
+    color: #ffcf3a;
+    text-shadow: 0 0 24px rgba(255, 190, 40, 0.95), 0 0 6px rgba(255, 210, 90, 0.9);
+    transform: scale(1.18);
+  }
+  35% {
+    color: #ffdf7a;
+    text-shadow: 0 0 20px rgba(255, 190, 40, 0.7);
+  }
+  100% {
+    color: var(--green);
+    text-shadow: 0 0 16px var(--green-glow);
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-hstat-num.pb-pulse {
+    animation: none;
+  }
+}
+
 /* Personal totals — a compact line inside the wallet, above the deposit addr. */
 .pb-mystats {
   display: flex;
@@ -1854,6 +1882,71 @@ footer {
 .pb-recents .pb-recent:hover {
   color: var(--green);
   border-color: var(--green);
+}
+
+/* ---------- print bot: trending tokens row ---------- */
+.pb-trending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.pb-trending-label {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.pb-trend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pb-trend-row::-webkit-scrollbar {
+  display: none;
+}
+
+.pb-trending .pb-trend {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 200, 5, 0.3);
+  background: rgba(0, 200, 5, 0.04);
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.pb-trending .pb-trend:hover {
+  border-color: var(--green);
+  background: rgba(0, 200, 5, 0.09);
+}
+
+.pb-trend-sym {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.pb-trend-vol {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
 }
 
 .pb-bigstart {
