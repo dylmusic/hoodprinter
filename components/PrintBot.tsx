@@ -24,6 +24,9 @@ const CHAIN = {
 // Uniswap V2 on Robinhood Chain (verified against developers.uniswap.org, Jul 2026)
 const DEFAULT_ROUTER = "0x89e5db8b5aa49aa85ac63f691524311aeb649eba";
 
+// $PRINT — always shown; holding it drips ETH rewards to the wallet.
+const PRINT_TOKEN = siteConfig.contractAddress;
+
 const ROUTER_ABI = [
   "function WETH() view returns (address)",
   "function getAmountsOut(uint amountIn, address[] path) view returns (uint[] amounts)",
@@ -74,6 +77,8 @@ export default function PrintBot() {
   const [ethBal, setEthBal] = useState<string | null>(null);
   const [tokBal, setTokBal] = useState<string | null>(null);
   const [tokSym, setTokSym] = useState("TOKEN");
+  const [printBal, setPrintBal] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [recents, setRecents] = useState<RecentToken[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(true);
 
@@ -199,12 +204,21 @@ export default function PrintBot() {
     if (!burnerAddr) {
       setEthBal(null);
       setTokBal(null);
+      setPrintBal(null);
       return;
     }
     try {
       const provider = readProvider();
       const eth = await provider.getBalance(burnerAddr);
       setEthBal(ethers.formatEther(eth));
+      // $PRINT balance (always shown)
+      try {
+        const printErc = new ethers.Contract(PRINT_TOKEN, ERC20_ABI, provider);
+        const pb = await printErc.balanceOf(burnerAddr);
+        setPrintBal(ethers.formatUnits(pb, 18));
+      } catch {
+        setPrintBal(null);
+      }
       if (!ethers.isAddress(token.trim())) {
         setTokBal(null);
         setTokSym("TOKEN");
@@ -559,7 +573,7 @@ export default function PrintBot() {
 
   // ---- withdraw (sweep the burner) ----
   // One-tap withdraw from a balance tile: use the saved destination, or ask.
-  async function quickWithdraw(kind: "eth" | "tok") {
+  async function quickWithdraw(kind: "eth" | "tok", tokenAddr?: string) {
     let dest = withdrawTo.trim();
     if (!ethers.isAddress(dest)) {
       dest = (window.prompt("Withdraw to which address?", withdrawTo) || "").trim();
@@ -569,7 +583,7 @@ export default function PrintBot() {
       saveSettings();
     }
     if (kind === "eth") await withdrawEth(dest);
-    else await withdrawToken(dest);
+    else await withdrawToken(dest, tokenAddr);
   }
 
   async function withdrawEth(to?: string) {
@@ -596,14 +610,16 @@ export default function PrintBot() {
     }
   }
 
-  async function withdrawToken(to?: string) {
+  async function withdrawToken(to?: string, tokenAddr?: string) {
     const dest = (to ?? withdrawTo).trim();
     if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
     if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
+    const ca = (tokenAddr || token).trim();
+    if (!ethers.isAddress(ca)) return alert("No valid token to withdraw.");
     try {
       const provider = readProvider();
       const wallet = new ethers.Wallet(normalizeKey(pk), provider);
-      const erc = new ethers.Contract(token.trim(), ERC20_ABI, wallet);
+      const erc = new ethers.Contract(ca, ERC20_ABI, wallet);
       const [bal, dec, sym] = await Promise.all([
         erc.balanceOf(wallet.address),
         erc.decimals().catch(() => 18),
@@ -713,6 +729,31 @@ export default function PrintBot() {
                 >
                   Withdraw
                 </button>
+              </div>
+              <div className="pb-print-tile">
+                <button
+                  className="pb-help"
+                  onClick={() => setShowHelp((s) => !s)}
+                  aria-label="What is $PRINT?"
+                >
+                  ?
+                </button>
+                <div className="pb-balnum">{printBal == null ? "…" : fmtBal(printBal)}</div>
+                <div className="pb-ballabel">$PRINT</div>
+                <button
+                  className="pb-tile-wd"
+                  onClick={() => quickWithdraw("tok", PRINT_TOKEN)}
+                >
+                  Withdraw
+                </button>
+                {showHelp && (
+                  <div className="pb-help-pop">
+                    Just holding <strong>$PRINT</strong> pays you{" "}
+                    <strong>ETH rewards</strong> straight to this wallet,
+                    automatically. This bot then spends that ETH to auto-buy any
+                    token you choose — including more $PRINT.
+                  </div>
+                )}
               </div>
               <div>
                 <div className="pb-balnum">{tokBal == null ? "0" : fmtBal(tokBal)}</div>

@@ -20,6 +20,10 @@ export default function PrintPage() {
           Robinhood Chain <span className="green">Buy Bot</span>
         </h1>
         <p>Auto-buy any token · Uniswap V2</p>
+        <p className="pb-tagline">
+          Hold <span className="green">$PRINT</span> to automatically buy any
+          token with your ETH rewards.
+        </p>
       </div>
       <PrintBot />
     </main>

@@ -1796,3 +1796,63 @@ footer {
 .pb-quickstart {
   margin-top: 4px;
 }
+
+/* ---------- print bot: $PRINT tile + tagline + help ---------- */
+.pb-tagline {
+  margin-top: 8px;
+  font-size: 0.92rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.pb-tagline .green {
+  color: var(--green);
+}
+
+.pb-print-tile {
+  border-color: rgba(0, 200, 5, 0.35) !important;
+}
+
+.pb-help {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pb-help:hover {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.pb-help-pop {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  margin-top: 8px;
+  width: min(260px, 82vw);
+  background: var(--bg-elev);
+  border: 1px solid rgba(0, 200, 5, 0.3);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+}
