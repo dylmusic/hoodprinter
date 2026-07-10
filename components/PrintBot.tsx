@@ -82,9 +82,9 @@ export default function PrintBot() {
   const [token, setToken] = useState<string>("");
   const [router, setRouter] = useState<string>(DEFAULT_ROUTER);
   const [pair, setPair] = useState("");
-  const [amount, setAmount] = useState("0.01");
-  const [interval, setIntervalSecs] = useState("60");
-  const [randomize, setRandomize] = useState("30");
+  const [amount, setAmount] = useState("0.0001");
+  const [interval, setIntervalSecs] = useState("3");
+  const [randomize, setRandomize] = useState("50");
   const [slippage, setSlippage] = useState("2");
   const [pk, setPk] = useState("");
   const [burnerAddr, setBurnerAddr] = useState<string | null>(null);
@@ -99,7 +99,6 @@ export default function PrintBot() {
   const [recents, setRecents] = useState<RecentToken[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(true);
 
-  const [mmAccount, setMmAccount] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<{ t: string; msg: string; level: LogLevel }[]>(
     []
@@ -483,37 +482,6 @@ export default function PrintBot() {
       }
     }
     addLog(`Wallet set to ${CHAIN.name}`, "ok");
-  }
-
-  // ---- MetaMask mode ----
-  async function connectMetaMask() {
-    try {
-      const eth = (window as any).ethereum;
-      if (!eth) return alert("No wallet found. Install MetaMask.");
-      await eth.request({ method: "eth_requestAccounts" });
-      await addOrSwitchNetwork();
-      const provider = new ethers.BrowserProvider(eth);
-      const signer = await provider.getSigner();
-      setMmAccount(await signer.getAddress());
-      addLog("MetaMask connected", "ok");
-    } catch (e: any) {
-      addLog("Connect failed: " + (e.message || e), "err");
-    }
-  }
-
-  async function buyOnceMetaMask() {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    try {
-      const eth = (window as any).ethereum;
-      const provider = new ethers.BrowserProvider(eth);
-      const signer = await provider.getSigner();
-      await sendBuy(signer, provider, amount.trim());
-    } catch (e: any) {
-      addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
-    } finally {
-      busyRef.current = false;
-    }
   }
 
   // ---- private-key loop (randomized delay + amount) ----
@@ -1000,32 +968,6 @@ export default function PrintBot() {
             active.
           </p>
         )}
-      </section>
-
-      <section className="pb-card pb-collapse">
-        <details>
-          <summary>
-            Prefer manual buys with MetaMask? (optional)
-          </summary>
-          <div style={{ marginTop: 14 }}>
-            <p className="pb-hint">
-              One click per buy — MetaMask confirms each one. Independent of the
-              burner wallet above.
-            </p>
-            {mmAccount ? (
-              <>
-                <div className="pb-ok">Connected: {mmAccount}</div>
-                <button className="pb-primary" onClick={buyOnceMetaMask}>
-                  Buy now ({amount} ETH)
-                </button>
-              </>
-            ) : (
-              <button className="pb-primary" onClick={connectMetaMask}>
-                Connect MetaMask
-              </button>
-            )}
-          </div>
-        </details>
       </section>
 
       <section className="pb-card">
