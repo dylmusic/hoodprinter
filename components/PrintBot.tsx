@@ -29,6 +29,14 @@ const CHAIN = {
 
 // Uniswap V2 on Robinhood Chain (verified against developers.uniswap.org, Jul 2026)
 const DEFAULT_ROUTER = "0x89e5db8b5aa49aa85ac63f691524311aeb649eba";
+const V2_FACTORY = "0x8bceaa40b9acdfaedf85adf4ff01f5ad6517937f";
+// Uniswap V3 on Robinhood Chain. There is no standalone SwapRouter02 deployed —
+// swaps go through the Universal Router (verified on-chain from live swaps).
+const V3_FACTORY = "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA";
+const UNIVERSAL_ROUTER = "0x8876789976dEcBfCbBbe364623C63652db8C0904";
+const V3_FEE_TIERS = [10000, 3000, 500, 100];
+const ADDRESS_THIS = "0x0000000000000000000000000000000000000002"; // UR: keep in router
+const ZERO = "0x0000000000000000000000000000000000000000";
 
 // $PRINT — always shown; holding it drips ETH rewards to the wallet.
 const PRINT_TOKEN = siteConfig.contractAddress;
@@ -38,10 +46,20 @@ const ROUTER_ABI = [
   "function getAmountsOut(uint amountIn, address[] path) view returns (uint[] amounts)",
   "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] path, address to, uint deadline) payable",
 ];
+const V2_FACTORY_ABI = ["function getPair(address,address) view returns (address)"];
+const V3_FACTORY_ABI = [
+  "function getPool(address,address,uint24) view returns (address)",
+];
+const UNIVERSAL_ROUTER_ABI = [
+  "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
+];
 const PAIR_ABI = [
   "function token0() view returns (address)",
   "function token1() view returns (address)",
 ];
+
+// Which venue a token trades on. Resolved once when the loop starts.
+type Route = { kind: "v2" } | { kind: "v3"; fee: number };
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function decimals() view returns (uint8)",
@@ -80,10 +98,9 @@ const KNOWN_PAIRS: Record<string, string> = {
     "0xE40d98D88038e0B844f844dce6Ae3c79ec01ec53", // ARROW
   "0x020bfc650a365f8bb26819deaabf3e21291018b4":
     "0xA70fc67C9F69da90B63a0e4C05D229954574E313", // CASHCAT
-  "0xd7321801caae694090694ff55a9323139f043b88":
-    "0x588b0785f50063260003B7790C42f1eF74902746", // JUGGERNAUT
   "0x8e62f281f282686fca6dcb39288069a93fc23f1c":
     "0x451c0DA3b774045a822A129eeDcc5C667DcbfDD8", // HOODRAT
+  // JUGGERNAUT trades on Uniswap V3 — no V2 pair; routing is auto-detected.
 };
 
 // Balance formatter: comma-group big numbers, keep small amounts visible.
@@ -206,6 +223,7 @@ export default function PrintBot() {
   const nonceRef = useRef<number | null>(null);
   const signerRef = useRef<ethers.Wallet | null>(null);
   const wethRef = useRef<string | null>(null);
+  const routeRef = useRef<Route | null>(null); // v2 vs v3, resolved at loop start
   const failStreakRef = useRef(0); // consecutive failures → stop + warn
   const monitorRef = useRef<HTMLDivElement>(null);
 
@@ -590,6 +608,70 @@ export default function PrintBot() {
     });
   }
 
+  // Figure out where a token trades: a Uniswap V2 pair, or a V3 pool (and which
+  // fee tier). This is what lets the bot handle V2 and V3 transparently.
+  async function detectRoute(
+    provider: ethers.Provider,
+    tokenAddr: string,
+    weth: string
+  ): Promise<Route | null> {
+    const v2 = new ethers.Contract(V2_FACTORY, V2_FACTORY_ABI, provider);
+    try {
+      const pairAddr: string = await v2.getPair(tokenAddr, weth);
+      if (pairAddr && pairAddr !== ZERO) return { kind: "v2" };
+    } catch {
+      /* fall through to v3 */
+    }
+    const v3 = new ethers.Contract(V3_FACTORY, V3_FACTORY_ABI, provider);
+    for (const fee of V3_FEE_TIERS) {
+      try {
+        const pool: string = await v3.getPool(tokenAddr, weth, fee);
+        if (pool && pool !== ZERO) {
+          const code = await provider.getCode(pool);
+          if (code && code.length > 2) return { kind: "v3", fee };
+        }
+      } catch {
+        /* try next tier */
+      }
+    }
+    return null;
+  }
+
+  // Build Universal Router calldata for an ETH→token V3 exact-in swap. This
+  // replicates the exact input layout the Robinhood Universal Router expects
+  // (WRAP_ETH → V3_SWAP_EXACT_IN, with its extra trailing bytes field).
+  function buildV3Calldata(
+    recipient: string,
+    fee: number,
+    tokenAddr: string,
+    weth: string,
+    valueWei: bigint
+  ): string {
+    const w = (x: ethers.BigNumberish) => ethers.toBeHex(x, 32).slice(2);
+    const wa = (a: string) => ethers.zeroPadValue(a, 32).slice(2);
+    const wrap = "0x" + wa(ADDRESS_THIS) + w(valueWei); // WRAP_ETH(recipient=router, amount)
+    const path = ethers
+      .solidityPacked(["address", "uint24", "address"], [weth, fee, tokenAddr])
+      .slice(2); // 43 bytes
+    const pathPad = path + "0".repeat(128 - path.length); // pad to 2 words
+    // recipient, amountIn, amountOutMin(0), pathOffset(0xc0), payerIsUser(0),
+    // 2ndBytesOffset(0x120), pathLen(0x2b), path, emptyBytesLen(0)
+    const v3 =
+      "0x" +
+      wa(recipient) +
+      w(valueWei) +
+      w(0) +
+      w(0xc0) +
+      w(0) +
+      w(0x120) +
+      w(0x2b) +
+      pathPad +
+      w(0);
+    const iface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
+    const deadline = Math.floor(Date.now() / 1000) + 1200;
+    return iface.encodeFunctionData("execute", ["0x0b00", [wrap, v3], deadline]);
+  }
+
   async function resolveWeth(provider: ethers.Provider): Promise<string> {
     // Prefer deriving from the actual LP pair (the non-token side).
     if (pair.trim()) {
@@ -643,6 +725,27 @@ export default function PrintBot() {
     nonce: number
   ): Promise<ethers.TransactionResponse> {
     const to = signer.address;
+
+    // V3 → Universal Router (the only V3 venue on this chain).
+    if (routeRef.current?.kind === "v3") {
+      const valueWei = ethers.parseEther(amountEth);
+      const weth = wethRef.current || (await resolveWeth(provider));
+      const data = buildV3Calldata(
+        to,
+        routeRef.current.fee,
+        token.trim(),
+        weth,
+        valueWei
+      );
+      return signer.sendTransaction({
+        to: UNIVERSAL_ROUTER,
+        data,
+        value: valueWei,
+        nonce,
+      });
+    }
+
+    // V2 → the classic router's fee-on-transfer swap.
     const { r, valueWei, minOut, path, deadline } = await buildBuy(
       signer,
       provider,
@@ -719,10 +822,10 @@ export default function PrintBot() {
       stopLoop();
       showAlert(
         <>
-          {FAIL_LIMIT} buys in a row failed, so we stopped. Check your settings —
-          the most common cause is a token with <strong>no liquidity on this
-          Uniswap V2 router</strong> (some tokens trade on Uniswap V3, which
-          isn&apos;t supported yet). Try a different token or router.
+          {FAIL_LIMIT} buys in a row failed, so we stopped. Common causes:{" "}
+          <strong>not enough ETH for gas</strong>, the pool has{" "}
+          <strong>too little liquidity</strong>, or slippage is too low for a
+          taxed token. Double-check your balance and settings, then try again.
         </>,
         "Buying failed"
       );
@@ -847,6 +950,38 @@ export default function PrintBot() {
     } catch {
       wethRef.current = null; // fall back to per-tx resolution
     }
+    // Make sure we know WETH, then auto-detect the token's venue (V2 vs V3).
+    let weth = wethRef.current;
+    if (!weth) {
+      try {
+        weth = await new ethers.Contract(
+          router.trim(),
+          ROUTER_ABI,
+          provider
+        ).WETH();
+        wethRef.current = weth;
+      } catch {
+        return showAlert("Could not reach the RPC to start. Try again.");
+      }
+    }
+    if (!weth) return showAlert("Could not resolve WETH to start. Try again.");
+    const route = await detectRoute(provider, token.trim(), weth);
+    if (!route) {
+      return showAlert(
+        <>
+          We couldn&apos;t find a Uniswap V2 or V3 pool for this token on
+          Robinhood Chain. Double-check the token address.
+        </>,
+        "No pool found"
+      );
+    }
+    routeRef.current = route;
+    addLog(
+      route.kind === "v3"
+        ? `Route: Uniswap V3 (${route.fee / 10000}% fee tier)`
+        : "Route: Uniswap V2",
+      "ok"
+    );
     try {
       nonceRef.current = await provider.getTransactionCount(addr, "pending");
     } catch (e: any) {
@@ -882,6 +1017,7 @@ export default function PrintBot() {
     signerRef.current = null;
     nonceRef.current = null;
     wethRef.current = null;
+    routeRef.current = null;
     setRunning(false);
     window.dispatchEvent(
       new CustomEvent("hoodprint:running", { detail: false })
