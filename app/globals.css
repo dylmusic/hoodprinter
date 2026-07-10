@@ -1710,3 +1710,29 @@ footer {
     animation: none;
   }
 }
+
+/* ---------- print bot: tile withdraw button ---------- */
+.pb-balrow > div {
+  position: relative;
+}
+
+.pb-tile-wd {
+  margin-top: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pb-tile-wd:hover {
+  color: var(--green);
+  border-color: var(--green);
+}

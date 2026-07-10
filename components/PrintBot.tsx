@@ -41,8 +41,20 @@ const ERC20_ABI = [
 ];
 
 const PK_STORAGE_KEY = "hoodprint_burner_pk";
+const SETTINGS_STORAGE_KEY = "hoodprint_settings";
 
 type LogLevel = "info" | "ok" | "err";
+
+// Balance formatter: comma-group big numbers, keep small amounts visible.
+function fmtBal(v: string | number | null): string {
+  if (v == null) return "0";
+  const n = typeof v === "number" ? v : parseFloat(v);
+  if (!isFinite(n)) return "0";
+  if (n === 0) return "0";
+  if (n >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (n >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return n.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+}
 
 export default function PrintBot() {
   const [token, setToken] = useState<string>("");
@@ -85,7 +97,7 @@ export default function PrintBot() {
       [{ t: new Date().toLocaleTimeString(), msg, level }, ...l].slice(0, 200)
     );
 
-  // Restore a previously generated burner from this device.
+  // Restore the burner + saved settings from this device.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(PK_STORAGE_KEY);
@@ -93,11 +105,42 @@ export default function PrintBot() {
     } catch {
       /* storage blocked */
     }
+    try {
+      const s = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
+      if (typeof s.token === "string") setToken(s.token);
+      if (typeof s.router === "string" && s.router) setRouter(s.router);
+      if (typeof s.pair === "string") setPair(s.pair);
+      if (typeof s.amount === "string" && s.amount) setAmount(s.amount);
+      if (typeof s.interval === "string" && s.interval) setIntervalSecs(s.interval);
+      if (typeof s.randomize === "string") setRandomize(s.randomize);
+      if (typeof s.slippage === "string" && s.slippage) setSlippage(s.slippage);
+      if (typeof s.withdrawTo === "string") setWithdrawTo(s.withdrawTo);
+    } catch {
+      /* no saved settings */
+    }
     return () => {
       runningRef.current = false;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  function saveSettings() {
+    try {
+      const s: Record<string, string> = {
+        token,
+        router,
+        pair,
+        amount,
+        interval,
+        randomize,
+        slippage,
+        withdrawTo,
+      };
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s));
+    } catch {
+      /* storage blocked */
+    }
+  }
 
   // Keep the derived deposit address + local backup in sync with the key.
   useEffect(() => {
@@ -149,7 +192,7 @@ export default function PrintBot() {
     try {
       const provider = readProvider();
       const eth = await provider.getBalance(burnerAddr);
-      setEthBal(parseFloat(ethers.formatEther(eth)).toFixed(4));
+      setEthBal(ethers.formatEther(eth));
       if (!ethers.isAddress(token.trim())) {
         setTokBal(null);
         setTokSym("TOKEN");
@@ -161,7 +204,7 @@ export default function PrintBot() {
         erc.decimals().catch(() => 18),
         erc.symbol().catch(() => "TOKEN"),
       ]);
-      setTokBal(parseFloat(ethers.formatUnits(b, d)).toFixed(2));
+      setTokBal(ethers.formatUnits(b, d));
       setTokSym(s);
     } catch {
       /* rpc hiccup / token not live yet */
@@ -449,6 +492,7 @@ export default function PrintBot() {
       `Loop started — ${addr} · ~${amount} ETH every ~${interval}s, randomized ±${pct}%`,
       "ok"
     );
+    saveSettings();
     runningRef.current = true;
     setRunning(true);
     setBuys(0);
@@ -474,8 +518,22 @@ export default function PrintBot() {
   }
 
   // ---- withdraw (sweep the burner) ----
-  async function withdrawEth() {
-    const dest = withdrawTo.trim();
+  // One-tap withdraw from a balance tile: use the saved destination, or ask.
+  async function quickWithdraw(kind: "eth" | "tok") {
+    let dest = withdrawTo.trim();
+    if (!ethers.isAddress(dest)) {
+      dest = (window.prompt("Withdraw to which address?", withdrawTo) || "").trim();
+      if (!dest) return;
+      if (!ethers.isAddress(dest)) return alert("That address is not valid.");
+      setWithdrawTo(dest);
+      saveSettings();
+    }
+    if (kind === "eth") await withdrawEth(dest);
+    else await withdrawToken(dest);
+  }
+
+  async function withdrawEth(to?: string) {
+    const dest = (to ?? withdrawTo).trim();
     if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
     if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
     try {
@@ -498,8 +556,8 @@ export default function PrintBot() {
     }
   }
 
-  async function withdrawToken() {
-    const dest = withdrawTo.trim();
+  async function withdrawToken(to?: string) {
+    const dest = (to ?? withdrawTo).trim();
     if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
     if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
     try {
@@ -574,7 +632,7 @@ export default function PrintBot() {
               <div className="pb-ms-label">ETH spent</div>
             </div>
             <div>
-              <div className="pb-ms-num">{tokAcquired.toFixed(2)}</div>
+              <div className="pb-ms-num">{fmtBal(tokAcquired)}</div>
               <div className="pb-ms-label">{tokSym} bought</div>
             </div>
             <div>
@@ -608,12 +666,24 @@ export default function PrintBot() {
 
             <div className="pb-balrow">
               <div>
-                <div className="pb-balnum">{ethBal ?? "…"}</div>
+                <div className="pb-balnum">{ethBal == null ? "…" : fmtBal(ethBal)}</div>
                 <div className="pb-ballabel">ETH</div>
+                <button
+                  className="pb-tile-wd"
+                  onClick={() => quickWithdraw("eth")}
+                >
+                  Withdraw
+                </button>
               </div>
               <div>
-                <div className="pb-balnum">{tokBal ?? "0.00"}</div>
+                <div className="pb-balnum">{tokBal == null ? "0" : fmtBal(tokBal)}</div>
                 <div className="pb-ballabel">{tokSym}</div>
+                <button
+                  className="pb-tile-wd"
+                  onClick={() => quickWithdraw("tok")}
+                >
+                  Withdraw
+                </button>
               </div>
             </div>
 
@@ -627,6 +697,14 @@ export default function PrintBot() {
                 Copy
               </button>
             </div>
+
+            <label>Withdraw to — where the Withdraw buttons send</label>
+            <input
+              value={withdrawTo}
+              onChange={(e) => setWithdrawTo(e.target.value)}
+              onBlur={saveSettings}
+              placeholder="0x… your main wallet"
+            />
 
             <details className="pb-sub">
               <summary>Back up private key</summary>
@@ -648,32 +726,6 @@ export default function PrintBot() {
                 </button>
                 <button className="pb-mini" onClick={downloadKey}>
                   Download backup
-                </button>
-              </div>
-            </details>
-
-            <details className="pb-sub">
-              <summary>Withdraw funds</summary>
-              <label style={{ marginTop: 10 }}>Destination address</label>
-              <input
-                value={withdrawTo}
-                onChange={(e) => setWithdrawTo(e.target.value)}
-                placeholder="0x… your main wallet"
-              />
-              <div className="pb-row" style={{ marginTop: 10 }}>
-                <button
-                  className="pb-ghost"
-                  onClick={withdrawEth}
-                  style={{ marginTop: 0 }}
-                >
-                  Send all ETH
-                </button>
-                <button
-                  className="pb-ghost"
-                  onClick={withdrawToken}
-                  style={{ marginTop: 0 }}
-                >
-                  Send all {tokSym}
                 </button>
               </div>
             </details>
