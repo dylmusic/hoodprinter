@@ -2,14 +2,35 @@ import type { Metadata } from "next";
 import PrintBot from "@/components/PrintBot";
 import PlatformStatsNote from "@/components/PlatformStatsNote";
 
-// Unlisted: keep it out of search engines and social previews.
+const title = "Buy Bot — Auto-Buy Any Robinhood Chain Token";
+const description =
+  "The HOOD Printer Buy Bot: auto-buy any token on Robinhood Chain (Uniswap V2 & V3) from a throwaway in-browser wallet. Create real buy volume with one click. Beta now live.";
+
 export const metadata: Metadata = {
-  title: "Print",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-    googleBot: { index: false, follow: false },
+  title,
+  description,
+  alternates: { canonical: "/print" },
+  openGraph: {
+    title: `HOOD Printer ${title}`,
+    description,
+    url: "https://hoodprinter.xyz/print",
+    type: "website",
+    images: [
+      {
+        url: "/brand/og-print.png?v=1",
+        width: 1200,
+        height: 630,
+        alt: "HOOD Printer Buy Bot — auto-buy any Robinhood Chain token",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@HOODPrinterxyz",
+    creator: "@HOODPrinterxyz",
+    title: `HOOD Printer ${title}`,
+    description,
+    images: ["/brand/og-print.png?v=1"],
   },
 };
 

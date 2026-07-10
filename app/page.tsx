@@ -141,17 +141,6 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {presaleActive && (
-        <a
-          className="presale-bar"
-          href={presaleLink}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          🟢 The <strong>$PRINT presale is LIVE</strong> on Gempad — secure
-          your bag before launch&nbsp;→
-        </a>
-      )}
       <nav className="nav">
         <div className="container nav-inner">
           <a href="#" className="nav-logo">
@@ -170,6 +159,9 @@ export default function Home() {
             <a href="#tokenomics">Tokenomics</a>
             <a href="#how-to-buy">How To Buy</a>
             <a href="/roadmap">Roadmap</a>
+            <a className="nav-buybot" href="/print">
+              Buy Bot <span className="nav-beta">BETA</span>
+            </a>
             <a href="#faq">FAQ</a>
             <a
               className="btn btn-primary"

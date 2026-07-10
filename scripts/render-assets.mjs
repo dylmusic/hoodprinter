@@ -101,6 +101,23 @@ await renderComposite({
   out: path.join(brand, "og-roadmap.png"),
 });
 
+// --- OG image 1200x630 for /print (the buy bot) ---
+await renderComposite({
+  w: 1200,
+  h: 630,
+  iconSize: 190,
+  iconPos: { left: 505, top: 58 },
+  textSvg: `
+    <text x="600" y="380" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="80" letter-spacing="-2">
+      <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan> <tspan fill="#ffffff">Buy Bot</tspan>
+    </text>
+    <text x="600" y="448" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="34" fill="#f5c518">Auto-buy any Robinhood Chain token</text>
+    <text x="600" y="498" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="28" fill="#8fa898">One-click volume · Uniswap V2 &amp; V3 · burner wallet</text>
+    <text x="600" y="565" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#00c805">hoodprinter.xyz/print</text>
+  `,
+  out: path.join(brand, "og-print.png"),
+});
+
 // --- X banner 1500x500 ---
 await renderComposite({
   w: 1500,

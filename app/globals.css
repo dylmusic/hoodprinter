@@ -110,8 +110,42 @@ a {
   color: var(--text);
 }
 
+.nav-links a.nav-buybot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.nav-links a.nav-buybot:hover {
+  color: var(--green);
+  filter: brightness(1.2);
+}
+
+.nav-beta {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #f5c518;
+  border: 1px solid rgba(245, 197, 24, 0.5);
+  border-radius: 4px;
+  padding: 1px 4px;
+  line-height: 1;
+}
+
 @media (max-width: 720px) {
-  .nav-links a:not(.btn) {
+  .nav-links a:not(.btn):not(.nav-buybot) {
+    display: none;
+  }
+  /* Keep the Buy Bot reachable on mobile as a compact pill. */
+  .nav-links a.nav-buybot {
+    padding: 6px 10px;
+    border: 1px solid rgba(0, 200, 5, 0.4);
+    border-radius: 999px;
+    font-size: 0.82rem;
+  }
+  .nav-links a.nav-buybot .nav-beta {
     display: none;
   }
 }
@@ -1079,6 +1113,30 @@ footer {
   border-radius: 10px;
 }
 
+@media (max-width: 480px) {
+  .pb-page {
+    padding: 26px 14px 80px;
+  }
+  .pb-head h1 {
+    font-size: 1.55rem;
+  }
+  .pb-card {
+    padding: 16px 14px;
+  }
+  .pb-balrow {
+    gap: 8px;
+  }
+  .pb-balrow > div {
+    padding: 10px 6px;
+  }
+  .pb-balnum {
+    font-size: 0.92rem;
+  }
+  .pb-row {
+    gap: 8px;
+  }
+}
+
 /* ---------- print bot: branded modal ---------- */
 .pb-modal-overlay {
   position: fixed;
@@ -1306,6 +1364,7 @@ footer {
 
 .pb-row > div {
   flex: 1;
+  min-width: 0; /* let inputs shrink below their intrinsic width on mobile */
 }
 
 .pb-loopbtns {
@@ -1628,6 +1687,7 @@ footer {
 
 .pb-balrow > div {
   flex: 1;
+  min-width: 0;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;

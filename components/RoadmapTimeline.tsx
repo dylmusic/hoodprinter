@@ -41,15 +41,48 @@ const PHASES: Phase[] = [
       },
       {
         title: "GemPad Presale",
-        desc: "The presale is live right now — secure your allocation before launch.",
-        status: "active",
+        desc: "Our audited GemPad presale — opening soon. Secure your allocation when it goes live.",
+        status: "upcoming",
         href: PRESALE_LINK,
-        hrefLabel: "Join the presale →",
+        hrefLabel: "View presale →",
       },
     ],
   },
   {
     num: "02",
+    name: "The Buy Bot",
+    items: [
+      {
+        title: "Buy Bot Beta Testing",
+        desc: "The HOOD Printer buy bot is live in beta — auto-buy any Robinhood Chain token (Uniswap V2 & V3) from a throwaway in-browser wallet.",
+        status: "active",
+        href: "/print",
+        hrefLabel: "Try the beta →",
+      },
+      {
+        title: "Live Volume Tracking & Ranks",
+        desc: "Platform-wide buy counter, personal stats, and a Bronze → Diamond rank ladder that levels up as you print.",
+        status: "done",
+      },
+      {
+        title: "Buy Bot Public Launch",
+        desc: "A polished, mobile-first public release — open to every trader on Robinhood Chain.",
+        status: "upcoming",
+      },
+      {
+        title: "Level-Up Rewards",
+        desc: "Rank up to unlock real rewards — the higher your tier, the more the printer pays.",
+        status: "upcoming",
+      },
+      {
+        title: "Advanced Automation",
+        desc: "Multi-wallet campaigns, scheduling, budget caps, and smarter buy strategies.",
+        status: "upcoming",
+      },
+    ],
+  },
+  {
+    num: "03",
     name: "Launch",
     items: [
       {
@@ -75,7 +108,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "03",
+    num: "04",
     name: "Expansion",
     items: [
       {
@@ -96,7 +129,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "04",
+    num: "05",
     name: "Ascension",
     items: [
       {
