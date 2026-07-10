@@ -24,6 +24,10 @@ export default function PrintPage() {
           Hold <span className="green">$PRINT</span> to automatically buy any
           token with your ETH rewards.
         </p>
+        <p className="pb-tagline pb-tagline-sub">
+          Use HOOD Printer to create automatic buy volume for any project on
+          Robinhood.
+        </p>
       </div>
       <PrintBot />
     </main>

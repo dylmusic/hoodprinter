@@ -1810,22 +1810,31 @@ footer {
   color: var(--green);
 }
 
+.pb-tagline-sub {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 .pb-print-tile {
   border-color: rgba(0, 200, 5, 0.35) !important;
 }
 
-.pb-help {
+.pb-print-tile .pb-help {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 15px;
-  height: 15px;
+  top: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   background: transparent;
   color: #fff;
-  font-size: 0.58rem;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -1834,7 +1843,7 @@ footer {
   justify-content: center;
 }
 
-.pb-help:hover {
+.pb-print-tile .pb-help:hover {
   color: var(--green);
   border-color: var(--green);
 }

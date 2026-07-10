@@ -51,7 +51,7 @@ type RecentToken = { ca: string; sym: string };
 type LogLevel = "info" | "ok" | "err";
 
 // Pinned tokens — always shown first in the quick-select row, never removable.
-const CASHCAT_TOKEN = ""; // TODO: real CASHCAT contract address
+const CASHCAT_TOKEN = "0x020bfC650A365f8BB26819deAAbF3E21291018b4";
 const PINNED_TOKENS: RecentToken[] = [
   { ca: PRINT_TOKEN, sym: "PRINT" },
   { ca: CASHCAT_TOKEN, sym: "CASHCAT" },
