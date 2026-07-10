@@ -682,7 +682,7 @@ export default function PrintBot() {
         <div className="pb-loopbtns" style={{ marginTop: 4 }}>
           {running ? (
             <button className="pb-stop" onClick={stopLoop}>
-              Stop loop
+              Stop buying
             </button>
           ) : (
             <button
@@ -690,7 +690,7 @@ export default function PrintBot() {
               onClick={startLoop}
               disabled={!burnerAddr}
             >
-              {burnerAddr ? "Start loop" : "Generate a wallet first"}
+              {burnerAddr ? "Start buying" : "Generate a wallet first"}
             </button>
           )}
         </div>
