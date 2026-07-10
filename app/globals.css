@@ -1795,3 +1795,8 @@ footer {
   border-top: 1px solid var(--border);
   padding-top: 14px;
 }
+
+/* quick-start button under the balances (returning configured users) */
+.pb-quickstart {
+  margin-top: 4px;
+}

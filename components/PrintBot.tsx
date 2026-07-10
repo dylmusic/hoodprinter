@@ -621,6 +621,12 @@ export default function PrintBot() {
     }
   }
 
+  const canStart =
+    !!burnerAddr &&
+    ethers.isAddress(token.trim()) &&
+    parseFloat(amount || "0") > 0 &&
+    parseFloat(interval || "0") > 0 &&
+    parseFloat(ethBal || "0") > 0;
   const upMs = startedAt ? now - startedAt : 0;
   const countdown = Math.max(0, Math.ceil((nextAt - now) / 1000));
   const tokAcquired =
@@ -740,6 +746,15 @@ export default function PrintBot() {
                   </button>
                 ))}
               </div>
+            )}
+
+            {canStart && !running && (
+              <button
+                className="pb-primary pb-bigstart pb-quickstart"
+                onClick={startLoop}
+              >
+                Start buying {tokSym}
+              </button>
             )}
 
             <label>Deposit address — send ETH here to fund</label>
