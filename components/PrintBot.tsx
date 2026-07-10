@@ -286,29 +286,56 @@ export default function PrintBot() {
     return () => clearInterval(id);
   }, [refreshBalances]);
 
-  // Pull the shared platform totals (+ this wallet's, when we have one).
-  const refreshStats = useCallback(async () => {
+  // Platform totals — the CDN caches this (~15s) so any number of open tabs
+  // collapse into roughly one Redis read per interval. Poll it often; it's cheap.
+  const refreshPlatform = useCallback(async () => {
     try {
-      const q = burnerAddr ? `?wallet=${burnerAddr}` : "";
-      const res = await fetch(`/api/stats${q}`, { cache: "no-store" });
+      const res = await fetch("/api/stats");
       if (!res.ok) return;
       const s = await res.json();
       setPlatBuys(typeof s.buys === "number" ? s.buys : 0);
       setPlatEth(typeof s.eth === "number" ? s.eth : 0);
+    } catch {
+      /* best-effort */
+    }
+  }, []);
+
+  // Personal totals — private, uncached, and only change when *this* wallet
+  // buys (we also refresh right after each buy), so poll it slowly.
+  const refreshPersonal = useCallback(async () => {
+    if (!burnerAddr) return;
+    try {
+      const res = await fetch(`/api/stats?wallet=${burnerAddr}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const s = await res.json();
       if (s.wallet) {
         setMyBuys(s.wallet.buys ?? 0);
         setMyEth(s.wallet.eth ?? 0);
       }
     } catch {
-      /* stats are best-effort */
+      /* best-effort */
     }
   }, [burnerAddr]);
 
+  // Refresh both after a confirmed buy is reported.
+  const refreshStats = useCallback(() => {
+    refreshPlatform();
+    refreshPersonal();
+  }, [refreshPlatform, refreshPersonal]);
+
   useEffect(() => {
-    refreshStats();
-    const id = setInterval(refreshStats, 12000);
+    refreshPlatform();
+    const id = setInterval(refreshPlatform, 12000);
     return () => clearInterval(id);
-  }, [refreshStats]);
+  }, [refreshPlatform]);
+
+  useEffect(() => {
+    refreshPersonal();
+    const id = setInterval(refreshPersonal, 45000);
+    return () => clearInterval(id);
+  }, [refreshPersonal]);
 
   function loadPastedKey() {
     if (runningRef.current) return alert("Stop the loop before switching wallets.");
@@ -731,36 +758,23 @@ export default function PrintBot() {
 
   return (
     <div className="pb">
-      <section className="pb-stats" aria-label="Platform totals">
-        <div className="pb-stats-main">
-          <div className="pb-stat">
-            <div className="pb-stat-num">
-              {platBuys == null ? "—" : platBuys.toLocaleString("en-US")}
-            </div>
-            <div className="pb-stat-label">Total buys</div>
-          </div>
-          <div className="pb-stat-div" />
-          <div className="pb-stat">
-            <div className="pb-stat-num">
-              {platEth == null ? "—" : fmtBal(platEth)}{" "}
-              <span className="pb-stat-unit">ETH</span>
-            </div>
-            <div className="pb-stat-label">Total volume</div>
-          </div>
-        </div>
+      <div className="pb-stats" aria-label="Platform totals">
+        <span className="pb-stats-dot" />
+        <span>
+          <strong>{platBuys == null ? "—" : platBuys.toLocaleString("en-US")}</strong>{" "}
+          buys
+        </span>
+        <span className="pb-stats-sep">·</span>
+        <span>
+          <strong>{platEth == null ? "—" : fmtBal(platEth)}</strong> ETH volume
+        </span>
         {burnerAddr && (myBuys != null || myEth != null) && (
-          <div className="pb-stats-you">
-            <span className="pb-you-tag">You</span>
-            <span>
-              <strong>{(myBuys ?? 0).toLocaleString("en-US")}</strong> buys
-            </span>
-            <span className="pb-you-dot">·</span>
-            <span>
-              <strong>{fmtBal(myEth ?? 0)}</strong> ETH volume
-            </span>
-          </div>
+          <span className="pb-stats-you">
+            (you: {(myBuys ?? 0).toLocaleString("en-US")} · {fmtBal(myEth ?? 0)}{" "}
+            ETH)
+          </span>
         )}
-      </section>
+      </div>
       {running && (
         <section className="pb-monitor" ref={monitorRef}>
           <div className="pb-mon-top">
