@@ -536,9 +536,9 @@ export default function PrintBot() {
     setEthSpent(0);
     setStartedAt(Date.now());
     setStartTok(tokBal != null ? parseFloat(tokBal) : 0);
-    // Bring the live monitor (top of the column) into view.
+    // Scroll all the way to the top of the page.
     requestAnimationFrame(() =>
-      monitorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      window.scrollTo({ top: 0, behavior: "smooth" })
     );
     await doBuy(); // fire immediately
     scheduleNext();
