@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRedis, readStats } from "@/lib/stats";
+import { getRedis, readStats, readTopTokens } from "@/lib/stats";
 
 export const runtime = "nodejs";
 
@@ -26,6 +26,20 @@ export async function GET(req: NextRequest) {
         { headers: { "cache-control": "no-store" } }
       );
     }
+  }
+
+  // Leaderboard read (shared → CDN-cached).
+  const topParam = req.nextUrl.searchParams.get("top");
+  if (topParam) {
+    const top = await readTopTokens(parseInt(topParam) || 10);
+    return NextResponse.json(
+      { top },
+      {
+        headers: {
+          "cache-control": "public, s-maxage=30, stale-while-revalidate=120",
+        },
+      }
+    );
   }
 
   const wallet = req.nextUrl.searchParams.get("wallet") || undefined;

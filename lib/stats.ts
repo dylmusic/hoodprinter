@@ -57,7 +57,9 @@ export async function readStats(wallet?: string): Promise<PlatformStats> {
 export async function recordBuy(
   wallet: string,
   txHash: string,
-  ethAmount: number
+  ethAmount: number,
+  token?: string,
+  sym?: string
 ): Promise<{ counted: boolean }> {
   const redis = getRedis();
   if (!redis) return { counted: false };
@@ -69,11 +71,54 @@ export async function recordBuy(
   });
   if (first !== "OK") return { counted: false };
 
-  await Promise.all([
+  const writes: Promise<unknown>[] = [
     redis.incr("stats:buys"),
     redis.incrbyfloat("stats:eth", ethAmount),
     redis.incr(`wallet:${w}:buys`),
     redis.incrbyfloat(`wallet:${w}:eth`, ethAmount),
-  ]);
+  ];
+
+  // Per-token leaderboard: sorted sets make "top tokens" a one-shot read.
+  if (token && /^0x[0-9a-fA-F]{40}$/.test(token)) {
+    const t = token.toLowerCase();
+    writes.push(
+      redis.zincrby("tokens:buys", 1, t),
+      redis.zincrby("tokens:eth", ethAmount, t)
+    );
+    if (sym) writes.push(redis.hset("tokens:sym", { [t]: sym }));
+  }
+
+  await Promise.all(writes);
   return { counted: true };
+}
+
+export type TopToken = { ca: string; sym: string | null; buys: number; eth: number };
+
+/** Top tokens by ETH volume — for the (future) leaderboard UI. */
+export async function readTopTokens(limit = 10): Promise<TopToken[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+  const n = Math.max(1, Math.min(50, limit));
+  // Flat [member, score, member, score, …], highest volume first.
+  const flat = (await redis.zrange("tokens:eth", 0, n - 1, {
+    rev: true,
+    withScores: true,
+  })) as (string | number)[];
+  const cas: string[] = [];
+  const ethByCa: Record<string, number> = {};
+  for (let i = 0; i < flat.length; i += 2) {
+    const ca = String(flat[i]);
+    cas.push(ca);
+    ethByCa[ca] = num(flat[i + 1]);
+  }
+  if (!cas.length) return [];
+  return Promise.all(
+    cas.map(async (ca) => {
+      const [buys, sym] = await Promise.all([
+        redis.zscore("tokens:buys", ca),
+        redis.hget<string>("tokens:sym", ca),
+      ]);
+      return { ca, sym: sym ?? null, buys: num(buys), eth: ethByCa[ca] };
+    })
+  );
 }

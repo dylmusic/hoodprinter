@@ -515,7 +515,7 @@ export default function PrintBot() {
       await fetch("/api/buy", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet, txHash }),
+        body: JSON.stringify({ wallet, txHash, sym: tokSym }),
       });
       refreshStats();
     } catch {

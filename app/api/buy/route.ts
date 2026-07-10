@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ethers } from "ethers";
 import { recordBuy } from "@/lib/stats";
 import { siteConfig } from "@/site.config";
 
@@ -6,6 +7,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const RPC = siteConfig.chain.rpcUrl;
+
+// Decode the bought token straight from the swap calldata so the leaderboard
+// can't be misattributed — the output token is the last hop of the path.
+const SWAP_IFACE = new ethers.Interface([
+  "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)",
+]);
+function tokenFromCalldata(input?: string): string | undefined {
+  if (!input || input === "0x") return undefined;
+  try {
+    const parsed = SWAP_IFACE.parseTransaction({ data: input });
+    const path = parsed?.args?.path as string[] | undefined;
+    if (path && path.length) return path[path.length - 1];
+  } catch {
+    /* not our swap shape — leave untracked */
+  }
+  return undefined;
+}
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T | null> {
   try {
@@ -29,7 +47,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T | null> {
  * the counters can't be inflated by a spoofed request.
  */
 export async function POST(req: NextRequest) {
-  let body: { wallet?: string; txHash?: string };
+  let body: { wallet?: string; txHash?: string; sym?: string };
   try {
     body = await req.json();
   } catch {
@@ -37,6 +55,9 @@ export async function POST(req: NextRequest) {
   }
   const wallet = (body.wallet || "").trim();
   const txHash = (body.txHash || "").trim();
+  // Symbol is display-only (label for the leaderboard); the CA is authoritative.
+  const sym =
+    typeof body.sym === "string" ? body.sym.slice(0, 16).trim() : undefined;
   if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) {
     return NextResponse.json({ ok: false, error: "bad wallet" }, { status: 400 });
   }
@@ -45,7 +66,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify on-chain.
-  const tx = await rpc<{ from: string; value: string }>(
+  const tx = await rpc<{ from: string; value: string; input: string }>(
     "eth_getTransactionByHash",
     [txHash]
   );
@@ -76,6 +97,7 @@ export async function POST(req: NextRequest) {
     ethAmount = 0;
   }
 
-  const { counted } = await recordBuy(wallet, txHash, ethAmount);
-  return NextResponse.json({ ok: true, counted, ethAmount });
+  const token = tokenFromCalldata(tx.input);
+  const { counted } = await recordBuy(wallet, txHash, ethAmount, token, sym);
+  return NextResponse.json({ ok: true, counted, ethAmount, token: token ?? null });
 }
