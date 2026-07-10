@@ -56,13 +56,13 @@ const PINNED_TOKENS: RecentToken[] = [
   { ca: PRINT_TOKEN, sym: "PRINT" },
   { ca: CASHCAT_TOKEN, sym: "CASHCAT" },
 ];
-// Seed recents (positions 3+) until the user selects their own tokens.
+// Always-available default tokens, shown after any user-selected recents.
 const DEFAULT_RECENTS: RecentToken[] = [
   { ca: "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", sym: "ARROW" },
   { ca: "0x8e62f281f282686fca6dcb39288069a93fc23f1c", sym: "HOODRAT" },
   { ca: "0xd7321801caae694090694ff55a9323139f043b88", sym: "JUGGERNAUT" },
 ];
-const RECENTS_CAP = 3; // keeps pinned + recents to a single row of 5
+const RECENTS_CAP = 6; // user-selected recents (defaults are always shown too)
 const PINNED_ADDRS = PINNED_TOKENS.filter((t) => t.ca).map((t) =>
   t.ca.toLowerCase()
 );
@@ -147,8 +147,8 @@ export default function PrintBot() {
       /* no saved settings */
     }
     try {
-      const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "null");
-      if (Array.isArray(r) && r.length) {
+      const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "[]");
+      if (Array.isArray(r)) {
         setRecents(
           r
             .filter(
@@ -159,11 +159,9 @@ export default function PrintBot() {
             )
             .slice(0, RECENTS_CAP)
         );
-      } else {
-        setRecents(DEFAULT_RECENTS);
       }
     } catch {
-      setRecents(DEFAULT_RECENTS);
+      /* no recents */
     }
     return () => {
       runningRef.current = false;
@@ -675,6 +673,10 @@ export default function PrintBot() {
     parseFloat(amount || "0") > 0 &&
     parseFloat(interval || "0") > 0 &&
     parseFloat(ethBal || "0") > 0;
+  const usedAddrs = new Set(recents.map((r) => r.ca.toLowerCase()));
+  const defaultsToShow = DEFAULT_RECENTS.filter(
+    (d) => !usedAddrs.has(d.ca.toLowerCase())
+  );
   const upMs = startedAt ? now - startedAt : 0;
   const countdown = Math.max(0, (nextAt - now) / 1000);
   const tokAcquired =
@@ -816,6 +818,16 @@ export default function PrintBot() {
                 </button>
               ))}
               {recents.map((r) => (
+                <button
+                  key={r.ca}
+                  className="pb-recent"
+                  title={r.ca}
+                  onClick={() => setToken(r.ca)}
+                >
+                  {r.sym}
+                </button>
+              ))}
+              {defaultsToShow.map((r) => (
                 <button
                   key={r.ca}
                   className="pb-recent"
