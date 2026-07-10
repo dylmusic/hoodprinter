@@ -743,3 +743,9 @@ footer {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+.airdrop-tiers {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 720px;
+  margin: 0 auto;
+}
