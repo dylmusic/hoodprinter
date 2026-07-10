@@ -67,6 +67,14 @@ export default function PrintBot() {
     []
   );
 
+  // live monitor
+  const [buys, setBuys] = useState(0);
+  const [ethSpent, setEthSpent] = useState(0);
+  const [startedAt, setStartedAt] = useState(0);
+  const [nextAt, setNextAt] = useState(0);
+  const [startTok, setStartTok] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   const busyRef = useRef(false);
@@ -111,6 +119,24 @@ export default function PrintBot() {
       return null;
     }
   }
+
+  // 1s clock for the countdown/uptime, only while running.
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // Warn before closing the tab while buying is active.
+  useEffect(() => {
+    if (!running) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [running]);
 
   // Poll the burner's live balances so the pill/panel stay current.
   useEffect(() => {
@@ -306,9 +332,10 @@ export default function PrintBot() {
     const rec = await tx.wait();
     if (rec && rec.status === 1) {
       addLog(`✅ Confirmed in block ${rec.blockNumber} — ${tx.hash}`, "ok");
-    } else {
-      addLog(`⚠️ Tx reverted — ${tx.hash}`, "err");
+      return true;
     }
+    addLog(`⚠️ Tx reverted — ${tx.hash}`, "err");
+    return false;
   }
 
   // ---- network ----
@@ -390,7 +417,11 @@ export default function PrintBot() {
       const amt = fmtAmount(Math.max(0, jitter(baseAmt, pct)));
       const provider = readProvider();
       const wallet = new ethers.Wallet(normalizeKey(pk), provider);
-      await sendBuy(wallet, provider, amt);
+      const ok = await sendBuy(wallet, provider, amt);
+      if (ok) {
+        setBuys((b) => b + 1);
+        setEthSpent((e) => e + parseFloat(amt));
+      }
     } catch (e: any) {
       addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
     } finally {
@@ -404,6 +435,7 @@ export default function PrintBot() {
     const baseSecs = Math.max(5, parseInt(interval || "60", 10));
     const secs = Math.max(5, Math.round(jitter(baseSecs, pct)));
     addLog(`Next buy in ${secs}s`);
+    setNextAt(Date.now() + secs * 1000);
     timerRef.current = setTimeout(async () => {
       await doBuy();
       scheduleNext();
@@ -428,6 +460,10 @@ export default function PrintBot() {
     );
     runningRef.current = true;
     setRunning(true);
+    setBuys(0);
+    setEthSpent(0);
+    setStartedAt(Date.now());
+    setStartTok(tokBal != null ? parseFloat(tokBal) : 0);
     await doBuy(); // fire immediately
     scheduleNext();
   }
@@ -490,6 +526,20 @@ export default function PrintBot() {
     }
   }
 
+  const upMs = startedAt ? now - startedAt : 0;
+  const countdown = Math.max(0, Math.ceil((nextAt - now) / 1000));
+  const tokAcquired =
+    startTok != null && tokBal != null
+      ? Math.max(0, parseFloat(tokBal) - startTok)
+      : 0;
+  const fmtDur = (ms: number) => {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return `${h ? h + "h " : ""}${m}m ${ss < 10 ? "0" : ""}${ss}s`;
+  };
+
   return (
     <div className="pb">
       <div className="pb-warn">
@@ -497,6 +547,46 @@ export default function PrintBot() {
         and used solely to sign transactions sent straight to the {CHAIN.name}{" "}
         RPC — never uploaded.
       </div>
+
+      {running && (
+        <section className="pb-monitor">
+          <div className="pb-mon-top">
+            <div className="pb-live">
+              <span className="pb-live-dot" /> LIVE · BUYING
+            </div>
+            <button className="pb-stop pb-mon-stop" onClick={stopLoop}>
+              Stop
+            </button>
+          </div>
+          <div className="pb-keepopen">
+            ⚠️ Keep this browser window open to continue buying.
+          </div>
+          <div className="pb-countdown">
+            <div className="pb-cd-num">
+              {countdown <= 0 ? "Buying…" : `${countdown}s`}
+            </div>
+            <div className="pb-cd-label">until next buy</div>
+          </div>
+          <div className="pb-mon-stats">
+            <div>
+              <div className="pb-ms-num">{buys}</div>
+              <div className="pb-ms-label">Buys</div>
+            </div>
+            <div>
+              <div className="pb-ms-num">{ethSpent.toFixed(4)}</div>
+              <div className="pb-ms-label">ETH spent</div>
+            </div>
+            <div>
+              <div className="pb-ms-num">{tokAcquired.toFixed(2)}</div>
+              <div className="pb-ms-label">{tokSym} bought</div>
+            </div>
+            <div>
+              <div className="pb-ms-num">{fmtDur(upMs)}</div>
+              <div className="pb-ms-label">Uptime</div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 1 · Load wallet */}
       <section className="pb-card">
@@ -694,6 +784,12 @@ export default function PrintBot() {
             </button>
           )}
         </div>
+        {!running && burnerAddr && (
+          <p className="pb-hint" style={{ marginTop: 10, marginBottom: 0 }}>
+            Buying runs in this browser tab — you&rsquo;ll need to keep the
+            window open while it&rsquo;s active.
+          </p>
+        )}
       </section>
 
       <section className="pb-card pb-collapse">
