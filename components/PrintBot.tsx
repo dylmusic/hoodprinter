@@ -854,7 +854,7 @@ export default function PrintBot() {
             <input
               value={withdrawTo}
               onChange={(e) => setWithdrawTo(e.target.value)}
-              onBlur={saveSettings}
+              onBlur={() => saveSettings()}
               placeholder="0x… your main wallet"
             />
 
@@ -923,27 +923,27 @@ export default function PrintBot() {
           <input
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            onBlur={saveSettings}
+            onBlur={() => saveSettings()}
             placeholder="0x… token contract address"
           />
           <label>Uniswap V2 Router (Robinhood Chain)</label>
           <input
             value={router}
             onChange={(e) => setRouter(e.target.value)}
-            onBlur={saveSettings}
+            onBlur={() => saveSettings()}
           />
           <label>LP / Pair address (recommended — auto-detects WETH)</label>
           <input
             value={pair}
             onChange={(e) => setPair(e.target.value)}
-            onBlur={saveSettings}
+            onBlur={() => saveSettings()}
             placeholder="0x… the token's WETH pair"
           />
           <label>Slippage %</label>
           <input
             value={slippage}
             onChange={(e) => setSlippage(e.target.value)}
-            onBlur={saveSettings}
+            onBlur={() => saveSettings()}
           />
           <button className="pb-ghost" onClick={addOrSwitchNetwork}>
             Add / switch MetaMask to {CHAIN.name}
@@ -957,7 +957,7 @@ export default function PrintBot() {
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                onBlur={saveSettings}
+                onBlur={() => saveSettings()}
               />
             </div>
             <div>
@@ -965,7 +965,7 @@ export default function PrintBot() {
               <input
                 value={interval}
                 onChange={(e) => setIntervalSecs(e.target.value)}
-                onBlur={saveSettings}
+                onBlur={() => saveSettings()}
               />
             </div>
             <div>
@@ -973,7 +973,7 @@ export default function PrintBot() {
               <input
                 value={randomize}
                 onChange={(e) => setRandomize(e.target.value)}
-                onBlur={saveSettings}
+                onBlur={() => saveSettings()}
               />
             </div>
           </div>
