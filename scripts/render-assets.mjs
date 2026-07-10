@@ -83,6 +83,21 @@ await renderComposite({
   out: path.join(brand, "banner.png"),
 });
 
+// --- banner 900x200 (same layout scaled 0.4x, centered in the wider frame) ---
+await renderComposite({
+  w: 900,
+  h: 200,
+  iconSize: 120,
+  iconPos: { left: 218, top: 40 },
+  textSvg: `
+    <text x="366" y="102" font-family="${FONT}" font-weight="800" font-size="38" letter-spacing="-0.8">
+      <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan>
+    </text>
+    <text x="368" y="132" font-family="${FONT}" font-weight="600" font-size="15" fill="#8fa898">Hold <tspan fill="#00c805" font-weight="800">$PRINT</tspan>. Get paid <tspan fill="#ffffff" font-weight="800">ETH</tspan>. Brrr.</text>
+  `,
+  out: path.join(brand, "banner-900x200.png"),
+});
+
 // --- favicon (Next serves app/icon.png automatically) ---
 await sharp(await iconPng(64)).toFile(path.join(root, "app", "icon.png"));
 console.log("wrote app/icon.png");
