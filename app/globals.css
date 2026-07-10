@@ -1755,19 +1755,26 @@ footer {
 }
 
 .pb-recent {
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 700;
   cursor: pointer;
-  max-width: 110px;
+  max-width: 88px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
+}
+
+.pb-bigstart {
+  width: 100%;
+  margin: 4px 0 6px;
+  padding: 14px;
+  font-size: 1rem;
 }
 
 .pb-recent:hover {

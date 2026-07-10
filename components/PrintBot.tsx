@@ -515,9 +515,9 @@ export default function PrintBot() {
 
   async function startLoop() {
     if (runningRef.current) return;
-    if (!pk.trim()) return alert("Load a wallet first (step 1).");
+    if (!pk.trim()) return alert("Load a wallet first.");
     if (!ethers.isAddress(token.trim()))
-      return alert("Enter a valid token address in Trade settings.");
+      return alert("Enter a valid token address in trade settings.");
     let addr = "";
     try {
       addr = new ethers.Wallet(normalizeKey(pk)).address;
@@ -618,6 +618,12 @@ export default function PrintBot() {
     }
   }
 
+  const canStart =
+    !!burnerAddr &&
+    ethers.isAddress(token.trim()) &&
+    parseFloat(amount || "0") > 0 &&
+    parseFloat(interval || "0") > 0 &&
+    parseFloat(ethBal || "0") > 0;
   const upMs = startedAt ? now - startedAt : 0;
   const countdown = Math.max(0, Math.ceil((nextAt - now) / 1000));
   const tokAcquired =
@@ -680,9 +686,9 @@ export default function PrintBot() {
         </section>
       )}
 
-      {/* 1 · Load wallet */}
+      {/* Load wallet */}
       <section className="pb-card">
-        <h2>1 · Load wallet</h2>
+        <h2>Load wallet</h2>
         {burnerAddr ? (
           <div className="pb-wallet-live">
             <div className="pb-wl-top">
@@ -738,6 +744,12 @@ export default function PrintBot() {
                   </button>
                 ))}
               </div>
+            )}
+
+            {canStart && !running && (
+              <button className="pb-primary pb-bigstart" onClick={startLoop}>
+                Start buying {tokSym}
+              </button>
             )}
 
             <label>Deposit address — send ETH here to fund</label>
@@ -812,9 +824,9 @@ export default function PrintBot() {
         )}
       </section>
 
-      {/* 2 · Trade settings */}
+      {/* Trade settings */}
       <section className="pb-card">
-        <h2>2 · Trade settings</h2>
+        <h2>Trade settings</h2>
         <label>Token to buy</label>
         <input
           value={token}
@@ -845,7 +857,7 @@ export default function PrintBot() {
       </section>
 
       <section className="pb-card">
-        <h2>3 · Auto-buy loop</h2>
+        <h2>Auto-buy loop</h2>
         <p className="pb-hint">
           Buys on a randomized timer with no popups, signed by your burner
           wallet. Fund the wallet with ETH first.
