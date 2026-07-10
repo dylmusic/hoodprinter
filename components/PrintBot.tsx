@@ -85,7 +85,7 @@ export default function PrintBot() {
   const [amount, setAmount] = useState("0.01");
   const [interval, setIntervalSecs] = useState("60");
   const [randomize, setRandomize] = useState("30");
-  const [slippage, setSlippage] = useState("20");
+  const [slippage, setSlippage] = useState("2");
   const [pk, setPk] = useState("");
   const [burnerAddr, setBurnerAddr] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
@@ -780,6 +780,13 @@ export default function PrintBot() {
                 </button>
                 {showHelp && (
                   <div className="pb-help-pop">
+                    <button
+                      className="pb-help-close"
+                      onClick={() => setShowHelp(false)}
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
                     Hold <strong>$PRINT</strong> here and use the ETH rewards to
                     auto-buy any token. You can even buy more $PRINT.
                   </div>
