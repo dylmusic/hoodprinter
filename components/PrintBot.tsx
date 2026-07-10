@@ -47,6 +47,7 @@ export default function PrintBot() {
   const [pair, setPair] = useState("");
   const [amount, setAmount] = useState("0.01");
   const [interval, setIntervalSecs] = useState("60");
+  const [randomize, setRandomize] = useState("30");
   const [slippage, setSlippage] = useState("20");
   const [pk, setPk] = useState("");
 
@@ -56,7 +57,8 @@ export default function PrintBot() {
     []
   );
 
-  const loopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runningRef = useRef(false);
   const busyRef = useRef(false);
 
   const addLog = (msg: string, level: LogLevel = "info") =>
@@ -66,11 +68,22 @@ export default function PrintBot() {
 
   useEffect(() => {
     return () => {
-      if (loopRef.current) clearInterval(loopRef.current);
+      runningRef.current = false;
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
 
   // ---- helpers ----
+  // Uniformly jitter a base value by ±pct%. pct=0 returns the base unchanged.
+  function jitter(base: number, pct: number) {
+    if (!pct || pct <= 0) return base;
+    return base * (1 + (Math.random() * 2 - 1) * (pct / 100));
+  }
+
+  function fmtAmount(n: number) {
+    return n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
   function readProvider() {
     return new ethers.JsonRpcProvider(CHAIN.rpc, {
       chainId: CHAIN.chainIdDec,
@@ -96,9 +109,10 @@ export default function PrintBot() {
   async function buildBuy(
     signer: ethers.Signer,
     provider: ethers.Provider,
-    to: string
+    to: string,
+    amountEth: string
   ) {
-    const valueWei = ethers.parseEther(amount.trim());
+    const valueWei = ethers.parseEther(amountEth);
     const weth = await resolveWeth(provider);
     const path = [weth, token.trim()];
     const r = new ethers.Contract(router.trim(), ROUTER_ABI, signer);
@@ -120,14 +134,19 @@ export default function PrintBot() {
     return { r, valueWei, path, minOut, deadline, to };
   }
 
-  async function sendBuy(signer: ethers.Signer, provider: ethers.Provider) {
+  async function sendBuy(
+    signer: ethers.Signer,
+    provider: ethers.Provider,
+    amountEth: string
+  ) {
     const to = await signer.getAddress();
     const { r, valueWei, minOut, path, deadline } = await buildBuy(
       signer,
       provider,
-      to
+      to,
+      amountEth
     );
-    addLog(`Buying with ${amount} ETH → min ${ethers.formatUnits(minOut, 18)} tokens…`);
+    addLog(`Buying with ${amountEth} ETH → min ${ethers.formatUnits(minOut, 18)} tokens…`);
     const tx = await (
       r.swapExactETHForTokensSupportingFeeOnTransferTokens as any
     )(minOut, path, to, deadline, { value: valueWei });
@@ -193,7 +212,7 @@ export default function PrintBot() {
       const eth = (window as any).ethereum;
       const provider = new ethers.BrowserProvider(eth);
       const signer = await provider.getSigner();
-      await sendBuy(signer, provider);
+      await sendBuy(signer, provider, amount.trim());
     } catch (e: any) {
       addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
     } finally {
@@ -201,31 +220,46 @@ export default function PrintBot() {
     }
   }
 
-  // ---- private-key loop ----
-  async function tick() {
-    if (busyRef.current) {
-      addLog("Previous buy still pending — skipping this tick");
-      return;
-    }
-    busyRef.current = true;
-    try {
-      const provider = readProvider();
-      const wallet = new ethers.Wallet(normalizeKey(pk), provider);
-      await sendBuy(wallet, provider);
-    } catch (e: any) {
-      addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
-    } finally {
-      busyRef.current = false;
-    }
-  }
-
+  // ---- private-key loop (randomized delay + amount) ----
   function normalizeKey(k: string) {
     const t = k.trim();
     return t.startsWith("0x") ? t : "0x" + t;
   }
 
+  async function doBuy() {
+    if (busyRef.current) {
+      addLog("Previous buy still pending — skipping");
+      return;
+    }
+    busyRef.current = true;
+    try {
+      const pct = parseFloat(randomize || "0");
+      const baseAmt = parseFloat(amount || "0");
+      const amt = fmtAmount(Math.max(0, jitter(baseAmt, pct)));
+      const provider = readProvider();
+      const wallet = new ethers.Wallet(normalizeKey(pk), provider);
+      await sendBuy(wallet, provider, amt);
+    } catch (e: any) {
+      addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
+    } finally {
+      busyRef.current = false;
+    }
+  }
+
+  function scheduleNext() {
+    if (!runningRef.current) return;
+    const pct = parseFloat(randomize || "0");
+    const baseSecs = Math.max(5, parseInt(interval || "60", 10));
+    const secs = Math.max(5, Math.round(jitter(baseSecs, pct)));
+    addLog(`Next buy in ${secs}s`);
+    timerRef.current = setTimeout(async () => {
+      await doBuy();
+      scheduleNext();
+    }, secs * 1000);
+  }
+
   async function startLoop() {
-    if (loopRef.current) return;
+    if (runningRef.current) return;
     if (!pk.trim()) return alert("Enter the burner private key first.");
     let addr = "";
     try {
@@ -233,17 +267,22 @@ export default function PrintBot() {
     } catch {
       return alert("That private key is not valid.");
     }
-    const secs = Math.max(5, parseInt(interval || "60", 10));
-    addLog(`Loop started — ${addr} buying ${amount} ETH every ${secs}s`, "ok");
+    const pct = parseFloat(randomize || "0");
+    addLog(
+      `Loop started — ${addr} · ~${amount} ETH every ~${interval}s, randomized ±${pct}%`,
+      "ok"
+    );
+    runningRef.current = true;
     setRunning(true);
-    await tick(); // fire immediately
-    loopRef.current = setInterval(tick, secs * 1000);
+    await doBuy(); // fire immediately
+    scheduleNext();
   }
 
   function stopLoop() {
-    if (loopRef.current) {
-      clearInterval(loopRef.current);
-      loopRef.current = null;
+    runningRef.current = false;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
     setRunning(false);
     addLog("Loop stopped", "info");
@@ -309,7 +348,7 @@ export default function PrintBot() {
             <input value={slippage} onChange={(e) => setSlippage(e.target.value)} />
           </div>
           <div>
-            <label>Buy amount (ETH)</label>
+            <label>Base buy amount (ETH)</label>
             <input value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
         </div>
@@ -344,7 +383,7 @@ export default function PrintBot() {
       <section className="pb-card">
         <h2>2b · Auto loop (burner private key)</h2>
         <p className="pb-hint">
-          Signs and fires a buy every interval with no popups. Requires a
+          Signs and fires a buy on a randomized timer with no popups. Requires a
           throwaway key funded with ETH on {CHAIN.name}.
         </p>
         <label>Burner private key</label>
@@ -357,23 +396,36 @@ export default function PrintBot() {
         />
         <div className="pb-row">
           <div>
-            <label>Interval (seconds)</label>
+            <label>Buy every (seconds)</label>
             <input
               value={interval}
               onChange={(e) => setIntervalSecs(e.target.value)}
             />
           </div>
-          <div className="pb-loopbtns">
-            {running ? (
-              <button className="pb-stop" onClick={stopLoop}>
-                Stop
-              </button>
-            ) : (
-              <button className="pb-primary" onClick={startLoop}>
-                Start loop
-              </button>
-            )}
+          <div>
+            <label>Randomize ±% (time &amp; amount)</label>
+            <input
+              value={randomize}
+              onChange={(e) => setRandomize(e.target.value)}
+            />
           </div>
+        </div>
+        <p className="pb-hint" style={{ marginTop: 12, marginBottom: 0 }}>
+          Each buy jitters both the delay and the ETH amount by up to ±
+          {parseFloat(randomize || "0") || 0}% around your base values — e.g.{" "}
+          {interval || "60"}s ±{randomize || "0"}% and {amount || "0"} ETH ±
+          {randomize || "0"}%. Set 0 for fixed.
+        </p>
+        <div className="pb-loopbtns" style={{ marginTop: 4 }}>
+          {running ? (
+            <button className="pb-stop" onClick={stopLoop}>
+              Stop
+            </button>
+          ) : (
+            <button className="pb-primary" onClick={startLoop}>
+              Start loop
+            </button>
+          )}
         </div>
       </section>
 
