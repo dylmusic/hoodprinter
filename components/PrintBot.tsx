@@ -669,6 +669,17 @@ export default function PrintBot() {
 
   async function startLoop() {
     if (runningRef.current) return;
+    // $PRINT isn't tradable yet — explain instead of failing silently.
+    if (token.trim().toLowerCase() === PRINT_TOKEN.toLowerCase()) {
+      if (
+        window.confirm(
+          "🖨️ $PRINT is coming soon!\n\nYou can auto-buy any other Robinhood Chain token right now — $PRINT goes live shortly.\n\nJoin our Telegram to catch the launch?"
+        )
+      ) {
+        window.open(siteConfig.telegram, "_blank", "noopener");
+      }
+      return;
+    }
     if (!pk.trim()) return alert("Load a wallet first.");
     if (!ethers.isAddress(token.trim()))
       return alert("Enter a valid token address in trade settings.");
