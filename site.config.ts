@@ -6,7 +6,12 @@
 export const PLACEHOLDER_CONTRACT_ADDRESS = "0x41E0bA8940C753d348c437d7E3D901956Cc94B85";
 export const PLACEHOLDER_BUY_LINK = "https://PLACEHOLDER_BUY_LINK";
 export const PLACEHOLDER_TELEGRAM = "https://t.me/HOODPrint";
-export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinter";
+export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinterxyz";
+
+// Set to false after launch to restore the normal buy-focused site.
+export const PRESALE_ACTIVE = true;
+export const PRESALE_LINK =
+  "https://gempad.app/presale/0xc9D8f13a1293f43554F89dD07f9C6CC4730CD0c6?network=Robinhood_Chain";
 
 export const siteConfig = {
   name: "HOODPrinter",
@@ -18,6 +23,8 @@ export const siteConfig = {
 
   contractAddress: PLACEHOLDER_CONTRACT_ADDRESS,
   buyLink: PLACEHOLDER_BUY_LINK,
+  presaleActive: PRESALE_ACTIVE,
+  presaleLink: PRESALE_LINK,
   telegram: PLACEHOLDER_TELEGRAM,
   twitter: PLACEHOLDER_TWITTER,
 

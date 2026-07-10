@@ -45,6 +45,22 @@ a {
   padding: 0 24px;
 }
 
+/* ---------- presale announcement bar ---------- */
+.presale-bar {
+  display: block;
+  text-align: center;
+  padding: 10px 16px;
+  background: var(--green);
+  color: #04140a;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.presale-bar:hover {
+  filter: brightness(1.08);
+}
+
 /* ---------- nav ---------- */
 .nav {
   position: sticky;

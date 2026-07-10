@@ -82,10 +82,23 @@ const faqs = [
 ];
 
 export default function Home() {
-  const { chain } = siteConfig;
+  const { chain, presaleActive, presaleLink } = siteConfig;
+  const buyHref = presaleActive ? presaleLink : siteConfig.buyLink;
+  const buyLabel = presaleActive ? "Join Presale" : "Buy $PRINT";
 
   return (
     <>
+      {presaleActive && (
+        <a
+          className="presale-bar"
+          href={presaleLink}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          🟢 The <strong>$PRINT presale is LIVE</strong> on Gempad — secure
+          your bag before launch&nbsp;→
+        </a>
+      )}
       <nav className="nav">
         <div className="container nav-inner">
           <a href="#" className="nav-logo">
@@ -105,11 +118,11 @@ export default function Home() {
             <a href="#faq">FAQ</a>
             <a
               className="btn btn-primary"
-              href={siteConfig.buyLink}
+              href={buyHref}
               target="_blank"
               rel="noopener noreferrer"
             >
-              Buy $PRINT
+              {buyLabel}
             </a>
           </div>
         </div>
@@ -118,7 +131,9 @@ export default function Home() {
       <header className="hero">
         <div className="container">
           <span className="hero-kicker">
-            Now printing on {chain.name} · Chain ID {chain.chainId}
+            {presaleActive
+              ? `Presale LIVE on Gempad · ${chain.name}`
+              : `Now printing on ${chain.name} · Chain ID ${chain.chainId}`}
           </span>
           <h1>
             Hold <span className="green">$PRINT</span>.
@@ -133,11 +148,11 @@ export default function Home() {
           <div className="hero-ctas">
             <a
               className="btn btn-primary"
-              href={siteConfig.buyLink}
+              href={buyHref}
               target="_blank"
               rel="noopener noreferrer"
             >
-              Buy $PRINT
+              {presaleActive ? "Join the Presale on Gempad" : "Buy $PRINT"}
             </a>
             <a className="btn btn-ghost" href="#how-it-works">
               How it works
@@ -288,19 +303,40 @@ export default function Home() {
             </div>
             <div className="card">
               <span className="step-num">4</span>
-              <h3>Swap for $PRINT</h3>
-              <p>
-                Open the{" "}
-                <a
-                  href={siteConfig.buyLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  official swap link
-                </a>
-                , paste the contract address, set slippage to ~6% (the 5% tax
-                plus wiggle room), and swap. Welcome to the print run.
-              </p>
+              {presaleActive ? (
+                <>
+                  <h3>Join the presale on Gempad</h3>
+                  <p>
+                    Head to the{" "}
+                    <a
+                      href={presaleLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      official Gempad presale
+                    </a>
+                    , connect your wallet, and contribute ETH to lock in your
+                    $PRINT before launch. Tokens are claimable on Gempad at
+                    launch — then the printing starts.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3>Swap for $PRINT</h3>
+                  <p>
+                    Open the{" "}
+                    <a
+                      href={siteConfig.buyLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      official swap link
+                    </a>
+                    , paste the contract address, set slippage to ~6% (the 5%
+                    tax plus wiggle room), and swap. Welcome to the print run.
+                  </p>
+                </>
+              )}
             </div>
           </div>
 

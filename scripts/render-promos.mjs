@@ -96,7 +96,7 @@ function neon(y, size, inner, ls = -2) {
 }
 
 function footer(y = H - 58) {
-  return `<text x="${W / 2}" y="${y}" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="27" fill="#5f7266">@HOODPrinter · t.me/HOODPrint</text>`;
+  return `<text x="${W / 2}" y="${y}" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="27" fill="#5f7266">@HOODPrinterxyz · t.me/HOODPrint</text>`;
 }
 
 function wordmark(y, size = 42) {
@@ -235,7 +235,7 @@ await render(
   ${neon(520, 128, `<tspan fill="${WHITE}">Join the</tspan>`, -3)}
   ${neon(650, 128, `<tspan fill="url(#greenGrad)">print run.</tspan>`, -3)}
   <rect x="${W / 2 - 270}" y="716" width="540" height="76" rx="38" fill="#0c120e" stroke="${GREEN}" stroke-width="2"/>
-  <text x="${W / 2}" y="765" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="34" fill="${GREEN}">@HOODPrinter</text>
+  <text x="${W / 2}" y="765" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="34" fill="${GREEN}">@HOODPrinterxyz</text>
   <rect x="${W / 2 - 270}" y="812" width="540" height="76" rx="38" fill="#0c120e" stroke="${BORDER}" stroke-width="2"/>
   <text x="${W / 2}" y="861" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="34" fill="${GREEN}">t.me/HOODPrint</text>
   <text x="${W / 2}" y="962" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="30" fill="${MUTED}">Hold $PRINT. Get paid ETH. Brrr.</text>
