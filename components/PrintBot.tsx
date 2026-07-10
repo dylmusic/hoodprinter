@@ -643,12 +643,6 @@ export default function PrintBot() {
 
   return (
     <div className="pb">
-      <div className="pb-warn">
-        ⚠️ Burner wallets only. The key is generated and stored in this browser
-        and used solely to sign transactions sent straight to the {CHAIN.name}{" "}
-        RPC — never uploaded.
-      </div>
-
       {running && (
         <section className="pb-monitor" ref={monitorRef}>
           <div className="pb-mon-top">
