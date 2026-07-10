@@ -124,7 +124,11 @@ export default function PrintBot() {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
-  const busyRef = useRef(false);
+  // Spam mode: reserve nonces locally so rapid-fire sends don't collide, and
+  // reuse one signer + cached WETH path so each tick does minimal RPC work.
+  const nonceRef = useRef<number | null>(null);
+  const signerRef = useRef<ethers.Wallet | null>(null);
+  const wethRef = useRef<string | null>(null);
   const monitorRef = useRef<HTMLDivElement>(null);
 
   const addLog = (msg: string, level: LogLevel = "info") =>
@@ -486,7 +490,8 @@ export default function PrintBot() {
     amountEth: string
   ) {
     const valueWei = ethers.parseEther(amountEth);
-    const weth = await resolveWeth(provider);
+    // Reuse the WETH resolved at loop start when we have it (spam mode).
+    const weth = wethRef.current || (await resolveWeth(provider));
     const path = [weth, token.trim()];
     const r = new ethers.Contract(router.trim(), ROUTER_ABI, signer);
 
@@ -507,30 +512,28 @@ export default function PrintBot() {
     return { r, valueWei, path, minOut, deadline, to };
   }
 
-  async function sendBuy(
-    signer: ethers.Signer,
+  // Broadcast a buy with an explicit nonce and return as soon as it hits the
+  // mempool — no waiting for confirmation. The caller confirms in the background.
+  async function sendBuyNoWait(
+    signer: ethers.Wallet,
     provider: ethers.Provider,
-    amountEth: string
-  ) {
-    const to = await signer.getAddress();
+    amountEth: string,
+    nonce: number
+  ): Promise<ethers.TransactionResponse> {
+    const to = signer.address;
     const { r, valueWei, minOut, path, deadline } = await buildBuy(
       signer,
       provider,
       to,
       amountEth
     );
-    addLog(`Buying with ${amountEth} ETH → min ${ethers.formatUnits(minOut, 18)} tokens…`);
-    const tx = await (
-      r.swapExactETHForTokensSupportingFeeOnTransferTokens as any
-    )(minOut, path, to, deadline, { value: valueWei });
-    addLog(`Sent: ${tx.hash}`, "info");
-    const rec = await tx.wait();
-    if (rec && rec.status === 1) {
-      addLog(`✅ Confirmed in block ${rec.blockNumber} — ${tx.hash}`, "ok");
-      return tx.hash as string;
-    }
-    addLog(`⚠️ Tx reverted — ${tx.hash}`, "err");
-    return null;
+    return (r.swapExactETHForTokensSupportingFeeOnTransferTokens as any)(
+      minOut,
+      path,
+      to,
+      deadline,
+      { value: valueWei, nonce }
+    );
   }
 
   // Report a confirmed buy to the shared platform counters (fire-and-forget).
@@ -586,28 +589,47 @@ export default function PrintBot() {
   }
 
   async function doBuy() {
-    if (busyRef.current) {
-      addLog("Previous buy still pending — skipping");
-      return;
-    }
-    busyRef.current = true;
+    const wallet = signerRef.current;
+    const provider = wallet?.provider;
+    if (!wallet || !provider || nonceRef.current == null) return;
+
+    // Reserve this tx's nonce SYNCHRONOUSLY (before any await) so back-to-back
+    // sends never grab the same one.
+    const myNonce = nonceRef.current;
+    nonceRef.current = myNonce + 1;
+
+    const pct = parseFloat(randomize || "0");
+    const amt = fmtAmount(Math.max(0, jitter(parseFloat(amount || "0"), pct)));
+
     try {
-      const pct = parseFloat(randomize || "0");
-      const baseAmt = parseFloat(amount || "0");
-      const amt = fmtAmount(Math.max(0, jitter(baseAmt, pct)));
-      const provider = readProvider();
-      const wallet = new ethers.Wallet(normalizeKey(pk), provider);
-      const txHash = await sendBuy(wallet, provider, amt);
-      if (txHash) {
-        setBuys((b) => b + 1);
-        setEthSpent((e) => e + parseFloat(amt));
-        reportBuy(wallet.address, txHash);
-      }
-      refreshBalances();
+      const tx = await sendBuyNoWait(wallet, provider, amt, myNonce);
+      addLog(`Sent #${myNonce} · ${amt} ETH — ${tx.hash}`, "info");
+      // Confirm + count in the background; don't block the next send.
+      tx.wait()
+        .then((rec) => {
+          if (rec && rec.status === 1) {
+            setBuys((b) => b + 1);
+            setEthSpent((e) => e + parseFloat(amt));
+            reportBuy(wallet.address, tx.hash);
+          } else {
+            addLog(`Reverted #${myNonce} — ${tx.hash}`, "err");
+          }
+        })
+        .catch((e: any) =>
+          addLog(`Tx #${myNonce} dropped: ${e.shortMessage || e.message || e}`, "err")
+        );
     } catch (e: any) {
-      addLog("Buy failed: " + (e.shortMessage || e.message || e), "err");
-    } finally {
-      busyRef.current = false;
+      addLog(`Send #${myNonce} failed: ${e.shortMessage || e.message || e}`, "err");
+      // A failed broadcast leaves a nonce gap that would stall later txs —
+      // resync from the chain so the loop self-heals.
+      try {
+        nonceRef.current = await provider.getTransactionCount(
+          wallet.address,
+          "pending"
+        );
+      } catch {
+        /* will retry next tick */
+      }
     }
   }
 
@@ -640,6 +662,22 @@ export default function PrintBot() {
       `Loop started — ${addr} · ~${amount} ETH every ~${interval}s, randomized ±${pct}%`,
       "ok"
     );
+    // Prepare the persistent signer, cache the WETH path, and sync the nonce
+    // once up front so each tick can fire fast without redundant RPC calls.
+    const provider = readProvider();
+    const wallet = new ethers.Wallet(normalizeKey(pk), provider);
+    signerRef.current = wallet;
+    try {
+      wethRef.current = await resolveWeth(provider);
+    } catch {
+      wethRef.current = null; // fall back to per-tx resolution
+    }
+    try {
+      nonceRef.current = await provider.getTransactionCount(addr, "pending");
+    } catch (e: any) {
+      return alert("Could not reach the RPC to start: " + (e.message || e));
+    }
+
     saveSettings();
     runningRef.current = true;
     setRunning(true);
@@ -651,7 +689,7 @@ export default function PrintBot() {
     requestAnimationFrame(() =>
       window.scrollTo({ top: 0, behavior: "smooth" })
     );
-    await doBuy(); // fire immediately
+    doBuy(); // fire immediately (don't await — spam mode)
     scheduleNext();
   }
 
@@ -661,6 +699,9 @@ export default function PrintBot() {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    signerRef.current = null;
+    nonceRef.current = null;
+    wethRef.current = null;
     setRunning(false);
     addLog("Loop stopped", "info");
   }
