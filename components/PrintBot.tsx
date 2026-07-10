@@ -332,12 +332,28 @@ export default function PrintBot() {
   function forgetWallet() {
     if (runningRef.current)
       return alert("Stop the loop before forgetting the wallet.");
-    if (
-      !confirm(
-        "Forget this wallet and clear its key from this device? Withdraw any funds first — this cannot be undone."
-      )
-    )
+    const proceed = confirm(
+      "⚠️ FORGET WALLET — READ CAREFULLY\n\n" +
+        "This permanently erases this wallet's private key from this device. " +
+        "If you have NOT saved the key, any ETH or $PRINT still in it will be " +
+        "LOST FOREVER. There is no recovery.\n\n" +
+        "Click OK and we'll download a backup of your key before erasing it."
+    );
+    if (!proceed) return;
+
+    // Force a key backup download before anything is erased.
+    downloadKey();
+
+    const confirmed = confirm(
+      "A backup file (with your address + private key) was just downloaded.\n\n" +
+        "Only continue if you've saved it somewhere safe.\n\n" +
+        "Click OK to permanently erase this wallet from this device."
+    );
+    if (!confirmed) {
+      addLog("Forget cancelled — wallet kept", "info");
       return;
+    }
+
     try {
       localStorage.removeItem(PK_STORAGE_KEY);
     } catch {
@@ -345,7 +361,7 @@ export default function PrintBot() {
     }
     setPk("");
     setShowKey(false);
-    addLog("Burner wallet cleared from this device", "info");
+    addLog("Burner wallet erased from this device (key backup downloaded)", "info");
   }
 
   function copy(text: string, label: string) {
