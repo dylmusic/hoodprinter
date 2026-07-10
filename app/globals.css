@@ -714,3 +714,32 @@ footer {
   color: #5f7266;
   font-size: 0.8rem;
 }
+
+/* ---------- airdrop page ---------- */
+.airdrop-hero {
+  padding-bottom: 80px;
+}
+
+.airdrop-form-wrap {
+  margin: 40px auto 0;
+  max-width: 720px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.airdrop-form-wrap iframe {
+  display: block;
+  width: 100%;
+  height: 1100px;
+  border: 0;
+  border-radius: calc(var(--radius) - 6px);
+  background: #fff;
+}
+
+.airdrop-fallback {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
