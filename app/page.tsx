@@ -117,6 +117,7 @@ export default function Home() {
             <a href="#how-it-works">How It Works</a>
             <a href="#tokenomics">Tokenomics</a>
             <a href="#how-to-buy">How To Buy</a>
+            <a href="/roadmap">Roadmap</a>
             <a href="#faq">FAQ</a>
             <a
               className="btn btn-primary"

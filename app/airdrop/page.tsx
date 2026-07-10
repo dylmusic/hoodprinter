@@ -30,6 +30,7 @@ export default function Airdrop() {
           <NavSocials />
           <div className="nav-links">
             <a href="/">Home</a>
+            <a href="/roadmap">Roadmap</a>
             <a
               className="btn btn-primary"
               href={siteConfig.presaleLink}
