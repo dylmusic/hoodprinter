@@ -1288,3 +1288,216 @@ footer {
   margin-top: 10px;
   flex-wrap: wrap;
 }
+
+/* ---------- print bot: wallet widget ---------- */
+.pb-wallet-widget {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+}
+
+.pb-wallet-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pb-wallet-pill.empty {
+  background: var(--green);
+  color: #04140a;
+  border-color: var(--green);
+  box-shadow: 0 0 20px var(--green-glow);
+  font-family: inherit;
+}
+
+.pb-wallet-pill.empty:hover {
+  background: #17d81c;
+}
+
+.pb-wallet-pill.connected {
+  background: var(--card);
+  color: var(--text);
+}
+
+.pb-wallet-pill.connected:hover {
+  border-color: var(--green);
+}
+
+.pb-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+.pb-pill-bal {
+  color: var(--green);
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.pb-wallet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.pb-wallet-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  width: min(360px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+.pb-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+
+.pb-net {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--green);
+  background: rgba(0, 200, 5, 0.1);
+  border: 1px solid rgba(0, 200, 5, 0.3);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.pb-balrow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pb-balrow > div {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+
+.pb-balnum {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--green);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pb-ballabel {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 2px;
+}
+
+.pb-panel-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+.pb-or {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 14px 0 8px;
+}
+
+.pb-wallet-panel label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 12px 0 5px;
+}
+
+.pb-wallet-panel input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 10px 11px;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pb-wallet-panel input:focus {
+  outline: none;
+  border-color: var(--green);
+}
+
+.pb-wallet-panel button.pb-primary,
+.pb-wallet-panel button.pb-ghost {
+  width: 100%;
+  margin-top: 0;
+  padding: 11px;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+/* ---------- print bot: gate + collapse ---------- */
+.pb-gate {
+  background: rgba(0, 200, 5, 0.06);
+  border: 1px solid rgba(0, 200, 5, 0.3);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 0.86rem;
+  color: var(--text);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.pb-card button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pb-collapse summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  list-style: none;
+}
+
+.pb-collapse summary::-webkit-details-marker {
+  display: none;
+}
+
+.pb-collapse summary::before {
+  content: "▸ ";
+  color: var(--green);
+}
+
+.pb-collapse details[open] summary::before {
+  content: "▾ ";
+}

@@ -56,6 +56,11 @@ export default function PrintBot() {
   const [burnerAddr, setBurnerAddr] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [withdrawTo, setWithdrawTo] = useState("");
+  const [pastedKey, setPastedKey] = useState("");
+  const [walletOpen, setWalletOpen] = useState(false);
+  const [ethBal, setEthBal] = useState<string | null>(null);
+  const [tokBal, setTokBal] = useState<string | null>(null);
+  const [tokSym, setTokSym] = useState("PRINT");
 
   const [mmAccount, setMmAccount] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -108,6 +113,58 @@ export default function PrintBot() {
     }
   }
 
+  // Poll the burner's live balances so the pill/panel stay current.
+  useEffect(() => {
+    if (!burnerAddr) {
+      setEthBal(null);
+      setTokBal(null);
+      return;
+    }
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const provider = readProvider();
+        const eth = await provider.getBalance(burnerAddr);
+        if (alive) setEthBal(parseFloat(ethers.formatEther(eth)).toFixed(4));
+        try {
+          const erc = new ethers.Contract(token.trim(), ERC20_ABI, provider);
+          const [b, d, s] = await Promise.all([
+            erc.balanceOf(burnerAddr),
+            erc.decimals().catch(() => 18),
+            erc.symbol().catch(() => "PRINT"),
+          ]);
+          if (alive) {
+            setTokBal(parseFloat(ethers.formatUnits(b, d)).toFixed(2));
+            setTokSym(s);
+          }
+        } catch {
+          /* token not live yet */
+        }
+      } catch {
+        /* rpc hiccup */
+      }
+    };
+    refresh();
+    const id = setInterval(refresh, 20000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [burnerAddr, token]);
+
+  function loadPastedKey() {
+    if (runningRef.current) return alert("Stop the loop before switching wallets.");
+    const addr = deriveAddr(pastedKey);
+    if (!addr) return alert("That private key is not valid.");
+    setShowKey(false);
+    setPk(pastedKey.trim());
+    setPastedKey("");
+    addLog(`Wallet loaded: ${addr}`, "ok");
+  }
+
+  const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
   function generateWallet() {
     if (runningRef.current)
       return alert("Stop the loop before switching wallets.");
@@ -121,6 +178,7 @@ export default function PrintBot() {
     const w = ethers.Wallet.createRandom();
     setShowKey(false);
     setPk(w.privateKey);
+    setWalletOpen(true);
     addLog(`New burner wallet generated: ${w.address}`, "ok");
   }
 
@@ -425,50 +483,176 @@ export default function PrintBot() {
     }
   }
 
-  async function checkBalances() {
-    try {
-      const provider = readProvider();
-      let addr = mmAccount;
-      if (!addr && pk.trim()) addr = new ethers.Wallet(normalizeKey(pk)).address;
-      if (!addr) return alert("Connect MetaMask or enter a key first.");
-      const [eth, tokenC] = [
-        await provider.getBalance(addr),
-        new ethers.Contract(token.trim(), ERC20_ABI, provider),
-      ];
-      let sym = "TOKEN";
-      let dec = 18;
-      let bal = 0n;
-      try {
-        [sym, dec, bal] = await Promise.all([
-          tokenC.symbol(),
-          tokenC.decimals(),
-          tokenC.balanceOf(addr),
-        ]);
-      } catch {
-        /* token may not be live yet */
-      }
-      addLog(
-        `${addr.slice(0, 6)}…${addr.slice(-4)} — ${ethers.formatEther(
-          eth
-        )} ETH · ${ethers.formatUnits(bal, dec)} ${sym}`,
-        "ok"
-      );
-    } catch (e: any) {
-      addLog("Balance check failed: " + (e.message || e), "err");
-    }
-  }
-
   return (
     <div className="pb">
-      <div className="pb-warn">
-        ⚠️ <strong>Unlisted tool.</strong> Use a burner wallet only. In
-        private-key mode the key stays in your browser and is used solely to
-        sign transactions sent directly to the {CHAIN.name} RPC — it is never
-        uploaded anywhere. Close this tab to clear it.
+      {/* ---- fixed top-right wallet widget ---- */}
+      <div className="pb-wallet-widget">
+        <button
+          className={`pb-wallet-pill ${burnerAddr ? "connected" : "empty"}`}
+          onClick={() => setWalletOpen((o) => !o)}
+        >
+          {burnerAddr ? (
+            <>
+              <span className="pb-dot" />
+              <span className="pb-pill-addr">{shortAddr(burnerAddr)}</span>
+              <span className="pb-pill-bal">
+                {ethBal ?? "…"} ETH
+              </span>
+            </>
+          ) : (
+            <>＋ Generate Wallet</>
+          )}
+        </button>
+
+        {walletOpen && (
+          <>
+            <div
+              className="pb-wallet-backdrop"
+              onClick={() => setWalletOpen(false)}
+            />
+            <div className="pb-wallet-panel">
+              {burnerAddr ? (
+                <>
+                  <div className="pb-panel-head">
+                    <span>Burner wallet</span>
+                    <span className="pb-net">{CHAIN.name}</span>
+                  </div>
+
+                  <div className="pb-balrow">
+                    <div>
+                      <div className="pb-balnum">{ethBal ?? "…"}</div>
+                      <div className="pb-ballabel">ETH</div>
+                    </div>
+                    <div>
+                      <div className="pb-balnum">{tokBal ?? "0.00"}</div>
+                      <div className="pb-ballabel">{tokSym}</div>
+                    </div>
+                  </div>
+
+                  <label>Deposit address</label>
+                  <div className="pb-addr">
+                    <code>{burnerAddr}</code>
+                    <button
+                      className="pb-mini"
+                      onClick={() => copy(burnerAddr, "Address")}
+                    >
+                      Copy
+                    </button>
+                  </div>
+
+                  <label>Private key</label>
+                  <div className="pb-addr">
+                    <code>{showKey ? normalizeKey(pk) : "•".repeat(30)}</code>
+                    <button
+                      className="pb-mini"
+                      onClick={() => setShowKey((s) => !s)}
+                    >
+                      {showKey ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  <div className="pb-walletbtns">
+                    <button
+                      className="pb-mini"
+                      onClick={() => copy(normalizeKey(pk), "Private key")}
+                    >
+                      Copy key
+                    </button>
+                    <button className="pb-mini" onClick={downloadKey}>
+                      Backup
+                    </button>
+                  </div>
+
+                  <div className="pb-panel-divider" />
+
+                  <label>Withdraw to</label>
+                  <input
+                    value={withdrawTo}
+                    onChange={(e) => setWithdrawTo(e.target.value)}
+                    placeholder="0x… your main wallet"
+                  />
+                  <div className="pb-row" style={{ marginTop: 10 }}>
+                    <button
+                      className="pb-ghost"
+                      onClick={withdrawEth}
+                      style={{ marginTop: 0 }}
+                    >
+                      Send all ETH
+                    </button>
+                    <button
+                      className="pb-ghost"
+                      onClick={withdrawToken}
+                      style={{ marginTop: 0 }}
+                    >
+                      Send all {tokSym}
+                    </button>
+                  </div>
+
+                  <div className="pb-panel-divider" />
+                  <div className="pb-walletbtns">
+                    <button className="pb-mini" onClick={generateWallet}>
+                      New wallet
+                    </button>
+                    <button className="pb-mini danger" onClick={forgetWallet}>
+                      Forget
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="pb-panel-head">
+                    <span>Set up a burner</span>
+                    <span className="pb-net">{CHAIN.name}</span>
+                  </div>
+                  <p className="pb-hint">
+                    Generate a throwaway wallet in your browser, then deposit
+                    ETH to it. The key is created locally and saved only on this
+                    device — back it up before funding.
+                  </p>
+                  <button
+                    className="pb-primary"
+                    onClick={generateWallet}
+                    style={{ marginTop: 4 }}
+                  >
+                    Generate new wallet
+                  </button>
+                  <div className="pb-or">or load an existing key</div>
+                  <input
+                    type="password"
+                    value={pastedKey}
+                    onChange={(e) => setPastedKey(e.target.value)}
+                    placeholder="0x…"
+                    autoComplete="off"
+                  />
+                  <button
+                    className="pb-ghost"
+                    onClick={loadPastedKey}
+                    style={{ marginTop: 8 }}
+                  >
+                    Load wallet
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
+      <div className="pb-warn">
+        ⚠️ <strong>Unlisted tool.</strong> Burner wallets only. The key is
+        generated and stored in this browser and used solely to sign
+        transactions sent straight to the {CHAIN.name} RPC — never uploaded.
+      </div>
+
+      {!burnerAddr && (
+        <div className="pb-gate">
+          Start by generating or loading a wallet from the
+          <strong> Generate Wallet</strong> button in the top-right corner, then
+          fund it with ETH.
+        </div>
+      )}
+
       <section className="pb-card">
-        <h2>1 · Config</h2>
+        <h2>1 · Trade settings</h2>
         <label>Token ($PRINT)</label>
         <input value={token} onChange={(e) => setToken(e.target.value)} />
         <label>Uniswap V2 Router (Robinhood Chain)</label>
@@ -490,94 +674,17 @@ export default function PrintBot() {
           </div>
         </div>
         <button className="pb-ghost" onClick={addOrSwitchNetwork}>
-          Add / switch to {CHAIN.name}
-        </button>
-        <button className="pb-ghost" onClick={checkBalances}>
-          Check wallet balance
+          Add / switch MetaMask to {CHAIN.name}
         </button>
       </section>
 
       <section className="pb-card">
-        <h2>2a · MetaMask (manual, no key)</h2>
+        <h2>2 · Auto-buy loop</h2>
         <p className="pb-hint">
-          One click per buy — MetaMask asks you to confirm each one. Best for
-          hand-timed buys.
+          Buys on a randomized timer with no popups, signed by your burner
+          wallet. Fund the wallet with ETH first.
         </p>
-        {mmAccount ? (
-          <div className="pb-ok">Connected: {mmAccount}</div>
-        ) : (
-          <button className="pb-primary" onClick={connectMetaMask}>
-            Connect MetaMask
-          </button>
-        )}
-        {mmAccount && (
-          <button className="pb-primary" onClick={buyOnceMetaMask}>
-            Buy now ({amount} ETH)
-          </button>
-        )}
-      </section>
-
-      <section className="pb-card">
-        <h2>2b · Burner wallet + auto loop</h2>
-        <p className="pb-hint">
-          Generate a throwaway wallet right here, send it ETH, and it buys on a
-          randomized timer with no popups. The key is created in your browser
-          and saved only on this device — back it up before funding.
-        </p>
-
-        <button className="pb-primary" onClick={generateWallet}>
-          {burnerAddr ? "Generate a new burner wallet" : "Generate burner wallet"}
-        </button>
-
-        {burnerAddr && (
-          <div className="pb-wallet">
-            <label>Deposit ETH to this address</label>
-            <div className="pb-addr">
-              <code>{burnerAddr}</code>
-              <button
-                className="pb-mini"
-                onClick={() => copy(burnerAddr, "Address")}
-              >
-                Copy
-              </button>
-            </div>
-
-            <label>Private key (back this up)</label>
-            <div className="pb-addr">
-              <code>{showKey ? normalizeKey(pk) : "•".repeat(40)}</code>
-              <button className="pb-mini" onClick={() => setShowKey((s) => !s)}>
-                {showKey ? "Hide" : "Show"}
-              </button>
-            </div>
-            <div className="pb-walletbtns">
-              <button
-                className="pb-mini"
-                onClick={() => copy(normalizeKey(pk), "Private key")}
-              >
-                Copy key
-              </button>
-              <button className="pb-mini" onClick={downloadKey}>
-                Download backup
-              </button>
-              <button className="pb-mini danger" onClick={forgetWallet}>
-                Forget wallet
-              </button>
-            </div>
-          </div>
-        )}
-
-        <label style={{ marginTop: 16 }}>
-          …or paste an existing burner key
-        </label>
-        <input
-          type="password"
-          value={pk}
-          onChange={(e) => setPk(e.target.value)}
-          placeholder="0x…"
-          autoComplete="off"
-        />
-
-        <div className="pb-row" style={{ marginTop: 4 }}>
+        <div className="pb-row">
           <div>
             <label>Buy every (seconds)</label>
             <input
@@ -595,44 +702,50 @@ export default function PrintBot() {
         </div>
         <p className="pb-hint" style={{ marginTop: 12, marginBottom: 0 }}>
           Each buy jitters both the delay and the ETH amount by up to ±
-          {parseFloat(randomize || "0") || 0}% around your base values — e.g.{" "}
-          {interval || "60"}s ±{randomize || "0"}% and {amount || "0"} ETH ±
-          {randomize || "0"}%. Set 0 for fixed.
+          {parseFloat(randomize || "0") || 0}% — e.g. {interval || "60"}s and{" "}
+          {amount || "0"} ETH, each ±{randomize || "0"}%. Set 0 for fixed.
         </p>
         <div className="pb-loopbtns" style={{ marginTop: 4 }}>
           {running ? (
             <button className="pb-stop" onClick={stopLoop}>
-              Stop
+              Stop loop
             </button>
           ) : (
-            <button className="pb-primary" onClick={startLoop}>
-              Start loop
+            <button
+              className="pb-primary"
+              onClick={startLoop}
+              disabled={!burnerAddr}
+            >
+              {burnerAddr ? "Start loop" : "Generate a wallet first"}
             </button>
           )}
         </div>
       </section>
 
-      <section className="pb-card">
-        <h2>3 · Withdraw</h2>
-        <p className="pb-hint">
-          Sweep the burner back to your main wallet. ETH sends the full balance
-          minus gas; $PRINT sends the whole token balance (the token&rsquo;s 5%
-          transfer tax still applies).
-        </p>
-        <label>Destination address</label>
-        <input
-          value={withdrawTo}
-          onChange={(e) => setWithdrawTo(e.target.value)}
-          placeholder="0x… your main wallet"
-        />
-        <div className="pb-row" style={{ marginTop: 12 }}>
-          <button className="pb-ghost" onClick={withdrawEth} style={{ marginTop: 0 }}>
-            Send all ETH
-          </button>
-          <button className="pb-ghost" onClick={withdrawToken} style={{ marginTop: 0 }}>
-            Send all $PRINT
-          </button>
-        </div>
+      <section className="pb-card pb-collapse">
+        <details>
+          <summary>
+            Prefer manual buys with MetaMask? (optional)
+          </summary>
+          <div style={{ marginTop: 14 }}>
+            <p className="pb-hint">
+              One click per buy — MetaMask confirms each one. Independent of the
+              burner wallet above.
+            </p>
+            {mmAccount ? (
+              <>
+                <div className="pb-ok">Connected: {mmAccount}</div>
+                <button className="pb-primary" onClick={buyOnceMetaMask}>
+                  Buy now ({amount} ETH)
+                </button>
+              </>
+            ) : (
+              <button className="pb-primary" onClick={connectMetaMask}>
+                Connect MetaMask
+              </button>
+            )}
+          </div>
+        </details>
       </section>
 
       <section className="pb-card">
