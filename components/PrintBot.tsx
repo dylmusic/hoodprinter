@@ -34,6 +34,9 @@ const V2_FACTORY = "0x8bceaa40b9acdfaedf85adf4ff01f5ad6517937f";
 // swaps go through the Universal Router (verified on-chain from live swaps).
 const V3_FACTORY = "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA";
 const UNIVERSAL_ROUTER = "0x8876789976dEcBfCbBbe364623C63652db8C0904";
+// WETH is fixed on Robinhood Chain (= router.WETH()); every pool pairs against
+// it, so we never need a user-supplied LP pair address.
+const WETH_ADDR = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73";
 const V3_FEE_TIERS = [10000, 3000, 500, 100];
 // Rough gas a swap burns (real ~131k for V2; a bit more for V3/taxed) — used
 // only to warn when a buy is so small that fees eat a big share of it.
@@ -95,17 +98,6 @@ const PINNED_ADDRS = PINNED_TOKENS.filter((t) => t.ca).map((t) =>
   t.ca.toLowerCase()
 );
 
-// Known LP pairs for our curated tokens — auto-filled when the token is picked
-// so WETH resolves from the exact pool. Keyed by lowercased token CA.
-const KNOWN_PAIRS: Record<string, string> = {
-  "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03":
-    "0xE40d98D88038e0B844f844dce6Ae3c79ec01ec53", // ARROW
-  "0x020bfc650a365f8bb26819deaabf3e21291018b4":
-    "0xA70fc67C9F69da90B63a0e4C05D229954574E313", // CASHCAT
-  "0x8e62f281f282686fca6dcb39288069a93fc23f1c":
-    "0x451c0DA3b774045a822A129eeDcc5C667DcbfDD8", // HOODRAT
-  // JUGGERNAUT trades on Uniswap V3 — no V2 pair; routing is auto-detected.
-};
 
 // Balance formatter: comma-group big numbers, keep small amounts visible.
 function fmtBal(v: string | number | null): string {
@@ -223,6 +215,11 @@ export default function PrintBot() {
   // live gas price (wei) for the "buy too low" warning
   const [gasPriceWei, setGasPriceWei] = useState<bigint | null>(null);
 
+  // "add token by CA" popup
+  const [addOpen, setAddOpen] = useState(false);
+  const [addCa, setAddCa] = useState("");
+  const [addErr, setAddErr] = useState("");
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   // Spam mode: reserve nonces locally so rapid-fire sends don't collide, and
@@ -304,19 +301,38 @@ export default function PrintBot() {
     }
   }
 
-  // Select a token and persist it immediately so a reload keeps it. Auto-fill
-  // the LP pair for our known tokens (and clear a stale one otherwise) so WETH
-  // resolves from the correct pool.
+  // Select a token and persist it immediately so a reload keeps it. Routing
+  // (V2 vs V3, WETH) is auto-detected on start — no pair address needed.
   function pickToken(ca: string) {
     if (runningRef.current)
       return showAlert(
         "Stop buying before switching to a different token.",
         "Buying is active"
       );
-    const knownPair = KNOWN_PAIRS[ca.trim().toLowerCase()] || "";
     setToken(ca);
-    setPair(knownPair);
-    saveSettings({ token: ca, pair: knownPair });
+    saveSettings({ token: ca });
+  }
+
+  function openAddToken() {
+    if (runningRef.current)
+      return showAlert(
+        "Stop buying before switching to a different token.",
+        "Buying is active"
+      );
+    setAddCa("");
+    setAddErr("");
+    setAddOpen(true);
+  }
+
+  function confirmAddToken() {
+    const ca = addCa.trim();
+    if (!ethers.isAddress(ca)) {
+      setAddErr("That doesn't look like a valid contract address.");
+      return;
+    }
+    setAddOpen(false);
+    addRecent(ca);
+    pickToken(ca);
   }
 
   // Keep the derived deposit address + local backup in sync with the key.
@@ -731,52 +747,59 @@ export default function PrintBot() {
     return iface.encodeFunctionData("execute", ["0x0b00", [wrap, v3], deadline]);
   }
 
-  async function resolveWeth(provider: ethers.Provider): Promise<string> {
-    // Prefer deriving from the actual LP pair (the non-token side).
-    if (pair.trim()) {
-      const p = new ethers.Contract(pair.trim(), PAIR_ABI, provider);
-      const [t0, t1] = await Promise.all([p.token0(), p.token1()]);
-      const tk = token.trim().toLowerCase();
-      const weth = [t0, t1].find((a: string) => a.toLowerCase() !== tk);
-      if (!weth) throw new Error("LP pair does not include the token address");
-      return weth;
-    }
-    // Fall back to the router's declared wrapped-native token.
-    const r = new ethers.Contract(router.trim(), ROUTER_ABI, provider);
-    return await r.WETH();
+  // Build Universal Router calldata for an ETH→token V2 exact-in swap
+  // (WRAP_ETH → V2_SWAP_EXACT_IN), matching this chain's UR input layout.
+  function buildV2Calldata(
+    recipient: string,
+    tokenAddr: string,
+    weth: string,
+    valueWei: bigint,
+    minOut: bigint
+  ): string {
+    const w = (x: ethers.BigNumberish) => ethers.toBeHex(x, 32).slice(2);
+    const wa = (a: string) => ethers.zeroPadValue(a, 32).slice(2);
+    const wrap = "0x" + wa(ADDRESS_THIS) + w(valueWei);
+    // recipient, amountIn, amountOutMin, pathOffset(0xc0), payerIsUser(0),
+    // 2ndBytesOffset(0x120), pathLen(2), path[0]=WETH, path[1]=token, emptyLen(0)
+    const v2 =
+      "0x" +
+      wa(recipient) +
+      w(valueWei) +
+      w(minOut) +
+      w(0xc0) +
+      w(0) +
+      w(0x120) +
+      w(2) +
+      wa(weth) +
+      wa(tokenAddr) +
+      w(0);
+    const iface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
+    const deadline = Math.floor(Date.now() / 1000) + 1200;
+    return iface.encodeFunctionData("execute", ["0x0b08", [wrap, v2], deadline]);
   }
 
-  async function buildBuy(
-    signer: ethers.Signer,
+  // For V2, quote via the classic router and apply slippage; V3 uses no floor
+  // (tiny spam buys — price impact is negligible on 0.0002 ETH).
+  async function quoteV2MinOut(
     provider: ethers.Provider,
-    to: string,
-    amountEth: string
-  ) {
-    const valueWei = ethers.parseEther(amountEth);
-    // Reuse the WETH resolved at loop start when we have it (spam mode).
-    const weth = wethRef.current || (await resolveWeth(provider));
-    const path = [weth, token.trim()];
-    const r = new ethers.Contract(router.trim(), ROUTER_ABI, signer);
-
-    // Quote, then apply slippage. Token transfer-tax means we receive less than
-    // quoted, so slippage must exceed the buy tax (~5%). Default 20%.
-    let minOut = 0n;
+    weth: string,
+    tokenAddr: string,
+    valueWei: bigint
+  ): Promise<bigint> {
     try {
-      const amounts = await (r.getAmountsOut as any)(valueWei, path);
+      const r = new ethers.Contract(DEFAULT_ROUTER, ROUTER_ABI, provider);
+      const amounts = await (r.getAmountsOut as any)(valueWei, [weth, tokenAddr]);
       const quoted: bigint = amounts[amounts.length - 1];
       const slipBps = BigInt(Math.round(parseFloat(slippage || "0") * 100));
-      minOut = (quoted * (10000n - slipBps)) / 10000n;
+      return (quoted * (10000n - slipBps)) / 10000n;
     } catch {
-      addLog("getAmountsOut failed — sending with minOut=0 (no price floor)", "err");
-      minOut = 0n;
+      return 0n;
     }
-
-    const deadline = Math.floor(Date.now() / 1000) + 1200;
-    return { r, valueWei, path, minOut, deadline, to };
   }
 
   // Broadcast a buy with an explicit nonce and return as soon as it hits the
-  // mempool — no waiting for confirmation. The caller confirms in the background.
+  // mempool — no waiting for confirmation. Everything goes through the Universal
+  // Router, which handles both V2 and V3, so no LP pair address is ever needed.
   async function sendBuyNoWait(
     signer: ethers.Wallet,
     provider: ethers.Provider,
@@ -784,40 +807,23 @@ export default function PrintBot() {
     nonce: number
   ): Promise<ethers.TransactionResponse> {
     const to = signer.address;
+    const valueWei = ethers.parseEther(amountEth);
+    const route = routeRef.current || { kind: "v2" };
+    const tokenAddr = token.trim();
 
-    // V3 → Universal Router (the only V3 venue on this chain).
-    if (routeRef.current?.kind === "v3") {
-      const valueWei = ethers.parseEther(amountEth);
-      const weth = wethRef.current || (await resolveWeth(provider));
-      const data = buildV3Calldata(
-        to,
-        routeRef.current.fee,
-        token.trim(),
-        weth,
-        valueWei
-      );
-      return signer.sendTransaction({
-        to: UNIVERSAL_ROUTER,
-        data,
-        value: valueWei,
-        nonce,
-      });
+    let data: string;
+    if (route.kind === "v3") {
+      data = buildV3Calldata(to, route.fee, tokenAddr, WETH_ADDR, valueWei);
+    } else {
+      const minOut = await quoteV2MinOut(provider, WETH_ADDR, tokenAddr, valueWei);
+      data = buildV2Calldata(to, tokenAddr, WETH_ADDR, valueWei, minOut);
     }
-
-    // V2 → the classic router's fee-on-transfer swap.
-    const { r, valueWei, minOut, path, deadline } = await buildBuy(
-      signer,
-      provider,
-      to,
-      amountEth
-    );
-    return (r.swapExactETHForTokensSupportingFeeOnTransferTokens as any)(
-      minOut,
-      path,
-      to,
-      deadline,
-      { value: valueWei, nonce }
-    );
+    return signer.sendTransaction({
+      to: UNIVERSAL_ROUTER,
+      data,
+      value: valueWei,
+      nonce,
+    });
   }
 
   // Report a confirmed buy to the shared platform counters (fire-and-forget).
@@ -938,7 +944,16 @@ export default function PrintBot() {
           noteFailure();
         });
     } catch (e: any) {
-      addLog(`Send #${myNonce} failed: ${e.shortMessage || e.message || e}`, "err");
+      const msg = `${e.shortMessage || e.message || e}`;
+      addLog(`Send #${myNonce} failed: ${msg}`, "err");
+      // Out of ETH → stop cleanly and tell the user, don't keep spinning.
+      if (
+        e.code === "INSUFFICIENT_FUNDS" ||
+        /insufficient funds/i.test(msg)
+      ) {
+        handleOutOfFunds();
+        return;
+      }
       noteFailure();
       // A failed broadcast leaves a nonce gap that would stall later txs —
       // resync from the chain so the loop self-heals.
@@ -951,6 +966,18 @@ export default function PrintBot() {
         /* will retry next tick */
       }
     }
+  }
+
+  function handleOutOfFunds() {
+    if (!runningRef.current) return;
+    stopLoop();
+    showAlert(
+      <>
+        Your wallet ran out of ETH, so buying stopped. Deposit more ETH into the
+        deposit address to keep going — your progress and settings are saved.
+      </>,
+      "Out of ETH"
+    );
   }
 
   function scheduleNext() {
@@ -1004,27 +1031,21 @@ export default function PrintBot() {
     const provider = readProvider();
     const wallet = new ethers.Wallet(normalizeKey(pk), provider);
     signerRef.current = wallet;
+    wethRef.current = WETH_ADDR;
+
+    // Pre-flight — surface obvious blockers as a popup instead of quietly
+    // starting a timer that never buys.
+    const buyWei = ethers.parseEther(amount || "0");
+    if (buyWei <= 0n)
+      return showAlert("Set a buy amount greater than 0.", "Check settings");
+
+    // Does a pool exist? (also tells us V2 vs V3)
+    let route: Route | null;
     try {
-      wethRef.current = await resolveWeth(provider);
+      route = await detectRoute(provider, token.trim(), WETH_ADDR);
     } catch {
-      wethRef.current = null; // fall back to per-tx resolution
+      return showAlert("Could not reach the RPC to start. Try again.");
     }
-    // Make sure we know WETH, then auto-detect the token's venue (V2 vs V3).
-    let weth = wethRef.current;
-    if (!weth) {
-      try {
-        weth = await new ethers.Contract(
-          router.trim(),
-          ROUTER_ABI,
-          provider
-        ).WETH();
-        wethRef.current = weth;
-      } catch {
-        return showAlert("Could not reach the RPC to start. Try again.");
-      }
-    }
-    if (!weth) return showAlert("Could not resolve WETH to start. Try again.");
-    const route = await detectRoute(provider, token.trim(), weth);
     if (!route) {
       return showAlert(
         <>
@@ -1034,6 +1055,26 @@ export default function PrintBot() {
         "No pool found"
       );
     }
+
+    // Enough ETH? Need more than one buy plus gas, or it can't even start.
+    let balWei: bigint;
+    try {
+      balWei = await provider.getBalance(addr);
+    } catch {
+      return showAlert("Could not reach the RPC to start. Try again.");
+    }
+    const gasBuffer = GAS_UNITS_ESTIMATE * (gasPriceWei ?? 100000000n);
+    if (balWei <= buyWei + gasBuffer) {
+      return showAlert(
+        <>
+          This wallet holds <strong>{fmtBal(ethers.formatEther(balWei))} ETH</strong>
+          , which isn&apos;t enough for a <strong>{amount} ETH</strong> buy plus
+          gas. Deposit more ETH into the deposit address, then start.
+        </>,
+        "Not enough ETH"
+      );
+    }
+
     routeRef.current = route;
     addLog(
       route.kind === "v3"
@@ -1342,6 +1383,14 @@ export default function PrintBot() {
                   {r.sym}
                 </button>
               ))}
+              <button
+                className="pb-recent pb-addtoken"
+                title="Add a token by contract address"
+                onClick={openAddToken}
+                disabled={running}
+              >
+                +
+              </button>
             </div>
 
             {canStart && !running && (
@@ -1453,19 +1502,6 @@ export default function PrintBot() {
             disabled={running}
             title={running ? "Stop buying to change the token" : undefined}
           />
-          <label>Uniswap V2 Router (Robinhood Chain)</label>
-          <input
-            value={router}
-            onChange={(e) => setRouter(e.target.value)}
-            onBlur={() => saveSettings()}
-          />
-          <label>LP / Pair address (recommended — auto-detects WETH)</label>
-          <input
-            value={pair}
-            onChange={(e) => setPair(e.target.value)}
-            onBlur={() => saveSettings()}
-            placeholder="0x… the token's WETH pair"
-          />
           <label>Slippage %</label>
           <input
             value={slippage}
@@ -1571,6 +1607,48 @@ export default function PrintBot() {
           ))}
         </div>
       </section>
+
+      {addOpen && (
+        <div
+          className="pb-modal-overlay"
+          onClick={() => setAddOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="pb-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pb-modal-icon">➕</div>
+            <h3 className="pb-modal-title">Add a token</h3>
+            <div className="pb-modal-body">
+              Paste any Robinhood Chain token&apos;s contract address. We&apos;ll
+              auto-detect the pool (V2 or V3) — no pair needed.
+            </div>
+            <input
+              className="pb-modal-input"
+              value={addCa}
+              onChange={(e) => {
+                setAddCa(e.target.value);
+                setAddErr("");
+              }}
+              onKeyDown={(e) => e.key === "Enter" && confirmAddToken()}
+              placeholder="0x… contract address"
+              autoFocus
+              spellCheck={false}
+            />
+            {addErr && <div className="pb-modal-err">{addErr}</div>}
+            <div className="pb-modal-actions">
+              <button
+                className="pb-modal-btn ghost"
+                onClick={() => setAddOpen(false)}
+              >
+                Cancel
+              </button>
+              <button className="pb-modal-btn primary" onClick={confirmAddToken}>
+                Add & select
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modal && (
         <div

@@ -1132,6 +1132,29 @@ footer {
   font-weight: 700;
 }
 
+.pb-modal-input {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.pb-modal-input:focus {
+  outline: none;
+  border-color: var(--green);
+}
+
+.pb-modal-err {
+  margin: -6px 0 14px;
+  color: #ff7a7a;
+  font-size: 0.8rem;
+}
+
 .pb-modal-actions {
   display: flex;
   gap: 10px;
@@ -2094,6 +2117,20 @@ footer {
 .pb-recents .pb-recent:hover {
   color: var(--green);
   border-color: var(--green);
+}
+
+.pb-recents .pb-recent.pb-addtoken {
+  color: var(--green);
+  border-color: rgba(0, 200, 5, 0.4);
+  border-style: dashed;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 5px 9px;
+}
+
+.pb-recents .pb-recent.pb-addtoken:hover {
+  background: rgba(0, 200, 5, 0.08);
+  border-style: solid;
 }
 
 /* ---------- print bot: trending tokens row ---------- */
