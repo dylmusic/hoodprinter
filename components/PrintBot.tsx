@@ -206,6 +206,7 @@ export default function PrintBot() {
   const nonceRef = useRef<number | null>(null);
   const signerRef = useRef<ethers.Wallet | null>(null);
   const wethRef = useRef<string | null>(null);
+  const failStreakRef = useRef(0); // consecutive failures → stop + warn
   const monitorRef = useRef<HTMLDivElement>(null);
 
   const addLog = (msg: string, level: LogLevel = "info") =>
@@ -709,6 +710,25 @@ export default function PrintBot() {
     return t.startsWith("0x") ? t : "0x" + t;
   }
 
+  // After several failures in a row, stop and tell the user instead of
+  // spinning silently (e.g. a token with no V2 liquidity, or a V3-only token).
+  const FAIL_LIMIT = 5;
+  function noteFailure() {
+    failStreakRef.current += 1;
+    if (failStreakRef.current >= FAIL_LIMIT && runningRef.current) {
+      stopLoop();
+      showAlert(
+        <>
+          {FAIL_LIMIT} buys in a row failed, so we stopped. Check your settings —
+          the most common cause is a token with <strong>no liquidity on this
+          Uniswap V2 router</strong> (some tokens trade on Uniswap V3, which
+          isn&apos;t supported yet). Try a different token or router.
+        </>,
+        "Buying failed"
+      );
+    }
+  }
+
   async function doBuy() {
     const wallet = signerRef.current;
     const provider = wallet?.provider;
@@ -735,17 +755,29 @@ export default function PrintBot() {
       tx.wait()
         .then((rec) => {
           if (rec && rec.status === 1) {
+            failStreakRef.current = 0;
             setBuys((b) => b + 1);
             setEthSpent((e) => e + parseFloat(amt));
             setTxStatus(tx.hash, "ok");
             reportBuy(wallet.address, tx.hash);
+            // Nudge the platform ticker immediately at our real buy rate.
+            window.dispatchEvent(
+              new CustomEvent("hoodprint:buy", {
+                detail: { amt: parseFloat(amt) },
+              })
+            );
           } else {
             setTxStatus(tx.hash, "fail");
+            noteFailure();
           }
         })
-        .catch(() => setTxStatus(tx.hash, "fail"));
+        .catch(() => {
+          setTxStatus(tx.hash, "fail");
+          noteFailure();
+        });
     } catch (e: any) {
       addLog(`Send #${myNonce} failed: ${e.shortMessage || e.message || e}`, "err");
+      noteFailure();
       // A failed broadcast leaves a nonce gap that would stall later txs —
       // resync from the chain so the loop self-heals.
       try {
@@ -822,8 +854,12 @@ export default function PrintBot() {
     }
 
     saveSettings();
+    failStreakRef.current = 0;
     runningRef.current = true;
     setRunning(true);
+    window.dispatchEvent(
+      new CustomEvent("hoodprint:running", { detail: true })
+    );
     setBuys(0);
     setEthSpent(0);
     setTxs([]);
@@ -847,6 +883,9 @@ export default function PrintBot() {
     nonceRef.current = null;
     wethRef.current = null;
     setRunning(false);
+    window.dispatchEvent(
+      new CustomEvent("hoodprint:running", { detail: false })
+    );
     addLog("Loop stopped", "info");
   }
 
