@@ -2,16 +2,48 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/site.config";
 import "./globals.css";
 
+const defaultTitle = `${siteConfig.name} (${siteConfig.symbol}) — ${siteConfig.tagline}`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
-  title: `${siteConfig.name} (${siteConfig.symbol}) — ${siteConfig.tagline}`,
+  title: {
+    default: defaultTitle,
+    template: `%s | ${siteConfig.name} (${siteConfig.symbol})`,
+  },
   description: siteConfig.description,
+  applicationName: siteConfig.name,
+  keywords: [
+    "HOODPrinter",
+    "$PRINT",
+    "PRINT token",
+    "Robinhood Chain",
+    "ETH rewards token",
+    "reflection token",
+    "crypto presale",
+    "Gempad presale",
+    "meme coin",
+    "ETH reflections",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   openGraph: {
-    title: `${siteConfig.name} (${siteConfig.symbol})`,
-    description: siteConfig.tagline,
+    title: defaultTitle,
+    description: siteConfig.description,
     url: siteConfig.url,
     siteName: siteConfig.name,
     type: "website",
+    locale: "en_US",
     images: [
       {
         url: "/brand/og.png?v=3",
@@ -24,8 +56,9 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@HOODPrinterxyz",
-    title: `${siteConfig.name} (${siteConfig.symbol})`,
-    description: siteConfig.tagline,
+    creator: "@HOODPrinterxyz",
+    title: defaultTitle,
+    description: siteConfig.description,
     images: ["/brand/og.png?v=3"],
   },
 };

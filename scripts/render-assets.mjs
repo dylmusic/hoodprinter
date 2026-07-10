@@ -68,6 +68,39 @@ await renderComposite({
   out: path.join(brand, "og.png"),
 });
 
+// --- OG image 1200x630 for /airdrop ---
+await renderComposite({
+  w: 1200,
+  h: 630,
+  iconSize: 200,
+  iconPos: { left: 500, top: 60 },
+  textSvg: `
+    <text x="600" y="390" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="84" letter-spacing="-2">
+      <tspan fill="#ffffff">$PRINT</tspan><tspan fill="#00c805" dx="22">AIRDROP</tspan>
+    </text>
+    <text x="600" y="460" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="34" fill="#f5c518">BIG drop — first 100 Telegram users</text>
+    <text x="600" y="510" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="28" fill="#8fa898">Small drop — first 1,000. First come, first served.</text>
+    <text x="600" y="575" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#00c805">hoodprinter.xyz/airdrop</text>
+  `,
+  out: path.join(brand, "og-airdrop.png"),
+});
+
+// --- OG image 1200x630 for /roadmap ---
+await renderComposite({
+  w: 1200,
+  h: 630,
+  iconSize: 200,
+  iconPos: { left: 500, top: 60 },
+  textSvg: `
+    <text x="600" y="390" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="80" letter-spacing="-2">
+      <tspan fill="#ffffff">THE</tspan><tspan fill="#00c805" dx="22">MASTER PLAN</tspan>
+    </text>
+    <text x="600" y="460" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="32" fill="#8fa898">Presale → LP locked → DAO → <tspan fill="#f5c518" font-weight="800">$1,000,000 printed</tspan></text>
+    <text x="600" y="530" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#00c805">hoodprinter.xyz/roadmap</text>
+  `,
+  out: path.join(brand, "og-roadmap.png"),
+});
+
 // --- X banner 1500x500 ---
 await renderComposite({
   w: 1500,

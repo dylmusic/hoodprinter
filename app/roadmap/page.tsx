@@ -4,10 +4,38 @@ import NavSocials from "@/components/NavSocials";
 import RoadmapTimeline from "@/components/RoadmapTimeline";
 import { siteConfig } from "@/site.config";
 
+const roadmapTitle = "Roadmap — The HOODPrinter Master Plan";
+const roadmapDescription =
+  "From Gempad presale to $1,000,000 of ETH printed to holders: LP locked, DexScreener, CoinGecko/CMC, DAO, and a major CEX listing.";
+
 export const metadata: Metadata = {
-  title: "Roadmap — HOODPrinter",
-  description:
-    "The HOODPrinter master plan: from presale to a million dollars of ETH printed to holders.",
+  title: "Roadmap",
+  description: roadmapDescription,
+  alternates: {
+    canonical: "/roadmap",
+  },
+  openGraph: {
+    title: roadmapTitle,
+    description: roadmapDescription,
+    url: "/roadmap",
+    siteName: siteConfig.name,
+    type: "website",
+    images: [
+      {
+        url: "/brand/og-roadmap.png",
+        width: 1200,
+        height: 630,
+        alt: "The HOODPrinter roadmap — road to the million-dollar print run",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@HOODPrinterxyz",
+    title: roadmapTitle,
+    description: roadmapDescription,
+    images: ["/brand/og-roadmap.png"],
+  },
 };
 
 export default function Roadmap() {

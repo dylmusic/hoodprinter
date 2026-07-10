@@ -6,10 +6,38 @@ import { siteConfig } from "@/site.config";
 const FORM_EMBED_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLSd0FemJeYIe5IXHKTIyoRWy0DDw_Dud4EU4UIGon72gj0Uxaw/viewform?embedded=true";
 
+const airdropTitle = "$PRINT Airdrop — First Come, First Served";
+const airdropDescription =
+  "Big airdrop for the first 100 Telegram users, small airdrop for the first 1,000. Register now — the printer will find you.";
+
 export const metadata: Metadata = {
-  title: "Airdrop — HOODPrinter",
-  description:
-    "Register for the $PRINT airdrop. Fill out the form and the printer will find you.",
+  title: "Airdrop",
+  description: airdropDescription,
+  alternates: {
+    canonical: "/airdrop",
+  },
+  openGraph: {
+    title: airdropTitle,
+    description: airdropDescription,
+    url: "/airdrop",
+    siteName: siteConfig.name,
+    type: "website",
+    images: [
+      {
+        url: "/brand/og-airdrop.png",
+        width: 1200,
+        height: 630,
+        alt: "$PRINT Airdrop — big drop for the first 100 Telegram users",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@HOODPrinterxyz",
+    title: airdropTitle,
+    description: airdropDescription,
+    images: ["/brand/og-airdrop.png"],
+  },
 };
 
 export default function Airdrop() {

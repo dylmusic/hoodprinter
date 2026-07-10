@@ -82,6 +82,54 @@ const faqs = [
   },
 ];
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: siteConfig.name,
+      url: siteConfig.url,
+      logo: `${siteConfig.url}/logo.png`,
+      description: siteConfig.description,
+      sameAs: [siteConfig.twitter, siteConfig.telegram],
+    },
+    {
+      "@type": "WebSite",
+      name: siteConfig.name,
+      url: siteConfig.url,
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "What is HOODPrinter?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "HOODPrinter ($PRINT) is a community token on Robinhood Chain that pays its holders in ETH. A 5% tax on every buy, sell, and transfer is converted and distributed proportionally to all holders as ETH rewards.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "How do I earn ETH by holding $PRINT?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Just hold. Every transaction feeds the printer, and the printer pays out ETH straight to your wallet — no claiming, no staking, no farming.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Is HOODPrinter affiliated with Robinhood?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "No. HOODPrinter is an independent community project that lives on Robinhood Chain. It is not affiliated with, endorsed by, or connected to Robinhood Markets, Inc.",
+          },
+        },
+      ],
+    },
+  ],
+};
+
 export default function Home() {
   const { chain, presaleActive, presaleLink } = siteConfig;
   const buyHref = presaleActive ? presaleLink : siteConfig.buyLink;
@@ -89,6 +137,10 @@ export default function Home() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {presaleActive && (
         <a
           className="presale-bar"
