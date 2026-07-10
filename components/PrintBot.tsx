@@ -93,7 +93,7 @@ export default function PrintBot() {
   const [pastedKey, setPastedKey] = useState("");
   const [ethBal, setEthBal] = useState<string | null>(null);
   const [tokBal, setTokBal] = useState<string | null>(null);
-  const [tokSym, setTokSym] = useState("TOKEN");
+  const [tokSym, setTokSym] = useState("PRINT");
   const [printBal, setPrintBal] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [recents, setRecents] = useState<RecentToken[]>([]);
@@ -112,9 +112,8 @@ export default function PrintBot() {
   const [startTok, setStartTok] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  // shared platform + personal counters (server-verified, all-time)
-  const [platBuys, setPlatBuys] = useState<number | null>(null);
-  const [platEth, setPlatEth] = useState<number | null>(null);
+  // personal counters (server-verified, all-time). Platform totals live in
+  // <PlatformStatsNote /> under the page title.
   const [myBuys, setMyBuys] = useState<number | null>(null);
   const [myEth, setMyEth] = useState<number | null>(null);
 
@@ -261,7 +260,7 @@ export default function PrintBot() {
       }
       if (!ethers.isAddress(token.trim())) {
         setTokBal(null);
-        setTokSym("TOKEN");
+        setTokSym("PRINT");
         return;
       }
       const erc = new ethers.Contract(token.trim(), ERC20_ABI, provider);
@@ -286,23 +285,9 @@ export default function PrintBot() {
     return () => clearInterval(id);
   }, [refreshBalances]);
 
-  // Platform totals — the CDN caches this (~15s) so any number of open tabs
-  // collapse into roughly one Redis read per interval. Poll it often; it's cheap.
-  const refreshPlatform = useCallback(async () => {
-    try {
-      const res = await fetch("/api/stats");
-      if (!res.ok) return;
-      const s = await res.json();
-      setPlatBuys(typeof s.buys === "number" ? s.buys : 0);
-      setPlatEth(typeof s.eth === "number" ? s.eth : 0);
-    } catch {
-      /* best-effort */
-    }
-  }, []);
-
   // Personal totals — private, uncached, and only change when *this* wallet
   // buys (we also refresh right after each buy), so poll it slowly.
-  const refreshPersonal = useCallback(async () => {
+  const refreshStats = useCallback(async () => {
     if (!burnerAddr) return;
     try {
       const res = await fetch(`/api/stats?wallet=${burnerAddr}`, {
@@ -319,23 +304,11 @@ export default function PrintBot() {
     }
   }, [burnerAddr]);
 
-  // Refresh both after a confirmed buy is reported.
-  const refreshStats = useCallback(() => {
-    refreshPlatform();
-    refreshPersonal();
-  }, [refreshPlatform, refreshPersonal]);
-
   useEffect(() => {
-    refreshPlatform();
-    const id = setInterval(refreshPlatform, 12000);
+    refreshStats();
+    const id = setInterval(refreshStats, 45000);
     return () => clearInterval(id);
-  }, [refreshPlatform]);
-
-  useEffect(() => {
-    refreshPersonal();
-    const id = setInterval(refreshPersonal, 45000);
-    return () => clearInterval(id);
-  }, [refreshPersonal]);
+  }, [refreshStats]);
 
   function loadPastedKey() {
     if (runningRef.current) return alert("Stop the loop before switching wallets.");
@@ -758,17 +731,6 @@ export default function PrintBot() {
 
   return (
     <div className="pb">
-      <div className="pb-stats" aria-label="Platform totals">
-        <span className="pb-stats-dot" />
-        <span>
-          <strong>{platBuys == null ? "—" : platBuys.toLocaleString("en-US")}</strong>{" "}
-          buys
-        </span>
-        <span className="pb-stats-sep">·</span>
-        <span>
-          <strong>{platEth == null ? "—" : fmtBal(platEth)}</strong> ETH volume
-        </span>
-      </div>
       {running && (
         <section className="pb-monitor" ref={monitorRef}>
           <div className="pb-mon-top">

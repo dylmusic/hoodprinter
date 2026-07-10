@@ -1711,34 +1711,53 @@ footer {
   }
 }
 
-/* ---------- print bot: platform totals note (small) ---------- */
-.pb-stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: -4px 0 16px;
-  font-size: 0.8rem;
-  color: var(--muted);
+/* ---------- print bot: platform totals under the title (compact) ---------- */
+.pb-hstats {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 18px;
+  margin: 10px auto 2px;
+  padding: 8px 16px;
+  border: 1px solid rgba(0, 200, 5, 0.28);
+  border-radius: 999px;
+  background: rgba(0, 200, 5, 0.05);
 }
 
-.pb-stats strong {
+.pb-hstat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pb-hstat-num {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.1;
   color: var(--green);
-  font-weight: 700;
+  text-shadow: 0 0 16px var(--green-glow);
   font-variant-numeric: tabular-nums;
 }
 
-.pb-stats-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 8px var(--green-glow);
+.pb-hstat-label {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
 }
 
-.pb-stats-sep {
-  opacity: 0.45;
+.pb-hstat-div {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(0, 200, 5, 0.35),
+    transparent
+  );
 }
 
 /* Personal totals — a compact line inside the wallet, above the deposit addr. */

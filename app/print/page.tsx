@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import PrintBot from "@/components/PrintBot";
+import PlatformStatsNote from "@/components/PlatformStatsNote";
 
 // Unlisted: keep it out of search engines and social previews.
 export const metadata: Metadata = {
@@ -19,6 +20,7 @@ export default function PrintPage() {
         <h1>
           Robinhood Chain <span className="green">Buy Bot</span>
         </h1>
+        <PlatformStatsNote />
         <p>Auto-buy any token · Uniswap V2</p>
         <p className="pb-tagline">
           Hold <span className="green">$PRINT</span> to automatically buy any
