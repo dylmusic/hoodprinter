@@ -1755,17 +1755,15 @@ footer {
 }
 
 .pb-recent {
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.55rem;
   font-weight: 700;
+  line-height: 1.5;
   cursor: pointer;
-  max-width: 88px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s;
 }
