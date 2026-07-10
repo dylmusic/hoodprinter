@@ -1,6 +1,7 @@
 import Image from "next/image";
 import MoneyPrinter from "@/components/MoneyPrinter";
 import CopyAddress from "@/components/CopyAddress";
+import NavSocials from "@/components/NavSocials";
 import { siteConfig } from "@/site.config";
 
 const faqs = [
@@ -111,6 +112,7 @@ export default function Home() {
             />
             HOODPrinter
           </a>
+          <NavSocials />
           <div className="nav-links">
             <a href="#how-it-works">How It Works</a>
             <a href="#tokenomics">Tokenomics</a>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import NavSocials from "@/components/NavSocials";
 import { siteConfig } from "@/site.config";
 
 const FORM_EMBED_URL =
@@ -26,6 +27,7 @@ export default function Airdrop() {
             />
             HOODPrinter
           </a>
+          <NavSocials />
           <div className="nav-links">
             <a href="/">Home</a>
             <a
