@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ethers } from "ethers";
 import { siteConfig } from "@/site.config";
 
@@ -67,6 +73,19 @@ const PINNED_ADDRS = PINNED_TOKENS.filter((t) => t.ca).map((t) =>
   t.ca.toLowerCase()
 );
 
+// Known LP pairs for our curated tokens — auto-filled when the token is picked
+// so WETH resolves from the exact pool. Keyed by lowercased token CA.
+const KNOWN_PAIRS: Record<string, string> = {
+  "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03":
+    "0xE40d98D88038e0B844f844dce6Ae3c79ec01ec53", // ARROW
+  "0x020bfc650a365f8bb26819deaabf3e21291018b4":
+    "0xA70fc67C9F69da90B63a0e4C05D229954574E313", // CASHCAT
+  "0xd7321801caae694090694ff55a9323139f043b88":
+    "0x588b0785f50063260003B7790C42f1eF74902746", // JUGGERNAUT
+  "0x8e62f281f282686fca6dcb39288069a93fc23f1c":
+    "0x451c0DA3b774045a822A129eeDcc5C667DcbfDD8", // HOODRAT
+};
+
 // Balance formatter: comma-group big numbers, keep small amounts visible.
 function fmtBal(v: string | number | null): string {
   if (v == null) return "0";
@@ -119,6 +138,48 @@ export default function PrintBot() {
     setTxs((prev) =>
       prev.map((r) => (r.hash === hash ? { ...r, status } : r))
     );
+
+  // Branded, on-site modal — replaces all browser alert()/confirm() popups.
+  type ModalAction = {
+    label: string;
+    onClick?: () => void;
+    variant?: "primary" | "danger" | "ghost";
+    keepOpen?: boolean; // don't auto-close on click (used for multi-step flows)
+  };
+  type ModalState = {
+    icon?: string;
+    title: string;
+    body: ReactNode;
+    actions: ModalAction[];
+  } | null;
+  const [modal, setModal] = useState<ModalState>(null);
+
+  const showAlert = (body: ReactNode, title = "Heads up", icon = "⚠️") =>
+    setModal({ icon, title, body, actions: [{ label: "Got it", variant: "primary" }] });
+
+  const showConfirm = (
+    body: ReactNode,
+    onConfirm: () => void,
+    opts?: { title?: string; confirmLabel?: string; icon?: string; danger?: boolean }
+  ) =>
+    setModal({
+      icon: opts?.icon ?? "❔",
+      title: opts?.title ?? "Please confirm",
+      body,
+      actions: [
+        { label: "Cancel", variant: "ghost" },
+        {
+          label: opts?.confirmLabel ?? "Continue",
+          variant: opts?.danger ? "danger" : "primary",
+          onClick: onConfirm,
+        },
+      ],
+    });
+
+  const runModalAction = (a: ModalAction) => {
+    if (!a.keepOpen) setModal(null);
+    a.onClick?.();
+  };
 
   // live monitor
   const [buys, setBuys] = useState(0);
@@ -217,10 +278,14 @@ export default function PrintBot() {
     }
   }
 
-  // Select a token and persist it immediately so a reload keeps it.
+  // Select a token and persist it immediately so a reload keeps it. Auto-fill
+  // the LP pair for our known tokens (and clear a stale one otherwise) so WETH
+  // resolves from the correct pool.
   function pickToken(ca: string) {
+    const knownPair = KNOWN_PAIRS[ca.trim().toLowerCase()] || "";
     setToken(ca);
-    saveSettings({ token: ca });
+    setPair(knownPair);
+    saveSettings({ token: ca, pair: knownPair });
   }
 
   // Keep the derived deposit address + local backup in sync with the key.
@@ -357,9 +422,9 @@ export default function PrintBot() {
   }, []);
 
   function loadPastedKey() {
-    if (runningRef.current) return alert("Stop the loop before switching wallets.");
+    if (runningRef.current) return showAlert("Stop the loop before switching wallets.");
     const addr = deriveAddr(pastedKey);
-    if (!addr) return alert("That private key is not valid.");
+    if (!addr) return showAlert("That private key is not valid.");
     setShowKey(false);
     setPk(pastedKey.trim());
     setPastedKey("");
@@ -398,45 +463,80 @@ export default function PrintBot() {
 
   function generateWallet() {
     if (runningRef.current)
-      return alert("Stop the loop before switching wallets.");
-    if (
-      pk.trim() &&
-      !confirm(
-        "This replaces the current burner wallet. Make sure you've withdrawn its funds and backed up its key. Continue?"
-      )
-    )
-      return;
-    const w = ethers.Wallet.createRandom();
-    setShowKey(false);
-    setPk(w.privateKey);
-    addLog(`New burner wallet generated: ${w.address}`, "ok");
+      return showAlert("Stop the loop before switching wallets.");
+    const create = () => {
+      const w = ethers.Wallet.createRandom();
+      setShowKey(false);
+      setPk(w.privateKey);
+      addLog(`New burner wallet generated: ${w.address}`, "ok");
+    };
+    if (pk.trim()) {
+      showConfirm(
+        <>
+          This replaces the current burner wallet. Make sure you&apos;ve
+          withdrawn its funds and backed up its key first.
+        </>,
+        create,
+        { title: "Replace wallet?", confirmLabel: "Generate new", danger: true }
+      );
+    } else {
+      create();
+    }
   }
 
+  // Step 1 — warn, and require a key download before deletion is even offered.
   function forgetWallet() {
     if (runningRef.current)
-      return alert("Stop the loop before forgetting the wallet.");
-    const proceed = confirm(
-      "⚠️ FORGET WALLET — READ CAREFULLY\n\n" +
-        "This permanently erases this wallet's private key from this device. " +
-        "If you have NOT saved the key, any ETH or $PRINT still in it will be " +
-        "LOST FOREVER. There is no recovery.\n\n" +
-        "Click OK and we'll download a backup of your key before erasing it."
-    );
-    if (!proceed) return;
+      return showAlert(
+        "Stop the buy loop before forgetting the wallet.",
+        "Loop is running"
+      );
+    setModal({
+      icon: "🔥",
+      title: "Forget this wallet?",
+      body: (
+        <>
+          This permanently erases the private key from this device. If you
+          haven&apos;t saved it, any ETH or tokens still in the wallet are{" "}
+          <strong>lost forever</strong> — there is no recovery.
+          <br />
+          <br />
+          Download a backup first, then you can delete it.
+        </>
+      ),
+      actions: [
+        { label: "Cancel", variant: "ghost" },
+        {
+          label: "⬇ Download backup",
+          variant: "primary",
+          keepOpen: true,
+          onClick: () => {
+            downloadKey();
+            setModal({
+              icon: "✅",
+              title: "Backup downloaded",
+              body: (
+                <>
+                  Your key backup was saved. Only delete if you&apos;ve stored
+                  that file somewhere safe — this <strong>cannot be undone</strong>.
+                </>
+              ),
+              actions: [
+                { label: "Cancel", variant: "ghost" },
+                {
+                  label: "Delete permanently",
+                  variant: "danger",
+                  onClick: eraseWallet,
+                },
+              ],
+            });
+          },
+        },
+      ],
+    });
+  }
 
-    // Force a key backup download before anything is erased.
-    downloadKey();
-
-    const confirmed = confirm(
-      "A backup file (with your address + private key) was just downloaded.\n\n" +
-        "Only continue if you've saved it somewhere safe.\n\n" +
-        "Click OK to permanently erase this wallet from this device."
-    );
-    if (!confirmed) {
-      addLog("Forget cancelled — wallet kept", "info");
-      return;
-    }
-
+  function eraseWallet() {
     try {
       localStorage.removeItem(PK_STORAGE_KEY);
     } catch {
@@ -571,7 +671,7 @@ export default function PrintBot() {
   // ---- network ----
   async function addOrSwitchNetwork() {
     const eth = (window as any).ethereum;
-    if (!eth) return alert("No wallet found. Install MetaMask.");
+    if (!eth) return showAlert("No wallet found. Install MetaMask.");
     try {
       await eth.request({
         method: "wallet_switchEthereumChain",
@@ -671,23 +771,29 @@ export default function PrintBot() {
     if (runningRef.current) return;
     // $PRINT isn't tradable yet — explain instead of failing silently.
     if (token.trim().toLowerCase() === PRINT_TOKEN.toLowerCase()) {
-      if (
-        window.confirm(
-          "🖨️ $PRINT is coming soon!\n\nYou can auto-buy any other Robinhood Chain token right now — $PRINT goes live shortly.\n\nJoin our Telegram to catch the launch?"
-        )
-      ) {
-        window.open(siteConfig.telegram, "_blank", "noopener");
-      }
+      showConfirm(
+        <>
+          You can auto-buy any other Robinhood Chain token right now — but{" "}
+          <strong>$PRINT goes live shortly</strong>. Join our Telegram to catch
+          the launch?
+        </>,
+        () => window.open(siteConfig.telegram, "_blank", "noopener"),
+        {
+          icon: "🖨️",
+          title: "$PRINT is coming soon!",
+          confirmLabel: "Join Telegram",
+        }
+      );
       return;
     }
-    if (!pk.trim()) return alert("Load a wallet first.");
+    if (!pk.trim()) return showAlert("Load a wallet first.");
     if (!ethers.isAddress(token.trim()))
-      return alert("Enter a valid token address in trade settings.");
+      return showAlert("Enter a valid token address in trade settings.");
     let addr = "";
     try {
       addr = new ethers.Wallet(normalizeKey(pk)).address;
     } catch {
-      return alert("That private key is not valid.");
+      return showAlert("That private key is not valid.");
     }
     const pct = parseFloat(randomize || "0");
     addLog(
@@ -707,7 +813,7 @@ export default function PrintBot() {
     try {
       nonceRef.current = await provider.getTransactionCount(addr, "pending");
     } catch (e: any) {
-      return alert("Could not reach the RPC to start: " + (e.message || e));
+      return showAlert("Could not reach the RPC to start: " + (e.message || e));
     }
 
     saveSettings();
@@ -746,7 +852,7 @@ export default function PrintBot() {
     if (!ethers.isAddress(dest)) {
       dest = (window.prompt("Withdraw to which address?", withdrawTo) || "").trim();
       if (!dest) return;
-      if (!ethers.isAddress(dest)) return alert("That address is not valid.");
+      if (!ethers.isAddress(dest)) return showAlert("That address is not valid.");
       setWithdrawTo(dest);
       saveSettings();
     }
@@ -756,8 +862,8 @@ export default function PrintBot() {
 
   async function withdrawEth(to?: string) {
     const dest = (to ?? withdrawTo).trim();
-    if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
-    if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
+    if (!ethers.isAddress(dest)) return showAlert("Enter a valid destination address.");
+    if (!deriveAddr(pk)) return showAlert("No burner wallet loaded.");
     try {
       const provider = readProvider();
       const wallet = new ethers.Wallet(normalizeKey(pk), provider);
@@ -765,7 +871,7 @@ export default function PrintBot() {
       const fee = await provider.getFeeData();
       const gasPrice = fee.maxFeePerGas ?? fee.gasPrice ?? 0n;
       const reserve = gasPrice * 21000n * 3n; // buffer for L2 data fee
-      if (bal <= reserve) return alert("ETH balance too low to cover gas.");
+      if (bal <= reserve) return showAlert("ETH balance too low to cover gas.");
       const value = bal - reserve;
       addLog(`Withdrawing ${ethers.formatEther(value)} ETH → ${dest}…`);
       const tx = await wallet.sendTransaction({ to: dest, value });
@@ -780,10 +886,10 @@ export default function PrintBot() {
 
   async function withdrawToken(to?: string, tokenAddr?: string) {
     const dest = (to ?? withdrawTo).trim();
-    if (!ethers.isAddress(dest)) return alert("Enter a valid destination address.");
-    if (!deriveAddr(pk)) return alert("No burner wallet loaded.");
+    if (!ethers.isAddress(dest)) return showAlert("Enter a valid destination address.");
+    if (!deriveAddr(pk)) return showAlert("No burner wallet loaded.");
     const ca = (tokenAddr || token).trim();
-    if (!ethers.isAddress(ca)) return alert("No valid token to withdraw.");
+    if (!ethers.isAddress(ca)) return showAlert("No valid token to withdraw.");
     try {
       const provider = readProvider();
       const wallet = new ethers.Wallet(normalizeKey(pk), provider);
@@ -793,7 +899,7 @@ export default function PrintBot() {
         erc.decimals().catch(() => 18),
         erc.symbol().catch(() => "TOKEN"),
       ]);
-      if (bal === 0n) return alert("No token balance to withdraw.");
+      if (bal === 0n) return showAlert("No token balance to withdraw.");
       addLog(`Withdrawing ${ethers.formatUnits(bal, dec)} ${sym} → ${dest}…`);
       const tx = await erc.transfer(dest, bal);
       addLog(`Sent: ${tx.hash}`);
@@ -1210,6 +1316,32 @@ export default function PrintBot() {
           ))}
         </div>
       </section>
+
+      {modal && (
+        <div
+          className="pb-modal-overlay"
+          onClick={() => setModal(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="pb-modal" onClick={(e) => e.stopPropagation()}>
+            {modal.icon && <div className="pb-modal-icon">{modal.icon}</div>}
+            <h3 className="pb-modal-title">{modal.title}</h3>
+            <div className="pb-modal-body">{modal.body}</div>
+            <div className="pb-modal-actions">
+              {modal.actions.map((a, i) => (
+                <button
+                  key={i}
+                  className={`pb-modal-btn ${a.variant || "ghost"}`}
+                  onClick={() => runModalAction(a)}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

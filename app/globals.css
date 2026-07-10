@@ -1079,6 +1079,134 @@ footer {
   border-radius: 10px;
 }
 
+/* ---------- print bot: branded modal ---------- */
+.pb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(3, 8, 5, 0.72);
+  backdrop-filter: blur(4px);
+  animation: pbFade 0.15s ease-out;
+}
+
+.pb-modal {
+  width: 100%;
+  max-width: 420px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(0, 200, 5, 0.12), transparent 70%),
+    var(--card);
+  border: 1px solid rgba(0, 200, 5, 0.35);
+  border-radius: 16px;
+  padding: 26px 24px 20px;
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 200, 5, 0.08);
+  animation: pbPop 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+.pb-modal-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.pb-modal-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+
+.pb-modal-body {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+
+.pb-modal-body strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.pb-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.pb-modal-btn {
+  flex: 1 1 auto;
+  min-width: 120px;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: filter 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.pb-modal-btn.primary {
+  background: var(--green);
+  color: #041007;
+}
+
+.pb-modal-btn.primary:hover {
+  filter: brightness(1.1);
+}
+
+.pb-modal-btn.danger {
+  background: #ff4d4d;
+  color: #fff;
+}
+
+.pb-modal-btn.danger:hover {
+  filter: brightness(1.08);
+}
+
+.pb-modal-btn.ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.pb-modal-btn.ghost:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+@keyframes pbFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pbPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-modal-overlay,
+  .pb-modal {
+    animation: none;
+  }
+}
+
 .pb-head h1 {
   font-size: 2rem;
   font-weight: 800;
