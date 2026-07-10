@@ -176,10 +176,10 @@ export default function PrintBot() {
     }
   }
 
-  // 1s clock for the countdown/uptime, only while running.
+  // Fast clock for the countdown/uptime, only while running.
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), 200);
     return () => clearInterval(id);
   }, [running]);
 
@@ -506,9 +506,9 @@ export default function PrintBot() {
   function scheduleNext() {
     if (!runningRef.current) return;
     const pct = parseFloat(randomize || "0");
-    const baseSecs = Math.max(5, parseInt(interval || "60", 10));
-    const secs = Math.max(5, Math.round(jitter(baseSecs, pct)));
-    addLog(`Next buy in ${secs}s`);
+    const baseSecs = Math.max(0.1, parseFloat(interval || "60"));
+    const secs = Math.max(0.1, jitter(baseSecs, pct));
+    addLog(`Next buy in ${secs.toFixed(2)}s`);
     setNextAt(Date.now() + secs * 1000);
     timerRef.current = setTimeout(async () => {
       await doBuy();
@@ -628,7 +628,7 @@ export default function PrintBot() {
     parseFloat(interval || "0") > 0 &&
     parseFloat(ethBal || "0") > 0;
   const upMs = startedAt ? now - startedAt : 0;
-  const countdown = Math.max(0, Math.ceil((nextAt - now) / 1000));
+  const countdown = Math.max(0, (nextAt - now) / 1000);
   const tokAcquired =
     startTok != null && tokBal != null
       ? Math.max(0, parseFloat(tokBal) - startTok)
@@ -658,7 +658,7 @@ export default function PrintBot() {
           </div>
           <div className="pb-countdown">
             <div className="pb-cd-num">
-              {countdown <= 0 ? "Buying…" : `${countdown}s`}
+              {countdown <= 0 ? "Buying…" : `${countdown.toFixed(1)}s`}
             </div>
             <div className="pb-cd-label">until next buy</div>
           </div>
