@@ -130,22 +130,29 @@ export async function readAllSubmissions(): Promise<AirdropRow[]> {
   const addrs = (await redis.zrange(ORDER_KEY, 0, -1)) as string[]; // ascending
   if (!addrs.length) return [];
   const hashes = await Promise.all(
-    addrs.map((a) => redis.hgetall(subKey(a)) as Promise<Record<string, string> | null>)
+    addrs.map(
+      (a) =>
+        redis.hgetall(subKey(a)) as Promise<Record<string, unknown> | null>
+    )
   );
+  // Upstash auto-parses numeric-looking hash values into numbers (e.g. "1" -> 1,
+  // "0" -> 0), so coerce to string before comparing — otherwise "1" === "1"
+  // fails and `0 || ""` blanks the field.
+  const str = (v: unknown): string => (v == null ? "" : String(v));
   const rows: AirdropRow[] = [];
   hashes.forEach((h, i) => {
     if (!h) return;
     const rank = i + 1;
     rows.push({
-      address: h.address || addrs[i],
-      telegram: h.telegram || "",
-      joinedTelegram: h.joinedTelegram === "1",
-      gempadChecked: h.gempadChecked || "",
-      presaleEth: h.presaleEth || "",
-      xFollowed: h.xFollowed === "1",
+      address: str(h.address) || addrs[i],
+      telegram: str(h.telegram),
+      joinedTelegram: str(h.joinedTelegram) === "1",
+      gempadChecked: str(h.gempadChecked),
+      presaleEth: str(h.presaleEth),
+      xFollowed: str(h.xFollowed) === "1",
       rank,
       tier: tierForRank(rank),
-      submittedAt: Number(h.submittedAt || h.updatedAt || 0),
+      submittedAt: Number(str(h.submittedAt) || str(h.updatedAt) || 0),
     });
   });
   return rows;
