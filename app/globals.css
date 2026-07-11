@@ -3439,3 +3439,7 @@ footer {
 .ms-about a {
   color: var(--green);
 }
+
+.ms-recents {
+  margin: 0 0 4px;
+}

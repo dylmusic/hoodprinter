@@ -25,6 +25,21 @@ const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
 ];
 
+// Quick-select row — same look/idea as the Buy Bot's. PRINT + CASHCAT pinned,
+// then the user's recent tokens from the Buy Bot (shared localStorage key),
+// then the curated defaults. Custom CAs go straight in the input below.
+const RECENTS_STORAGE_KEY = "hoodprint_recent_tokens"; // shared with PrintBot
+type QuickToken = { ca: string; sym: string };
+const PINNED_TOKENS: QuickToken[] = [
+  { ca: PRINT_TOKEN, sym: "PRINT" },
+  { ca: "0x020bfC650A365f8BB26819deAAbF3E21291018b4", sym: "CASHCAT" },
+];
+const DEFAULT_TOKENS: QuickToken[] = [
+  { ca: "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", sym: "ARROW" },
+  { ca: "0x8e62f281f282686fca6dcb39288069a93fc23f1c", sym: "HOODRAT" },
+  { ca: "0xd7321801caae694090694ff55a9323139f043b88", sym: "JUGGERNAUT" },
+];
+
 // How many in-flight confirmations we track at once. Sends happen in waves of
 // this size: fire all, wait for all, tally, continue. Keeps RPC polling sane
 // while still clearing thousands of transfers in minutes on ~100ms blocks.
@@ -86,6 +101,7 @@ export default function MultiSender() {
   } | null>(null);
   const [tokErr, setTokErr] = useState("");
   const [tokLoading, setTokLoading] = useState(false);
+  const [recents, setRecents] = useState<QuickToken[]>([]);
 
   // ---- recipients ----
   const [listText, setListText] = useState("");
@@ -102,13 +118,35 @@ export default function MultiSender() {
 
   const provider = useMemo(() => new ethers.JsonRpcProvider(RPC), []);
 
-  // Restore the shared wallet.
+  // Restore the shared wallet + the Buy Bot's recent tokens.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(PK_STORAGE_KEY);
       if (saved) setPk(saved.startsWith("0x") ? saved : "0x" + saved);
     } catch {
       /* storage blocked */
+    }
+    try {
+      const skip = new Set(
+        [...PINNED_TOKENS, ...DEFAULT_TOKENS].map((t) => t.ca.toLowerCase())
+      );
+      const r = JSON.parse(localStorage.getItem(RECENTS_STORAGE_KEY) || "[]");
+      if (Array.isArray(r)) {
+        setRecents(
+          r
+            .filter(
+              (t: QuickToken) =>
+                t &&
+                typeof t.ca === "string" &&
+                ethers.isAddress(t.ca) &&
+                typeof t.sym === "string" &&
+                !skip.has(t.ca.toLowerCase())
+            )
+            .slice(0, 6)
+        );
+      }
+    } catch {
+      /* no recents */
     }
   }, []);
 
@@ -172,8 +210,9 @@ export default function MultiSender() {
     }
   }
 
-  async function loadToken() {
-    const a = ca.trim();
+  async function loadToken(pick?: string) {
+    const a = (pick ?? ca).trim();
+    if (pick) setCa(pick);
     setTok(null);
     setTokErr("");
     if (!ethers.isAddress(a)) {
@@ -414,6 +453,32 @@ export default function MultiSender() {
       {/* ---- token ---- */}
       <div className="pb-card">
         <h2>2 · Token to send</h2>
+        <div className="pb-recents ms-recents">
+          {PINNED_TOKENS.map((t) => (
+            <button
+              key={t.ca}
+              type="button"
+              className="pb-recent pinned"
+              title={t.ca}
+              onClick={() => loadToken(t.ca)}
+              disabled={phase === "sending"}
+            >
+              {t.sym}
+            </button>
+          ))}
+          {[...recents, ...DEFAULT_TOKENS].map((t) => (
+            <button
+              key={t.ca}
+              type="button"
+              className="pb-recent"
+              title={t.ca}
+              onClick={() => loadToken(t.ca)}
+              disabled={phase === "sending"}
+            >
+              {t.sym}
+            </button>
+          ))}
+        </div>
         <div className="ms-inline">
           <input
             placeholder="Token contract address (0x…)"
@@ -421,7 +486,7 @@ export default function MultiSender() {
             onChange={(e) => setCa(e.target.value)}
             spellCheck={false}
           />
-          <button className="pb-mini" onClick={loadToken} disabled={tokLoading} type="button">
+          <button className="pb-mini" onClick={() => loadToken()} disabled={tokLoading} type="button">
             {tokLoading ? "Loading…" : "Load"}
           </button>
         </div>
