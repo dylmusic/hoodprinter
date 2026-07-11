@@ -8,11 +8,20 @@ const airdropDescription =
   "Big airdrop for the first 100 Telegram users, small airdrop for the first 1,000. Register now — the printer will find you.";
 
 export const metadata: Metadata = {
-  title: "Airdrop",
+  title: "Airdrop — Free $PRINT, First Come First Served",
   description: airdropDescription,
   alternates: {
     canonical: "/airdrop",
   },
+  keywords: [
+    "$PRINT airdrop",
+    "Robinhood Chain airdrop",
+    "free crypto airdrop",
+    "Robinhood Chain free tokens",
+    "airdrop signup",
+    "HOODPrinter airdrop",
+    "PRINT token airdrop",
+  ],
   openGraph: {
     title: airdropTitle,
     description: airdropDescription,

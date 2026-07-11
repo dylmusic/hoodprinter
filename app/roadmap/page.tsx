@@ -5,11 +5,17 @@ import { siteConfig } from "@/site.config";
 
 const roadmapTitle = "Roadmap — The HOODPrinter Master Plan";
 const roadmapDescription =
-  "From Gempad presale to $1,000,000 of ETH printed to holders: LP locked, DexScreener, CoinGecko/CMC, DAO, and a major CEX listing.";
+  "The $PRINT master plan: Buy Bot beta to public launch, LP locked, DexScreener, CoinGecko/CMC, a DAO, and $1,000,000 of ETH printed to holders.";
 
 export const metadata: Metadata = {
-  title: "Roadmap",
+  title: "Roadmap — The Master Plan",
   description: roadmapDescription,
+  keywords: [
+    "HOODPrinter roadmap",
+    "$PRINT roadmap",
+    "PRINT token roadmap",
+    "Robinhood Chain projects",
+  ],
   alternates: {
     canonical: "/roadmap",
   },

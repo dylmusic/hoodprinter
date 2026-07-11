@@ -133,6 +133,14 @@ const jsonLd = {
         },
         {
           "@type": "Question",
+          name: "What does the Buy Bot have to do with $PRINT?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "The Buy Bot is $PRINT's first utility — auto-buy any Robinhood Chain token in one click from a dedicated in-browser wallet. Hold $PRINT in that wallet and it earns ETH reflections like any other holder, and the bot spends that ETH on more buys.",
+          },
+        },
+        {
+          "@type": "Question",
           name: "Is HOODPrinter affiliated with Robinhood?",
           acceptedAnswer: {
             "@type": "Answer",

@@ -45,9 +45,25 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "HOODPrinter Buy Bot",
+  alternateName: "Robinhood Chain Buy Bot",
+  url: "https://hoodprinter.xyz/print",
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "Web",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  description,
+};
+
 export default function PrintPage() {
   return (
     <main className="pb-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="pb-head">
         <a className="pb-logo-link" href="/" aria-label="Back to HOOD Printer home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
