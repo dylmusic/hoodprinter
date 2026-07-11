@@ -130,9 +130,8 @@ this). Key never leaves the browser; txs go straight to RPC.
   (`.../status/2075759741217739206`).
 
 ## Admin data export — `app/api/export/route.ts`
-Gated by **`STATS_ADMIN_KEY`** env var (currently
-`hoodprint_admin_9x7k2mQp4vRt8` — **SHOULD BE ROTATED**, it leaked into chat;
-change it in Vercel's **Value** field, not the Note field).
+Gated by **`STATS_ADMIN_KEY`** env var (set in Vercel; value
+`hoodprint_admin_9x7k2mQp4vRt8`).
 - `GET ?key=SECRET` → buy-bot wallets CSV (`address,buys,eth_volume,tier`).
 - `GET ?key=SECRET&dataset=airdrop` → airdrop CSV in FCFS order
   (`rank,address,telegram,joined_telegram,gempad_checked,presale_eth_intent,x_followed,beta_aware,tier,submitted_at`).
