@@ -127,6 +127,24 @@ this). Key never leaves the browser; txs go straight to RPC.
 
 ---
 
+## Multisend — `/multisend` (UNLISTED: noindex, no sitemap, no nav links)
+
+`components/MultiSender.tsx`. Contract-free disperse (the canonical
+disperse.app contract is NOT deployed on this chain — verified via
+eth_getCode): sequential `transfer()` txs in waves of 25 with locally
+reserved nonces, shares the Buy Bot's wallet (`hoodprint_burner_pk`).
+Paste `address[, amount]` lines; per-line amounts override a default;
+dedupe + unparseable reporting; preflight = token balance, ETH-for-gas,
+and a test `estimateGas`; stop-between-waves + failure retry.
+**$PRINT contract facts (from verified source, RewardToken.sol):**
+wallet→wallet transfers are NOT taxed (5% only on AMM buys/sells via
+`automatedMarketMakerPairs`); BUT `require(tradingStartedAt > 0)` makes
+transfers revert pre-launch unless sender or recipient is in
+`isExcludedFromFee` — owner must call `excludeFromFee(sender, true)`
+before any pre-launch airdrop. Transfers also run the dividend tracker
+(`process(gas)`), so $PRINT transfers are gas-heavy → gasLimit comes
+from estimateGas +30%, never a flat constant.
+
 ## Airdrop system — native, in our own DB (Google Forms replaced)
 
 - **Form**: `components/AirdropForm.tsx` on `/airdrop` (replaced the Google
