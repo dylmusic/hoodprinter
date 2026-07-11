@@ -127,9 +127,22 @@ this). Key never leaves the browser; txs go straight to RPC.
 
 ---
 
-## Multisend — `/multisend` (UNLISTED: noindex, no sitemap, no nav links)
+## Site navigation
 
-`components/MultiSender.tsx`. Contract-free disperse (the canonical
+`components/SiteNav.tsx` (client) is THE nav for home/roadmap/airdrop/media/
+multisend — don't hand-roll `<nav>` blocks on pages anymore. `variant="home"`
+= section anchors + Roadmap/Airdrop/Tools/FAQ; default `"sub"` = Home/Roadmap/
+Airdrop/Tools. The **Tools dropdown** groups product pages (Buy Bot BETA,
+Multisend NEW) — add future tools there, not as top-level links. Mobile
+(≤720px) hides text links + the Tools trigger; only logo/socials/Level Up
+remain. `/print` keeps its own minimal logo-only header on purpose.
+
+## Multisend — `/multisend` (PUBLIC since Jul 2026)
+
+`components/MultiSender.tsx`. Indexed + in sitemap, bespoke `og-multisend.png`
+(product-card style), WebApplication JSON-LD, SEO about-section targeting
+"robinhood chain multisend / disperse" searches.
+Contract-free disperse (the canonical
 disperse.app contract is NOT deployed on this chain — verified via
 eth_getCode): sequential `transfer()` txs in waves of 25 with locally
 reserved nonces, shares the Buy Bot's wallet (`hoodprint_burner_pk`).
