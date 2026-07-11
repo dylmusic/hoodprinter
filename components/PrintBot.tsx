@@ -954,8 +954,11 @@ export default function PrintBot() {
     return base * (1 + (Math.random() * 2 - 1) * (pct / 100));
   }
 
+  // 9 decimals so the ± jitter stays visible even at dust-size buy amounts
+  // (at 6 decimals, a 0.000001 ETH base rounded every jittered buy back to
+  // exactly 0.000001 — the randomizer looked broken).
   function fmtAmount(n: number) {
-    return n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+    return n.toFixed(9).replace(/0+$/, "").replace(/\.$/, "");
   }
 
   function readProvider() {
