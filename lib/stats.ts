@@ -348,7 +348,21 @@ export type WalletRow = {
   buys: number;
   eth: number;
   tier: string;
+  name?: string | null;
 };
+
+// Custom display names for the leaderboard, keyed by lowercase address in
+// one hash. Set via /api/name, which verifies a signature from the wallet
+// itself — only the key holder can name (or rename) their row.
+const NAMES_KEY = "lb:names";
+
+export async function setWalletName(addr: string, name: string): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  const a = addr.toLowerCase();
+  if (name) await redis.hset(NAMES_KEY, { [a]: name });
+  else await redis.hdel(NAMES_KEY, a);
+}
 
 /** Top N wallets by buys — the public /print leaderboard. */
 export async function readTopWallets(limit = 10): Promise<WalletRow[]> {
@@ -365,10 +379,20 @@ export async function readTopWallets(limit = 10): Promise<WalletRow[]> {
     rows.push({ address: String(flat[i]), buys, eth: 0, tier: tierFor(buys) });
   }
   if (!rows.length) return [];
-  const eths = await redis.mget<(string | number | null)[]>(
-    ...rows.map((r) => `wallet:${r.address}:eth`)
-  );
-  rows.forEach((r, i) => (r.eth = num(eths[i])));
+  const [eths, names] = await Promise.all([
+    redis.mget<(string | number | null)[]>(
+      ...rows.map((r) => `wallet:${r.address}:eth`)
+    ),
+    redis.hmget<Record<string, string | null>>(
+      NAMES_KEY,
+      ...rows.map((r) => r.address)
+    ),
+  ]);
+  rows.forEach((r, i) => {
+    r.eth = num(eths[i]);
+    const n = names?.[r.address];
+    r.name = typeof n === "string" && n ? String(n) : null;
+  });
   return rows;
 }
 

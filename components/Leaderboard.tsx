@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ethers } from "ethers";
 
 /**
  * Wallet leaderboard for /print — top printers by confirmed buys.
  * Reads the CDN-cached /api/stats?board endpoint; highlights the viewer's
- * own bot wallet when it's on the board.
+ * own bot wallet and lets them set a display name (signed with the wallet
+ * key, so only the owner can rename their row — everyone sees the name).
  */
 
-type Row = { address: string; buys: number; eth: number; tier: string };
+type Row = {
+  address: string;
+  buys: number;
+  eth: number;
+  tier: string;
+  name?: string | null;
+};
+
+const PK_STORAGE_KEY = "hoodprint_burner_pk"; // shared with PrintBot
 
 const TIER_COLORS: Record<string, string> = {
   Rookie: "#8b93a7",
@@ -27,29 +37,70 @@ const fmtEth = (n: number) =>
 
 export default function Leaderboard({ me }: { me?: string | null }) {
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    try {
+      const res = await fetch("/api/stats?board=10");
+      const json = await res.json();
+      if (Array.isArray(json.board)) setRows(json.board);
+    } catch {
+      /* board is decorative — fail quietly */
+    }
+  };
 
   useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/stats?board=10");
-        const json = await res.json();
-        if (alive && Array.isArray(json.board)) setRows(json.board);
-      } catch {
-        /* board is decorative — fail quietly */
-      }
-    };
     load();
     const id = setInterval(load, 30000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, []);
 
   if (!rows || rows.length === 0) return null;
 
   const meLower = me?.toLowerCase();
+
+  async function saveName() {
+    if (!me) return;
+    const name = draft.trim();
+    if (name && !/^[\w@.\- ]{2,20}$/.test(name)) {
+      setErr("2–20 characters: letters, numbers, @ . _ -");
+      return;
+    }
+    setSaving(true);
+    setErr("");
+    try {
+      const pkRaw = localStorage.getItem(PK_STORAGE_KEY) || "";
+      const pk = pkRaw.startsWith("0x") ? pkRaw : "0x" + pkRaw;
+      const wallet = new ethers.Wallet(pk);
+      if (wallet.address.toLowerCase() !== meLower) throw new Error("key mismatch");
+      const sig = await wallet.signMessage(
+        `hoodprint:set-name:${wallet.address.toLowerCase()}:${name}`
+      );
+      const res = await fetch("/api/name", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ address: wallet.address, name, sig }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "failed");
+      // Optimistic update (the CDN-cached board lags a few seconds).
+      setRows((rs) =>
+        rs
+          ? rs.map((r) =>
+              r.address.toLowerCase() === meLower ? { ...r, name: name || null } : r
+            )
+          : rs
+      );
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error && e.message.length < 80 ? e.message : "Couldn't save — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="pb-card lb-card">
@@ -59,13 +110,62 @@ export default function Leaderboard({ me }: { me?: string | null }) {
       </div>
       <div className="lb-rows">
         {rows.map((r, i) => {
-          const isMe = meLower && r.address.toLowerCase() === meLower;
+          const isMe = !!meLower && r.address.toLowerCase() === meLower;
           return (
             <div className={`lb-row${i < 3 ? " top" : ""}${isMe ? " me" : ""}`} key={r.address}>
               <span className="lb-rank">{MEDALS[i] ?? `#${i + 1}`}</span>
-              <span className="lb-addr">
-                {short(r.address)}
-                {isMe && <span className="lb-you">YOU</span>}
+              <span className="lb-addr" title={r.address}>
+                {isMe && editing ? (
+                  <span className="lb-edit">
+                    <input
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveName()}
+                      placeholder="X / Telegram name"
+                      maxLength={20}
+                      autoFocus
+                      disabled={saving}
+                    />
+                    <button type="button" onClick={saveName} disabled={saving} title="Save">
+                      {saving ? "…" : "✓"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(false);
+                        setErr("");
+                      }}
+                      disabled={saving}
+                      title="Cancel"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    {r.name ? (
+                      <span className="lb-name">{r.name}</span>
+                    ) : (
+                      short(r.address)
+                    )}
+                    {r.name && <span className="lb-addr-sub">{short(r.address)}</span>}
+                    {isMe && <span className="lb-you">YOU</span>}
+                    {isMe && (
+                      <button
+                        type="button"
+                        className="lb-pencil"
+                        title="Set your leaderboard name"
+                        onClick={() => {
+                          setDraft(r.name || "");
+                          setEditing(true);
+                          setErr("");
+                        }}
+                      >
+                        ✏️
+                      </button>
+                    )}
+                  </>
+                )}
               </span>
               <span
                 className="lb-tier"
@@ -84,6 +184,7 @@ export default function Leaderboard({ me }: { me?: string | null }) {
           );
         })}
       </div>
+      {err && <p className="lb-err">{err}</p>}
       <p className="lb-note">
         Every confirmed buy climbs the board. Level up before rewards go live.
       </p>
