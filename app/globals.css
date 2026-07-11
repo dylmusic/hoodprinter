@@ -3153,3 +3153,165 @@ footer {
   font-weight: 700;
   text-decoration: none;
 }
+
+/* ============ Multisend (/multisend) ============ */
+
+.ms-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 16px 80px;
+}
+
+.ms-addr {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.ms-addr:hover {
+  border-color: rgba(0, 200, 5, 0.55);
+}
+
+.ms-bals {
+  display: flex;
+  gap: 18px;
+  margin: 10px 0 6px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.ms-bals strong {
+  color: var(--text);
+}
+
+.ms-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.ms-inline input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.ms-list {
+  width: 100%;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding: 12px;
+  resize: vertical;
+}
+
+.ms-list:focus {
+  outline: none;
+  border-color: rgba(0, 200, 5, 0.55);
+}
+
+.ms-parse {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.ms-ok {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.ms-bad {
+  color: #ff7b6b;
+  font-weight: 700;
+}
+
+.ms-err {
+  color: #ff7b6b;
+  font-size: 0.88rem;
+  margin-top: 10px;
+}
+
+.ms-note {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 197, 24, 0.4);
+  border-radius: 10px;
+  background: rgba(245, 197, 24, 0.06);
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.ms-note code {
+  font-size: 0.8rem;
+  color: #f5c518;
+}
+
+.ms-invalid {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.ms-invalid pre {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.ms-go {
+  width: 100%;
+}
+
+.ms-confirm p {
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.ms-progress {
+  margin-top: 4px;
+}
+
+.ms-bar {
+  height: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ms-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #009a04, var(--green));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.ms-stop {
+  margin-top: 10px;
+}
