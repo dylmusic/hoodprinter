@@ -1848,22 +1848,24 @@ export default function PrintBot() {
         <div className="pb-autobuy">
           <div className="pb-row">
             <div>
-              <label>Buy amount (ETH)</label>
+              <div className="pb-amt-head">
+                <label>Buy amount (ETH)</label>
+                {showGasWarn && (
+                  <button
+                    type="button"
+                    className="pb-gaswarn"
+                    onClick={openGasWarning}
+                    title="Estimated fees are a large share of this buy"
+                  >
+                    ⛽ Gas
+                  </button>
+                )}
+              </div>
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 onBlur={() => saveSettings()}
               />
-              {showGasWarn && (
-                <button
-                  type="button"
-                  className="pb-gaswarn"
-                  onClick={openGasWarning}
-                  title="Estimated fees are a large share of this buy"
-                >
-                  ⛽ Gas warning
-                </button>
-              )}
             </div>
             <div>
               <label>Buy every (s)</label>
