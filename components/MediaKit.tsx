@@ -18,6 +18,8 @@ type AssetSection = {
   id: string;
   title: string;
   sub: string;
+  /** square 1080x1080 cards — pack five per row on desktop */
+  five?: boolean;
   items: Asset[];
 };
 
@@ -26,6 +28,7 @@ const SECTIONS: AssetSection[] = [
     id: "promos",
     title: "The $PRINT story",
     sub: "Square cards that explain the printer — post them as-is or thread them.",
+    five: true,
     items: [
       { src: "/brand/promo/promo-1-hero.png", name: "Hold $PRINT. Get paid ETH.", dims: "1080×1080", fmt: "PNG" },
       { src: "/brand/promo/promo-2-how-it-works.png", name: "Three steps. Zero effort.", dims: "1080×1080", fmt: "PNG" },
@@ -38,6 +41,7 @@ const SECTIONS: AssetSection[] = [
     id: "buybot",
     title: "The Buy Bot pack",
     sub: "The utility angle: one-click auto-buys, spam mode, ranks, and the $PRINT flywheel.",
+    five: true,
     items: [
       { src: "/brand/promo/promo-6-buybot.png", name: "Auto-buy any token", dims: "1080×1080", fmt: "PNG", tag: "BETA" },
       { src: "/brand/promo/promo-7-spam.png", name: "Set it. Spam it.", dims: "1080×1080", fmt: "PNG" },
@@ -120,7 +124,7 @@ export default function MediaKit() {
           <div className="container">
             <h2 className="mk-title">{sec.title}</h2>
             <p className="mk-sub">{sec.sub}</p>
-            <div className="mk-grid">
+            <div className={`mk-grid${sec.five ? " five" : ""}`}>
               {sec.items.map((a) => (
                 <div className={`mk-card${a.wide ? " wide" : ""}`} key={a.src}>
                   <div className="mk-preview">

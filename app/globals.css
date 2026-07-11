@@ -2914,6 +2914,37 @@ footer {
   gap: 18px;
 }
 
+/* square 1080x1080 cards: five per row on desktop, no wasted lane */
+@media (min-width: 900px) {
+  .mk-grid.five {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+  }
+
+  .mk-grid.five .mk-preview {
+    aspect-ratio: 1 / 1;
+    padding: 10px;
+  }
+
+  .mk-grid.five .mk-name {
+    font-size: 0.84rem;
+  }
+
+  .mk-grid.five .mk-dims {
+    font-size: 0.7rem;
+  }
+
+  .mk-grid.five .mk-actions {
+    gap: 6px;
+    padding: 10px 12px 12px;
+  }
+
+  .mk-grid.five .mk-btn {
+    font-size: 0.72rem;
+    padding: 7px 6px;
+  }
+}
+
 .mk-card {
   background: var(--card);
   border: 1px solid var(--border);
