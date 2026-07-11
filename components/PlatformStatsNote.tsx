@@ -91,10 +91,13 @@ export default function PlatformStatsNote() {
     }
   }, [applyAbsolute]);
 
-  // Poll — faster while a local bot is running, cached/relaxed when idle.
+  // Poll — fast while a local bot is running, still snappy when idle so a
+  // passive viewer sees the counter tick up in near-real-time. Idle polls hit
+  // the CDN edge (s-maxage=4), not Redis, so this is cheap no matter how many
+  // tabs are open.
   useEffect(() => {
     load();
-    const id = setInterval(load, live ? 4000 : 12000);
+    const id = setInterval(load, live ? 3000 : 5000);
     return () => clearInterval(id);
   }, [load, live]);
 

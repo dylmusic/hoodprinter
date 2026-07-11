@@ -47,10 +47,12 @@ export async function GET(req: NextRequest) {
   const stats = await readStats(w);
 
   // Platform totals are identical for everyone → let the CDN serve them so
-  // many open tabs collapse into ~one Redis read per interval. Per-wallet
-  // responses are private and never cached.
+  // many open tabs collapse into ~one Redis read per interval. A short
+  // s-maxage keeps the ticker feeling live for passive viewers while still
+  // collapsing all traffic into ~one Redis read every few seconds regardless
+  // of how many tabs are open. Per-wallet responses are private, never cached.
   const cache = w
     ? "private, no-store"
-    : "public, s-maxage=15, stale-while-revalidate=60";
+    : "public, s-maxage=4, stale-while-revalidate=30";
   return NextResponse.json(stats, { headers: { "cache-control": cache } });
 }
