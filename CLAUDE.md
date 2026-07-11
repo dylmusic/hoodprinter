@@ -135,7 +135,7 @@ multisend — don't hand-roll `<nav>` blocks on pages anymore. `variant="home"`
 Airdrop/Tools. The **Tools dropdown** groups product pages (Buy Bot BETA,
 Multisend NEW) — add future tools there, not as top-level links. Mobile
 (≤720px) hides text links + the Tools trigger; only logo/socials/Level Up
-remain. `/print` keeps its own minimal logo-only header on purpose.
+remain. `/print` and `/multisend` both show SiteNav on top plus the small pb-logo above their H1 — matching tool-page headers.
 
 ## Multisend — `/multisend` (PUBLIC since Jul 2026)
 

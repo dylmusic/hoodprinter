@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import PrintBot from "@/components/PrintBot";
 import PlatformStatsNote from "@/components/PlatformStatsNote";
+import SiteNav from "@/components/SiteNav";
 
 const title = "Buy Bot — Robinhood Chain Volume Bot | Auto-Buy Any Token";
 const description =
@@ -62,7 +63,9 @@ const jsonLd = {
 
 export default function PrintPage() {
   return (
-    <main className="pb-page">
+    <>
+      <SiteNav />
+      <main className="pb-page">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -87,6 +90,7 @@ export default function PrintPage() {
         </p>
       </div>
       <PrintBot />
-    </main>
+      </main>
+    </>
   );
 }
