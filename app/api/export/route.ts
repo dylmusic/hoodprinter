@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readAllWallets, backfillWallets } from "@/lib/stats";
+import {
+  readAllWallets,
+  backfillWallets,
+  readCreatedWallets,
+  createdWalletCount,
+} from "@/lib/stats";
 import { readAllSubmissions, seedSubmission } from "@/lib/airdrop";
 
 export const runtime = "nodejs";
@@ -7,10 +12,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * Admin data export. Gated by STATS_ADMIN_KEY (set it in Vercel env). Usage:
- *   /api/export?key=SECRET                    → buy-bot wallets CSV
- *   /api/export?key=SECRET&dataset=airdrop    → airdrop signups CSV (FCFS order)
- *   /api/export?key=SECRET&format=json        → JSON instead of CSV
- *   /api/export?key=SECRET&backfill=1         → seed the wallet index
+ *   /api/export?key=SECRET                            → buy-bot wallets CSV
+ *   /api/export?key=SECRET&dataset=airdrop            → airdrop signups CSV (FCFS order)
+ *   /api/export?key=SECRET&dataset=wallets_created    → every bot wallet ever seen,
+ *                                                       first-seen order, with buy join
+ *   /api/export?key=SECRET&format=json                → JSON instead of CSV
+ *   /api/export?key=SECRET&backfill=1                 → seed the wallet index
  * POST /api/export?import=airdrop&key=SECRET  → import old Google-Form CSV
  *   (send the raw CSV as the request body)
  */
@@ -167,11 +174,46 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // ---- every bot wallet ever seen (creation funnel) ----
+  if (req.nextUrl.searchParams.get("dataset") === "wallets_created") {
+    const created = await readCreatedWallets();
+    if (asJson) {
+      return NextResponse.json(
+        {
+          ok: true,
+          count: created.length,
+          neverBought: created.filter((c) => c.buys === 0).length,
+          wallets: created,
+        },
+        { headers: { "cache-control": "no-store" } }
+      );
+    }
+    const header = "address,created_at_iso,has_bought,buys";
+    const body = created
+      .map(
+        (c) =>
+          `${c.address},${new Date(c.createdAt).toISOString()},${
+            c.buys > 0 ? "yes" : "no"
+          },${c.buys}`
+      )
+      .join("\n");
+    return new NextResponse(`${header}\n${body}\n`, {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="hoodprint-wallets-created-${stamp}.csv"`,
+        "cache-control": "no-store",
+      },
+    });
+  }
+
   // ---- buy-bot wallets (default) ----
-  const rows = await readAllWallets();
+  const [rows, walletsCreated] = await Promise.all([
+    readAllWallets(),
+    createdWalletCount(),
+  ]);
   if (asJson) {
     return NextResponse.json(
-      { ok: true, count: rows.length, wallets: rows },
+      { ok: true, count: rows.length, walletsCreated, wallets: rows },
       { headers: { "cache-control": "no-store" } }
     );
   }
@@ -185,6 +227,8 @@ export async function GET(req: NextRequest) {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="hoodprint-wallets-${stamp}.csv"`,
       "cache-control": "no-store",
+      // created-wallet total for the CSV form, without breaking the schema
+      "x-wallets-created": String(walletsCreated),
     },
   });
 }

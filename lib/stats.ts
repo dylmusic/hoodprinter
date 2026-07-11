@@ -6,11 +6,16 @@ import { Redis } from "@upstash/redis";
  * concurrent buys from many users can't race or lose counts.
  *
  * Keys:
- *   stats:buys            global tx count
- *   stats:eth            global ETH volume (float)
- *   wallet:<addr>:buys   per-wallet tx count
- *   wallet:<addr>:eth    per-wallet ETH volume (float)
- *   seen:<txHash>        dedupe flag so a buy is only ever counted once
+ *   stats:buys                 global tx count
+ *   stats:eth                  global ETH volume (float)
+ *   stats:buys:<YYYY-MM-DD>    daily buy count (time-series)
+ *   stats:eth:<YYYY-MM-DD>     daily ETH volume (time-series)
+ *   stats:visits:<YYYY-MM-DD>  daily /print landings (funnel top)
+ *   wallet:<addr>:buys         per-wallet tx count
+ *   wallet:<addr>:eth          per-wallet ETH volume (float)
+ *   wallet:<addr>:first_buy    ms timestamp of the wallet's first buy (NX)
+ *   wallets:created            zset, score = first-seen ms (creation funnel)
+ *   seen:<txHash>              dedupe flag so a buy is only ever counted once
  */
 
 let client: Redis | null = null;
@@ -36,6 +41,46 @@ export type PlatformStats = {
 function num(v: unknown): number {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? "0"));
   return Number.isFinite(n) ? n : 0;
+}
+
+function dayKey(d = new Date()): string {
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+}
+
+/** Soft per-IP hourly throttle, scoped per feature (mirrors lib/airdrop). */
+export async function ipThrottled(
+  scope: string,
+  ip: string,
+  limit: number
+): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis || !ip) return false;
+  const key = `ip:${scope}:${ip}`;
+  const n = await redis.incr(key);
+  if (n === 1) await redis.expire(key, 60 * 60);
+  return n > limit;
+}
+
+/**
+ * Record that a bot wallet exists (created in-browser, or recovered from a
+ * returning user's localStorage). NX keeps the first-seen timestamp, so
+ * re-reports never move a wallet's place in the funnel — same FCFS pattern
+ * as airdrop:order. Only ever receives the derived ADDRESS, never the key.
+ */
+export async function recordWalletCreated(addr: string): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.zadd("wallets:created", { nx: true }, {
+    score: Date.now(),
+    member: addr.toLowerCase(),
+  });
+}
+
+/** Count one /print landing into today's funnel bucket. No PII, no wallet. */
+export async function recordVisit(): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.incr(`stats:visits:${dayKey()}`);
 }
 
 export async function readStats(wallet?: string): Promise<PlatformStats> {
@@ -75,13 +120,22 @@ export async function recordBuy(
   // the wallets index (score = buy count) — self-correcting, no drift.
   const walletBuys = await redis.incr(`wallet:${w}:buys`);
 
+  const day = dayKey();
   const writes: Promise<unknown>[] = [
     redis.incr("stats:buys"),
     redis.incrbyfloat("stats:eth", ethAmount),
     redis.incrbyfloat(`wallet:${w}:eth`, ethAmount),
     // Index of every wallet, ranked by buys — the basis for an airdrop CSV.
     redis.zadd("wallets:bybuys", { score: walletBuys, member: w }),
+    // Daily time-series buckets for charting activity over time.
+    redis.incr(`stats:buys:${day}`),
+    redis.incrbyfloat(`stats:eth:${day}`, ethAmount),
+    // First-buy timestamp (NX) → created→bought conversion latency.
+    redis.set(`wallet:${w}:first_buy`, Date.now(), { nx: true }),
   ];
+  // TODO(P3): consider an anonymous `stats:buy_fails` counter (no wallet)
+  // reported by the bot when a buy tx reverts, so churn from the 5-fail
+  // stop is visible. Not built yet — see /api/export discussion.
 
   // Per-token leaderboard: sorted sets make "top tokens" a one-shot read.
   if (token && /^0x[0-9a-fA-F]{40}$/.test(token)) {
@@ -177,6 +231,40 @@ export async function readAllWallets(): Promise<WalletRow[]> {
     eth: num(eths[i]),
     tier: tierFor(buysBy[a]),
   }));
+}
+
+export type CreatedWalletRow = {
+  address: string;
+  createdAt: number; // first-seen ms
+  buys: number;
+};
+
+/** Total wallets ever seen by /api/wallet (created or recovered). */
+export async function createdWalletCount(): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  return num(await redis.zcard("wallets:created"));
+}
+
+/**
+ * Every created wallet in first-seen order, joined against its buy count —
+ * `buys === 0` is the created-but-never-bought segment. Admin export only.
+ */
+export async function readCreatedWallets(): Promise<CreatedWalletRow[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+  const flat = (await redis.zrange("wallets:created", 0, -1, {
+    withScores: true,
+  })) as (string | number)[];
+  const rows: { address: string; createdAt: number }[] = [];
+  for (let i = 0; i < flat.length; i += 2) {
+    rows.push({ address: String(flat[i]), createdAt: num(flat[i + 1]) });
+  }
+  if (!rows.length) return [];
+  const buys = await redis.mget<(string | number | null)[]>(
+    ...rows.map((r) => `wallet:${r.address}:buys`)
+  );
+  return rows.map((r, i) => ({ ...r, buys: num(buys[i]) }));
 }
 
 /**
