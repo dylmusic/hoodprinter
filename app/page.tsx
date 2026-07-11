@@ -193,13 +193,8 @@ export default function Home() {
             automatically, forever. When we print, we print ETH.
           </p>
           <div className="hero-ctas">
-            <a
-              className="btn btn-primary"
-              href={buyHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {presaleActive ? "Join the Presale on Gempad" : "Buy $PRINT"}
+            <a className="btn btn-primary" href="/print">
+              Level up before $PRINT drops
             </a>
             <a className="btn btn-ghost" href="#how-it-works">
               How it works
