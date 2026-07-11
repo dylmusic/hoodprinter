@@ -231,6 +231,9 @@ export default function PrintBot() {
   const [addCa, setAddCa] = useState("");
   const [addErr, setAddErr] = useState("");
 
+  // transient "Copied!" feedback when the wallet address is tapped
+  const [copiedAddr, setCopiedAddr] = useState(false);
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runningRef = useRef(false);
   // Spam mode: reserve nonces locally so rapid-fire sends don't collide, and
@@ -241,6 +244,7 @@ export default function PrintBot() {
   const routeRef = useRef<Route | null>(null); // v2 vs v3, resolved at loop start
   const failStreakRef = useRef(0); // consecutive failures → stop + warn
   const monitorRef = useRef<HTMLDivElement>(null);
+  const trendRowRef = useRef<HTMLDivElement>(null);
 
   const addLog = (msg: string, level: LogLevel = "info") =>
     setLog((l) =>
@@ -375,6 +379,53 @@ export default function PrintBot() {
     return () => clearInterval(id);
   }, [running]);
 
+  // On mobile, gently auto-scroll the trending row so people notice it can be
+  // swiped. Ping-pongs very slowly and bows out permanently the moment the user
+  // touches it. Skipped when the row fits or reduced-motion is requested.
+  useEffect(() => {
+    const el = trendRowRef.current;
+    if (!el) return;
+    if (!window.matchMedia("(max-width: 720px)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (el.scrollWidth - el.clientWidth < 24) return; // nothing to reveal
+
+    let raf = 0;
+    let stopped = false;
+    let dir = 1;
+    let last = performance.now();
+    const SPEED = 14; // px per second — deliberately slow
+
+    const stop = () => {
+      stopped = true;
+      cancelAnimationFrame(raf);
+      el.removeEventListener("pointerdown", stop);
+      el.removeEventListener("wheel", stop);
+      el.removeEventListener("touchstart", stop);
+    };
+    el.addEventListener("pointerdown", stop);
+    el.addEventListener("wheel", stop, { passive: true });
+    el.addEventListener("touchstart", stop, { passive: true });
+
+    const tick = (t: number) => {
+      if (stopped) return;
+      const dt = (t - last) / 1000;
+      last = t;
+      const max = el.scrollWidth - el.clientWidth;
+      let next = el.scrollLeft + dir * SPEED * dt;
+      if (next >= max) {
+        next = max;
+        dir = -1;
+      } else if (next <= 0) {
+        next = 0;
+        dir = 1;
+      }
+      el.scrollLeft = next;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return stop;
+  }, [trending]);
+
   // Warn before closing the tab while buying is active.
   useEffect(() => {
     if (!running) return;
@@ -507,6 +558,15 @@ export default function PrintBot() {
   const gasPct =
     gasCostEth > 0 && buyNum > 0 ? (gasCostEth / buyNum) * 100 : 0;
   const showGasWarn = gasPct >= GAS_WARN_PCT;
+
+  // Rough hourly cost at the current amount + interval. Randomize is symmetric
+  // (±%) so it averages out and doesn't change the expected spend.
+  const intervalNum = parseFloat(interval || "0");
+  const buysPerHour = intervalNum > 0 ? 3600 / intervalNum : 0;
+  const spendPerHour = buyNum > 0 ? buyNum * buysPerHour : 0;
+  const gasPerHour = gasCostEth * buysPerHour;
+  const totalPerHour = spendPerHour + gasPerHour;
+  const showHourly = buysPerHour > 0 && buyNum > 0;
 
   // Rank the wallet by its all-time buy count — a little game to level up.
   const myBuysN = myBuys ?? 0;
@@ -676,6 +736,14 @@ export default function PrintBot() {
 
   function copy(text: string, label: string) {
     navigator.clipboard?.writeText(text).then(() => addLog(`${label} copied`));
+  }
+
+  function copyBurnerAddr() {
+    if (!burnerAddr) return;
+    navigator.clipboard?.writeText(burnerAddr);
+    addLog("Wallet address copied");
+    setCopiedAddr(true);
+    window.setTimeout(() => setCopiedAddr(false), 1400);
   }
 
   function downloadKey() {
@@ -1254,7 +1322,7 @@ export default function PrintBot() {
       {trending.length > 0 && (
         <div className="pb-trending">
           <span className="pb-trending-label">🔥 Trending</span>
-          <div className="pb-trend-row">
+          <div className="pb-trend-row" ref={trendRowRef}>
             {trending.map((t) => (
               <button
                 key={t.ca}
@@ -1317,7 +1385,17 @@ export default function PrintBot() {
             <div className="pb-wl-top">
               <div className="pb-wl-id">
                 <span className="pb-dot" />
-                <code>{shortAddr(burnerAddr)}</code>
+                <button
+                  type="button"
+                  className="pb-addr-copy"
+                  onClick={copyBurnerAddr}
+                  title="Copy wallet address"
+                >
+                  <code>{shortAddr(burnerAddr)}</code>
+                  <span className="pb-addr-copyicon">
+                    {copiedAddr ? "Copied!" : "⧉"}
+                  </span>
+                </button>
                 <span className="pb-net">{CHAIN.name}</span>
               </div>
               <div className="pb-wl-actions">
@@ -1628,6 +1706,31 @@ export default function PrintBot() {
               />
             </div>
           </div>
+
+          {showHourly && (
+            <div className="pb-hourly">
+              <div className="pb-hourly-item">
+                <span className="pb-hourly-num">{spendPerHour.toFixed(5)}</span>
+                <span className="pb-hourly-label">ETH spend / hr</span>
+              </div>
+              <div className="pb-hourly-item">
+                <span className="pb-hourly-num">
+                  {gasPriceWei ? gasPerHour.toFixed(5) : "…"}
+                </span>
+                <span className="pb-hourly-label">ETH gas / hr</span>
+              </div>
+              <div className="pb-hourly-item pb-hourly-total">
+                <span className="pb-hourly-num">{totalPerHour.toFixed(5)}</span>
+                <span className="pb-hourly-label">ETH total / hr</span>
+              </div>
+            </div>
+          )}
+          {showHourly && (
+            <p className="pb-hourly-note">
+              Estimate at ~{Math.round(buysPerHour).toLocaleString("en-US")} buys/hr
+              {gasPriceWei ? " · gas at current network rate" : ""}.
+            </p>
+          )}
         </div>
 
       </section>

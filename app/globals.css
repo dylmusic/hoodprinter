@@ -1163,6 +1163,25 @@ footer {
   .pb-card {
     padding: 16px 14px;
   }
+  /* Wallet header: stack ID and actions so nothing gets crushed / wraps mid-word. */
+  .pb-wl-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+  .pb-wl-id {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .pb-wl-actions {
+    justify-content: stretch;
+  }
+  .pb-wl-actions .pb-mini {
+    flex: 1;
+    text-align: center;
+  }
   .pb-balrow {
     gap: 8px;
   }
@@ -1727,6 +1746,8 @@ footer {
   border: 1px solid rgba(0, 200, 5, 0.3);
   border-radius: 999px;
   padding: 3px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pb-balrow {
@@ -1881,6 +1902,35 @@ footer {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text);
+  white-space: nowrap;
+}
+
+/* wallet address doubles as a copy button.
+   Selector is scoped (.pb-wl-id .pb-addr-copy) so it beats the generic
+   .pb-card button { width:100%; margin-top:14px; border:… } on specificity. */
+.pb-wl-id .pb-addr-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: auto;
+  padding: 3px 8px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 0;
+}
+.pb-wl-id .pb-addr-copy:hover {
+  background: rgba(0, 200, 5, 0.08);
+  border-color: rgba(0, 200, 5, 0.35);
+}
+.pb-addr-copyicon {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--green);
+  white-space: nowrap;
 }
 
 .pb-wl-actions {
@@ -2458,6 +2508,62 @@ footer {
   margin-top: 16px;
   border-top: 1px solid var(--border);
   padding-top: 14px;
+}
+
+/* hourly cost estimate under the buy amount / interval inputs */
+.pb-hourly {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.pb-hourly-item {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.pb-hourly-total {
+  border-color: rgba(0, 200, 5, 0.4);
+  box-shadow: 0 0 14px rgba(0, 200, 5, 0.1);
+}
+.pb-hourly-num {
+  display: block;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--green);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pb-hourly-label {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.62rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pb-hourly-note {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+@media (max-width: 480px) {
+  .pb-hourly {
+    gap: 6px;
+  }
+  .pb-hourly-item {
+    padding: 9px 4px;
+  }
+  .pb-hourly-num {
+    font-size: 0.82rem;
+  }
+  .pb-hourly-label {
+    font-size: 0.54rem;
+    letter-spacing: 0.04em;
+  }
 }
 
 /* quick-start button under the balances (returning configured users) */
