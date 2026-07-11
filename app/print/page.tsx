@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: `HOOD Printer Buy Bot — Auto-Buy Any Robinhood Chain Token`,
     description,
-    url: "https://hoodprinter.xyz/print",
+    url: "https://www.hoodprinter.xyz/print",
     siteName: "HOODPrinter",
     type: "website",
     locale: "en_US",
@@ -54,7 +54,7 @@ const jsonLd = {
   "@type": "WebApplication",
   name: "HOODPrinter Buy Bot",
   alternateName: ["Robinhood Chain Buy Bot", "Robinhood Volume Bot"],
-  url: "https://hoodprinter.xyz/print",
+  url: "https://www.hoodprinter.xyz/print",
   applicationCategory: "FinanceApplication",
   operatingSystem: "Web",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },

@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title,
     description,
-    url: "https://hoodprinter.xyz/multisend",
+    url: "https://www.hoodprinter.xyz/multisend",
     siteName: siteConfig.name,
     type: "website",
     locale: "en_US",
@@ -58,7 +58,7 @@ const jsonLd = {
       "@type": "WebApplication",
       name: "HOODPrinter Multisend",
       alternateName: "Robinhood Chain Airdrop Tool",
-      url: "https://hoodprinter.xyz/multisend",
+      url: "https://www.hoodprinter.xyz/multisend",
       applicationCategory: "FinanceApplication",
       operatingSystem: "Web",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },

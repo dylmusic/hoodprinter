@@ -30,7 +30,9 @@ export const siteConfig = {
   tagline: "The printer that pays you in ETH.",
   description:
     "HOODPrinter ($PRINT) lives on Robinhood Chain and prints ETH to holders. Buy, hold, and the printer pays you — no staking, no claiming.",
-  url: "https://hoodprinter.xyz",
+  // Canonical host is www — the apex 308-redirects to it, so every absolute
+  // URL we emit (canonicals, sitemap, OG, JSON-LD) must be the www form.
+  url: "https://www.hoodprinter.xyz",
 
   contractAddress: PLACEHOLDER_CONTRACT_ADDRESS,
   buyLink: PLACEHOLDER_BUY_LINK,
