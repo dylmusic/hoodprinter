@@ -102,12 +102,28 @@ this). Key never leaves the browser; txs go straight to RPC.
 
 ### Buy stats + wallet levels (airdrop-ready)
 - `app/api/buy/route.ts`: POST verifies the tx on-chain, dedupes by hash,
-  decodes the bought token from calldata, calls `recordBuy` (`lib/stats.ts`).
+  attributes the bought token, calls `recordBuy` (`lib/stats.ts`).
+  **Token attribution**: client sends the targeted CA (`token` in reportBuy);
+  server only trusts it if the receipt logs contain a Transfer of that token
+  to the buyer (UR `execute()` calldata isn't decodable the legacy way);
+  falls back to the old direct-router calldata decode.
 - `lib/stats.ts` keys: `stats:buys`, `stats:eth`, `wallet:<addr>:buys`,
-  `wallet:<addr>:eth`, `seen:<txHash>`, `tokens:*`, and `wallets:bybuys`
-  (sorted set, score = buy count → the wallet leaderboard / airdrop index).
+  `wallet:<addr>:eth`, `seen:<txHash>`, `tokens:*`, `wallets:bybuys`
+  (sorted set, score = buy count → the wallet leaderboard / airdrop index),
+  plus funnel/time-series: `wallets:created` (zset, score = first-seen ms,
+  ZADD NX so re-reports keep FCFS), `stats:visits:<YYYY-MM-DD>`,
+  `stats:buys:<YYYY-MM-DD>`, `stats:eth:<YYYY-MM-DD>`,
+  `wallet:<addr>:first_buy` (NX ms), `ip:<scope>:<ip>` throttles.
+- **Wallet-creation tracking**: `POST /api/wallet` `{address}` → 
+  `recordWalletCreated` (address only — the private key NEVER leaves the
+  browser); `{type:"visit"}` → daily /print landing bucket. PrintBot reports
+  from the pk-sync effect (covers new/imported/restored wallets — existing
+  users backfill on next visit), deduped per device via localStorage
+  `hoodprint:wallet_reported`.
 - `RANKS`/`tierFor()` mirror the UI ladder. `readAllWallets()` +
   `backfillWallets()` (one-time seed of pre-index wallets — already run once).
+- TODO(P3): anonymous `stats:buy_fails` counter for failed-buy churn — not
+  built yet, see note in recordBuy.
 
 ---
 
@@ -133,14 +149,21 @@ this). Key never leaves the browser; txs go straight to RPC.
 ## Admin data export — `app/api/export/route.ts`
 Gated by **`STATS_ADMIN_KEY`** env var (set in Vercel; value
 `hoodprint_admin_9x7k2mQp4vRt8`).
-- `GET ?key=SECRET` → buy-bot wallets CSV (`address,buys,eth_volume,tier`).
+- `GET ?key=SECRET` → buy-bot wallets CSV (`address,buys,eth_volume,tier`);
+  JSON form includes `walletsCreated`, CSV form carries it in an
+  `x-wallets-created` response header.
 - `GET ?key=SECRET&dataset=airdrop` → airdrop CSV in FCFS order
   (`rank,address,telegram,joined_telegram,gempad_checked,presale_eth_intent,x_followed,beta_aware,tier,submitted_at`).
+- `GET ?key=SECRET&dataset=wallets_created` → every bot wallet ever seen,
+  first-seen order (`address,created_at_iso,has_bought,buys`); JSON form adds
+  a `neverBought` count.
 - `?format=json`, `?backfill=1` (wallet index seed).
 - `POST ?import=airdrop&key=SECRET` with raw CSV body → migrate old signups.
 
-Current state (last checked): **1 buy-bot user** — `0x7a8c…cae6`, 1,852 buys,
-0.0115 ETH, **Silver** (all platform volume = this one wallet, i.e. dev testing).
+Current state (last checked 2026-07-11): **3 buy-bot wallets** —
+`0x7a8c…cae6` 2,032 buys (Silver, dev testing), `0x5ed0…ae8d` 136 buys
+(Bronze), `0x40fd…3e13` 66 buys (Rookie) — real users have arrived.
+`wallets:created` starts empty and backfills as users revisit /print.
 **~20 airdrop signups** (19 imported + native ones), all "big" tier so far.
 
 ---
