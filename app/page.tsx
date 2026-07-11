@@ -174,11 +174,6 @@ export default function Home() {
 
       <header className="hero">
         <div className="container">
-          <span className="hero-kicker">
-            {presaleActive
-              ? `Presale LIVE on Gempad · ${chain.name}`
-              : `Now printing on ${chain.name} · Chain ID ${chain.chainId}`}
-          </span>
           <h1>
             Hold <span className="green">$PRINT</span>.
             <br />
