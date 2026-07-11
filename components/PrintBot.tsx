@@ -1028,8 +1028,9 @@ export default function PrintBot() {
       showConfirm(
         <>
           You can auto-buy any other Robinhood Chain token right now — but{" "}
-          <strong>$PRINT goes live shortly</strong>. Join our Telegram to catch
-          the launch?
+          <strong>$PRINT goes live shortly</strong>. Every buy still counts:
+          keep printing to <strong>level up</strong> and rank higher for the{" "}
+          $PRINT airdrop. Join our Telegram to catch the launch?
         </>,
         () => window.open(siteConfig.telegram, "_blank", "noopener"),
         {
