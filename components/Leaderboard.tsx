@@ -65,8 +65,8 @@ export default function Leaderboard({ me }: { me?: string | null }) {
   async function saveName() {
     if (!me) return;
     const name = draft.trim();
-    if (name && !/^[\w@.()\-! ]{2,24}$/.test(name)) {
-      setErr("2–24 characters: letters, numbers, spaces, @ . _ - ( ) !");
+    if (name && !/^[\w@.()\-! ]{2,21}$/.test(name)) {
+      setErr("2–21 characters: letters, numbers, spaces, @ . _ - ( ) !");
       return;
     }
     setSaving(true);
@@ -122,7 +122,7 @@ export default function Leaderboard({ me }: { me?: string | null }) {
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveName()}
                       placeholder="X / Telegram name"
-                      maxLength={24}
+                      maxLength={21}
                       autoFocus
                       disabled={saving}
                     />
