@@ -1231,12 +1231,6 @@ export default function PrintBot() {
     }
   }
 
-  const canStart =
-    !!burnerAddr &&
-    ethers.isAddress(token.trim()) &&
-    parseFloat(amount || "0") > 0 &&
-    parseFloat(interval || "0") > 0 &&
-    parseFloat(ethBal || "0") > 0;
   const usedAddrs = new Set(recents.map((r) => r.ca.toLowerCase()));
   const defaultsToShow = DEFAULT_RECENTS.filter(
     (d) => !usedAddrs.has(d.ca.toLowerCase())
@@ -1433,12 +1427,17 @@ export default function PrintBot() {
               </button>
             </div>
 
-            {canStart && !running && (
+            {!running && (
               <button
                 className="pb-primary pb-bigstart pb-quickstart"
                 onClick={startLoop}
+                disabled={!burnerAddr}
               >
-                Start buying {tokSym}
+                {!burnerAddr
+                  ? "Generate a wallet first"
+                  : `Start buying${
+                      ethers.isAddress(token.trim()) ? " " + tokSym : ""
+                    }`}
               </button>
             )}
 
@@ -1631,31 +1630,6 @@ export default function PrintBot() {
           </div>
         </div>
 
-        <div className="pb-loopbtns" style={{ marginTop: 4 }}>
-          {running ? (
-            <button className="pb-stop pb-bigstart" onClick={stopLoop}>
-              Stop buying
-            </button>
-          ) : (
-            <button
-              className="pb-primary pb-bigstart"
-              onClick={startLoop}
-              disabled={!burnerAddr}
-            >
-              {!burnerAddr
-                ? "Generate a wallet first"
-                : `Start buying${
-                    ethers.isAddress(token.trim()) ? " " + tokSym : ""
-                  }`}
-            </button>
-          )}
-        </div>
-        {!running && burnerAddr && (
-          <p className="pb-hint" style={{ marginTop: 10, marginBottom: 0 }}>
-            Buying runs in this browser tab — keep the window open while it&rsquo;s
-            active.
-          </p>
-        )}
       </section>
 
       <section className="pb-card">

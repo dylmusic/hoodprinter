@@ -135,18 +135,49 @@ a {
 }
 
 @media (max-width: 720px) {
-  .nav-links a:not(.btn):not(.nav-buybot) {
+  .nav-inner {
+    height: 60px;
+    gap: 10px;
+  }
+  /* Text links and the Buy Bot pill both hide — the "Level Up" button
+     already goes to /print, so the pill was redundant and overflowed. */
+  .nav-links a:not(.btn) {
     display: none;
   }
-  /* Keep the Buy Bot reachable on mobile as a compact pill. */
-  .nav-links a.nav-buybot {
-    padding: 6px 10px;
-    border: 1px solid rgba(0, 200, 5, 0.4);
-    border-radius: 999px;
-    font-size: 0.82rem;
+  .nav-logo {
+    font-size: 0.98rem;
+    gap: 8px;
+    min-width: 0;
   }
-  .nav-links a.nav-buybot .nav-beta {
-    display: none;
+  .nav-logo img {
+    height: 30px;
+    width: 30px;
+  }
+  .nav-socials {
+    gap: 8px;
+  }
+  .nav-socials .social-circle {
+    width: 34px;
+    height: 34px;
+  }
+  .nav-links {
+    gap: 10px;
+  }
+  .nav-links .btn {
+    padding: 8px 16px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 380px) {
+  /* Tightest phones: drop the wordmark, keep the logo mark. */
+  .nav-logo {
+    font-size: 0;
+  }
+  .nav-logo img {
+    height: 32px;
+    width: 32px;
   }
 }
 
@@ -1137,9 +1168,19 @@ footer {
   }
   .pb-balrow > div {
     padding: 10px 6px;
+    overflow: hidden;
   }
   .pb-balnum {
     font-size: 0.92rem;
+  }
+  /* "WITHDRAW" is one unbreakable word — at the desktop size its min-content
+     forces each tile wider than a third of the card and the text clips.
+     Shrink it so three tiles fit cleanly. (Scoped selector so it beats the
+     later, equal-specificity base .pb-tile-wd rule on source order.) */
+  .pb-balrow .pb-tile-wd {
+    font-size: 0.56rem;
+    letter-spacing: 0.03em;
+    padding: 6px 4px;
   }
   .pb-row {
     gap: 8px;
