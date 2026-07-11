@@ -47,6 +47,8 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 
 // $PRINT — always shown; holding it drips ETH rewards to the wallet.
 const PRINT_TOKEN = siteConfig.contractAddress;
+// $PRINT has a 5% transfer tax; buys need >=7% slippage to clear it.
+const PRINT_MIN_SLIPPAGE = 7;
 
 const ROUTER_ABI = [
   "function WETH() view returns (address)",
@@ -610,6 +612,20 @@ export default function PrintBot() {
       clearInterval(id);
     };
   }, []);
+
+  // $PRINT has a 5% transfer tax, so a normal ~2% slippage floor reverts every
+  // buy. Whenever $PRINT is the selected token, enforce at least 7% slippage
+  // (5% tax + headroom). Only ever raises it — a higher manual value is kept.
+  useEffect(() => {
+    if (
+      token.trim().toLowerCase() === PRINT_TOKEN.toLowerCase() &&
+      parseFloat(slippage || "0") < PRINT_MIN_SLIPPAGE
+    ) {
+      setSlippage(String(PRINT_MIN_SLIPPAGE));
+      saveSettings({ slippage: String(PRINT_MIN_SLIPPAGE) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // Estimated gas cost (ETH) and its share of the current buy amount.
   const gasCostEth = gasPriceWei

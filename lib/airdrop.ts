@@ -74,6 +74,38 @@ export async function recordSubmission(
   return { ok: true, rank, tier: tierForRank(rank), already: !added };
 }
 
+/** Seed a signup with an explicit original timestamp (for migrating the old
+ *  Google Form responses). NX on the order set keeps the earliest time, so
+ *  running the import twice — or after someone re-signs — never reshuffles
+ *  ranks. Returns whether this address was newly added. */
+export async function seedSubmission(
+  sub: AirdropSubmission,
+  timestampMs: number
+): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return false;
+  const a = sub.address.toLowerCase();
+  const added = await redis.zadd(
+    ORDER_KEY,
+    { nx: true },
+    { score: timestampMs, member: a }
+  );
+  const hash: Record<string, string> = {
+    address: sub.address,
+    telegram: sub.telegram,
+    joinedTelegram: sub.joinedTelegram ? "1" : "0",
+    gempadChecked: sub.gempadChecked,
+    presaleEth: sub.presaleEth,
+    xFollowed: sub.xFollowed ? "1" : "0",
+  };
+  if (added) hash.submittedAt = String(timestampMs);
+  hash.updatedAt = String(Date.now());
+  // Only write answers if this is a fresh address, so an import can't clobber
+  // newer native-form answers from someone who already re-submitted.
+  if (added) await redis.hset(subKey(a), hash);
+  return !!added;
+}
+
 /** Total number of signups (for the live count on the page). */
 export async function submissionCount(): Promise<number> {
   const redis = getRedis();
