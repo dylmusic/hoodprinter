@@ -4,23 +4,34 @@ import PlatformStatsNote from "@/components/PlatformStatsNote";
 
 const title = "Buy Bot — Auto-Buy Any Robinhood Chain Token";
 const description =
-  "The HOOD Printer Buy Bot: auto-buy any token on Robinhood Chain (Uniswap V2 & V3) from a throwaway in-browser wallet. Create real buy volume with one click. Beta now live.";
+  "Auto-buy any token on Robinhood Chain in one click and create real, on-chain buy volume. Level up as you print and climb the ranks for the $PRINT airdrop. Beta now live.";
 
 export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: "/print" },
+  keywords: [
+    "Robinhood Chain buy bot",
+    "auto buy bot",
+    "crypto volume bot",
+    "buy volume generator",
+    "Robinhood Chain trading bot",
+    "$PRINT",
+    "HOODPrinter",
+  ],
   openGraph: {
-    title: `HOOD Printer ${title}`,
+    title: `HOOD Printer Buy Bot — Auto-Buy Any Robinhood Chain Token`,
     description,
     url: "https://hoodprinter.xyz/print",
+    siteName: "HOODPrinter",
     type: "website",
+    locale: "en_US",
     images: [
       {
-        url: "/brand/og-print.png?v=1",
+        url: "/brand/og-print.png?v=2",
         width: 1200,
         height: 630,
-        alt: "HOOD Printer Buy Bot — auto-buy any Robinhood Chain token",
+        alt: "HOODPrinter Buy Bot — auto-buy any Robinhood Chain token in one click",
       },
     ],
   },
@@ -28,9 +39,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@HOODPrinterxyz",
     creator: "@HOODPrinterxyz",
-    title: `HOOD Printer ${title}`,
+    title: `HOOD Printer Buy Bot — Auto-Buy Any Robinhood Chain Token`,
     description,
-    images: ["/brand/og-print.png?v=1"],
+    images: ["/brand/og-print.png?v=2"],
   },
 };
 

@@ -1723,7 +1723,7 @@ export default function PrintBot() {
         ) : (
           <div className="pb-wallet-empty">
             <p className="pb-hint">
-              Generate a throwaway wallet in your browser, then deposit ETH to
+              Generate a dedicated wallet in your browser, then deposit ETH to
               it. The key is created locally and saved only on this device —
               back it up before funding.
             </p>

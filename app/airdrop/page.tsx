@@ -34,6 +34,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@HOODPrinterxyz",
+    creator: "@HOODPrinterxyz",
     title: airdropTitle,
     description: airdropDescription,
     images: ["/brand/og-airdrop.png"],

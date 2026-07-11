@@ -102,21 +102,48 @@ await renderComposite({
 });
 
 // --- OG image 1200x630 for /print (the buy bot) ---
-await renderComposite({
-  w: 1200,
-  h: 630,
-  iconSize: 190,
-  iconPos: { left: 505, top: 58 },
-  textSvg: `
-    <text x="600" y="380" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="80" letter-spacing="-2">
-      <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan> <tspan fill="#ffffff">Buy Bot</tspan>
-    </text>
-    <text x="600" y="448" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="34" fill="#f5c518">Auto-buy any Robinhood Chain token</text>
-    <text x="600" y="498" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="28" fill="#8fa898">One-click volume · Uniswap V2 &amp; V3 · burner wallet</text>
-    <text x="600" y="565" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#00c805">hoodprinter.xyz/print</text>
-  `,
-  out: path.join(brand, "og-print.png"),
-});
+// Bespoke, left-aligned layout (not the shared centered template) so the buy
+// bot reads as its own product: wordmark top-left, BETA badge, big headline,
+// and feature chips for the real hooks (volume, leveling, airdrop).
+{
+  const chip = (x, w, label, color = "#ffffff") => `
+    <rect x="${x}" y="452" width="${w}" height="62" rx="31" fill="#00c805" opacity="0.08"/>
+    <rect x="${x}" y="452" width="${w}" height="62" rx="31" fill="none" stroke="#00c805" stroke-width="2" opacity="0.45"/>
+    <text x="${x + w / 2}" y="491" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="27" fill="${color}">${label}</text>
+  `;
+  const bg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
+      ${backdrop(1200, 630)}
+      <!-- wordmark (icon composited separately, top-left) -->
+      <text x="212" y="116" font-family="${FONT}" font-weight="800" font-size="44" letter-spacing="-1">
+        <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan>
+      </text>
+      <text x="214" y="150" font-family="${FONT}" font-weight="700" font-size="17" fill="#8fa898" letter-spacing="4">ROBINHOOD CHAIN BUY BOT</text>
+      <!-- BETA badge, top-right -->
+      <rect x="1002" y="66" width="128" height="46" rx="23" fill="#f5c518" opacity="0.12"/>
+      <rect x="1002" y="66" width="128" height="46" rx="23" fill="none" stroke="#f5c518" stroke-width="2" opacity="0.65"/>
+      <text x="1066" y="97" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="24" fill="#f5c518" letter-spacing="3">BETA</text>
+      <!-- headline -->
+      <text x="70" y="322" font-family="${FONT}" font-weight="800" font-size="104" letter-spacing="-3">
+        <tspan fill="#ffffff">Auto-Buy </tspan><tspan fill="#00c805">Bot</tspan>
+      </text>
+      <!-- subhead -->
+      <text x="74" y="388" font-family="${FONT}" font-weight="700" font-size="35" fill="#f5c518">Auto-buy any Robinhood Chain token in one click.</text>
+      <!-- feature chips -->
+      ${chip(70, 268, "Real buy volume")}
+      ${chip(358, 168, "Level up")}
+      ${chip(546, 328, "Earn $PRINT airdrop", "#f5c518")}
+      <!-- url -->
+      <text x="74" y="586" font-family="${FONT}" font-weight="700" font-size="28" fill="#00c805">hoodprinter.xyz/print</text>
+    </svg>`
+  );
+  const icon = await iconPng(120);
+  await sharp(bg)
+    .composite([{ input: icon, left: 70, top: 52 }])
+    .png()
+    .toFile(path.join(brand, "og-print.png"));
+  console.log("wrote public/brand/og-print.png");
+}
 
 // --- X banner 1500x500 ---
 await renderComposite({

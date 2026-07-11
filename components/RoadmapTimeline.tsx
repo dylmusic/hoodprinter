@@ -51,7 +51,7 @@ const PHASES: Phase[] = [
     items: [
       {
         title: "Buy Bot Beta Testing",
-        desc: "The HOOD Printer buy bot is live in beta — auto-buy any Robinhood Chain token (Uniswap V2 & V3) from a throwaway in-browser wallet.",
+        desc: "The HOOD Printer buy bot is live in beta — auto-buy any Robinhood Chain token in one click from a dedicated in-browser wallet.",
         status: "active",
         href: "/print",
         hrefLabel: "Try the beta →",
