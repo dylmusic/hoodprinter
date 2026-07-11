@@ -1,7 +1,8 @@
 /**
- * Renders 5 square (1080x1080) social promo graphics into public/brand/promo/.
+ * Renders 10 square (1080x1080) social promo graphics into public/brand/promo/.
  * Same visual language as the site: dark green, #00c805 accent, capped
  * printer icon — plus glow bloom, gradient type, ETH-bill confetti.
+ * Promos 1–5 tell the core $PRINT story; 6–10 are the Buy Bot pack.
  *
  * Run: node scripts/render-promos.mjs   (needs node >= 18.17 for sharp)
  */
@@ -146,7 +147,7 @@ await render(
   ${neon(590, 116, `<tspan fill="${WHITE}">Hold </tspan><tspan fill="url(#greenGrad)">$PRINT</tspan><tspan fill="${WHITE}">.</tspan>`, -3)}
   ${neon(716, 116, `<tspan fill="${WHITE}">Get paid </tspan><tspan fill="url(#greenGrad)">ETH</tspan><tspan fill="${WHITE}">.</tspan>`, -3)}
   <rect x="${W / 2 - 360}" y="784" width="720" height="66" rx="33" fill="#0c120e" stroke="${GREEN}" stroke-width="2" opacity="0.9"/>
-  <text x="${W / 2}" y="827" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="27" fill="${GREEN}">Now printing on Robinhood Chain · Chain ID 4663</text>
+  <text x="${W / 2}" y="827" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="27" fill="${GREEN}">Now printing on Robinhood Chain · hoodprinter.xyz</text>
   ${footer(H - 62)}
   `,
   { size: 310, left: W / 2 - 155, top: 96 }
@@ -241,4 +242,190 @@ await render(
   <text x="${W / 2}" y="962" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="30" fill="${MUTED}">Hold $PRINT. Get paid ETH. Brrr.</text>
   `,
   { size: 300, left: W / 2 - 150, top: 130 }
+);
+
+/* ---------------------------------------------------------------- *
+ *  Buy Bot pack (promos 6–10)                                       *
+ * ---------------------------------------------------------------- */
+
+/** gold BETA pill */
+function betaBadge(cx, cy, scale = 1) {
+  const w = 128 * scale;
+  const h = 46 * scale;
+  return `
+    <rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="${h / 2}" fill="${GOLD}" opacity="0.12"/>
+    <rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="${h / 2}" fill="none" stroke="${GOLD}" stroke-width="2" opacity="0.7"/>
+    <text x="${cx}" y="${cy + 8.5 * scale}" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="${24 * scale}" fill="${GOLD}" letter-spacing="${3 * scale}">BETA</text>
+  `;
+}
+
+/** green check mark drawn as a stroke (no font-dependent glyphs) */
+function check(x, y, s = 1) {
+  return `<path d="M${x},${y} l${9 * s},${10 * s} l${17 * s},${-20 * s}" fill="none" stroke="${GREEN}" stroke-width="${5 * s}" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+/** right arrow drawn as a path */
+function arrow(x, y, len = 60, color = GREEN, sw = 5, op = 1) {
+  return `<g opacity="${op}"><path d="M${x},${y} h${len}" stroke="${color}" stroke-width="${sw}" stroke-linecap="round"/>
+    <path d="M${x + len - 14},${y - 11} L${x + len},${y} L${x + len - 14},${y + 11}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+}
+
+const urlPill = (y, label, w = 560) => `
+  <rect x="${W / 2 - w / 2}" y="${y}" width="${w}" height="70" rx="35" fill="#0c120e" stroke="${GREEN}" stroke-width="2" opacity="0.95"/>
+  <text x="${W / 2}" y="${y + 46}" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="31" fill="${GREEN}">${label}</text>
+`;
+
+// 6 — Buy Bot hero
+await render(
+  "promo-6-buybot.png",
+  `
+  ${confetti()}
+  <ellipse cx="${W / 2}" cy="230" rx="240" ry="200" fill="${GREEN}" opacity="0.16" filter="url(#bigGlow)"/>
+  ${betaBadge(W / 2 + 250, 150)}
+  ${neon(560, 108, `<tspan fill="${WHITE}">Auto-buy </tspan><tspan fill="url(#greenGrad)">any token</tspan><tspan fill="${WHITE}">.</tspan>`, -3)}
+  <text x="${W / 2}" y="650" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="34" fill="${MUTED}">One click. Nonstop. On Robinhood Chain.</text>
+  ${urlPill(736, "hoodprinter.xyz/print", 620)}
+  <text x="${W / 2}" y="912" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="29" fill="${MUTED}">Dedicated in-browser wallet · live stats · level-ups</text>
+  ${footer(H - 58)}
+  `,
+  { size: 290, left: W / 2 - 145, top: 90 }
+);
+
+// 7 — spam mode: terminal feed of confirmed buys
+const feedRows = [
+  { t: "Buy confirmed", s: "0.0005 ETH · ARROW", ago: "2s" },
+  { t: "Buy confirmed", s: "0.0005 ETH · CASHCAT", ago: "5s" },
+  { t: "Buy confirmed", s: "0.0005 ETH · HOODRAT", ago: "8s" },
+  { t: "Buy confirmed", s: "0.0005 ETH · JUGGERNAUT", ago: "11s" },
+];
+await render(
+  "promo-7-spam.png",
+  `
+  ${confetti(false, [
+    [200, 260, 1, 0.7],
+    [885, 195, 0.8, 0.6],
+    [860, 950, 0.9, 0.55],
+  ])}
+  ${wordmark(112)}
+  ${neon(238, 92, `<tspan fill="${WHITE}">Set it. </tspan><tspan fill="url(#greenGrad)">Spam it.</tspan>`, -2)}
+  <text x="${W / 2}" y="308" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="31" fill="${MUTED}">Fire-and-forget buys, every few seconds. Hands off.</text>
+
+  <rect x="110" y="360" width="860" height="470" rx="28" fill="${CARD}" stroke="${BORDER}" stroke-width="2"/>
+  <rect x="110" y="360" width="860" height="58" rx="28" fill="#0c120e"/>
+  <rect x="110" y="392" width="860" height="26" fill="#0c120e"/>
+  <circle cx="152" cy="389" r="9" fill="#2a3f31"/>
+  <circle cx="184" cy="389" r="9" fill="#2a3f31"/>
+  <circle cx="216" cy="389" r="9" fill="${GREEN}"/>
+  <text x="540" y="399" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="24" fill="${MUTED}" letter-spacing="2">LIVE — SPAM MODE</text>
+  ${feedRows
+    .map((r, i) => {
+      const y = 470 + i * 78;
+      return `
+      <circle cx="176" cy="${y}" r="24" fill="#063d15" stroke="${GREEN}" stroke-width="2"/>
+      ${check(164, y, 1)}
+      <text x="228" y="${y + 10}" font-family="${FONT}" font-weight="700" font-size="30" fill="${WHITE}">${r.t}</text>
+      <text x="490" y="${y + 10}" font-family="${FONT}" font-weight="500" font-size="27" fill="${MUTED}">${r.s}</text>
+      <text x="908" y="${y + 10}" text-anchor="end" font-family="${FONT}" font-weight="500" font-size="25" fill="#5f7266">${r.ago}</text>
+    `;
+    })
+    .join("")}
+  <circle cx="176" cy="782" r="24" fill="none" stroke="${GOLD}" stroke-width="2" stroke-dasharray="6 7"/>
+  <text x="228" y="792" font-family="${FONT}" font-weight="700" font-size="30" fill="${GOLD}">Buying…</text>
+  <text x="908" y="792" text-anchor="end" font-family="${FONT}" font-weight="500" font-size="25" fill="#5f7266">now</text>
+
+  <text x="${W / 2}" y="898" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="29" fill="${GREEN}">Your keys never leave the browser.</text>
+  ${footer(H - 52)}
+  `
+);
+
+// 8 — rank ladder: every buy levels you up
+const TIERS = [
+  { n: "Bronze", buys: "100 buys", c: "#cd8a4f" },
+  { n: "Silver", buys: "1,000 buys", c: "#c9d2cc" },
+  { n: "Gold", buys: "10,000 buys", c: "#f7c948" },
+  { n: "Platinum", buys: "100,000 buys", c: "#e8f2ea" },
+  { n: "Diamond", buys: "1,000,000 buys", c: "#7fd8ff" },
+];
+await render(
+  "promo-8-levels.png",
+  `
+  ${confetti(false, [
+    [210, 290, 1, 0.7],
+    [880, 330, 0.8, 0.6],
+  ])}
+  ${wordmark(112)}
+  ${neon(240, 88, `<tspan fill="${WHITE}">Every buy </tspan><tspan fill="url(#greenGrad)">levels you up.</tspan>`, -2)}
+  ${TIERS.map((t, i) => {
+    const y = 330 + i * 106;
+    const w = 560 + i * 85;
+    const x = (W - w) / 2;
+    return `
+    <rect x="${x}" y="${y}" width="${w}" height="86" rx="22" fill="${CARD}" stroke="${BORDER}" stroke-width="2"/>
+    <rect x="${x}" y="${y}" width="8" height="86" rx="4" fill="${t.c}"/>
+    <circle cx="${x + 52}" cy="${y + 43}" r="13" fill="${t.c}"/>
+    <text x="${x + 92}" y="${y + 56}" font-family="${FONT}" font-weight="800" font-size="37" fill="${WHITE}">${t.n}</text>
+    <text x="${x + w - 40}" y="${y + 55}" text-anchor="end" font-family="${FONT}" font-weight="600" font-size="29" fill="${MUTED}">${t.buys}</text>
+  `;
+  }).join("")}
+  <text x="${W / 2}" y="920" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="30" fill="${GOLD}">Rank up before rewards go live.</text>
+  <text x="${W / 2}" y="968" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="28" fill="${GREEN}">hoodprinter.xyz/print</text>
+  `
+);
+
+// 9 — the $PRINT flywheel: reflections refuel the bot
+const nodeW = 272;
+const nodeH = 150;
+const nodeY = 470;
+const nodes = [
+  { x: 84, big: "$PRINT", sub: "in your bot wallet" },
+  { x: 404, big: "ETH", sub: "reflections roll in" },
+  { x: 724, big: "BUYS", sub: "the bot spends it" },
+];
+await render(
+  "promo-9-flywheel.png",
+  `
+  ${confetti(false, [
+    [210, 270, 1, 0.7],
+    [880, 310, 0.8, 0.6],
+    [850, 900, 0.9, 0.55],
+  ])}
+  ${wordmark(112)}
+  ${neon(250, 92, `<tspan fill="${WHITE}">The bag that</tspan>`, -2)}
+  ${neon(350, 92, `<tspan fill="url(#greenGrad)">refuels itself.</tspan>`, -2)}
+  ${nodes
+    .map(
+      (n) => `
+    <rect x="${n.x}" y="${nodeY}" width="${nodeW}" height="${nodeH}" rx="26" fill="${CARD}" stroke="${GREEN}" stroke-width="2" opacity="0.95"/>
+    <text x="${n.x + nodeW / 2}" y="${nodeY + 72}" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="52" fill="url(#greenGrad)">${n.big}</text>
+    <text x="${n.x + nodeW / 2}" y="${nodeY + 114}" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="22" fill="${MUTED}">${n.sub}</text>
+  `
+    )
+    .join("")}
+  ${arrow(nodes[0].x + nodeW + 8, nodeY + nodeH / 2, 32)}
+  ${arrow(nodes[1].x + nodeW + 8, nodeY + nodeH / 2, 32)}
+  <path d="M${nodes[2].x + nodeW / 2},${nodeY + nodeH + 26}
+           C ${nodes[2].x + nodeW / 2},${nodeY + nodeH + 110} ${nodes[0].x + nodeW / 2},${nodeY + nodeH + 110} ${nodes[0].x + nodeW / 2},${nodeY + nodeH + 34}"
+        fill="none" stroke="${GOLD}" stroke-width="4" stroke-dasharray="2 12" stroke-linecap="round"/>
+  <path d="M${nodes[0].x + nodeW / 2 - 12},${nodeY + nodeH + 52} L${nodes[0].x + nodeW / 2},${nodeY + nodeH + 30} L${nodes[0].x + nodeW / 2 + 12},${nodeY + nodeH + 52}"
+        fill="none" stroke="${GOLD}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="${W / 2}" y="${nodeY + nodeH + 150}" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="${GOLD}" letter-spacing="3">AND REPEAT</text>
+  <text x="${W / 2}" y="850" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="31" fill="${WHITE}">Hold $PRINT in the Buy Bot. Its 5% tax pays you ETH.</text>
+  <text x="${W / 2}" y="896" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="31" fill="${WHITE}">The bot turns that ETH into more buys. Brrr.</text>
+  ${footer(H - 52)}
+  `
+);
+
+// 10 — beta CTA: the bot is live, buys count toward the airdrop
+await render(
+  "promo-10-beta.png",
+  `
+  ${confetti(true)}
+  ${betaBadge(W / 2, 470, 1.15)}
+  ${neon(590, 120, `<tspan fill="${WHITE}">The Buy Bot</tspan>`, -3)}
+  ${neon(716, 120, `<tspan fill="url(#greenGrad)">is live.</tspan>`, -3)}
+  ${urlPill(772, "hoodprinter.xyz/print", 620)}
+  <text x="${W / 2}" y="912" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="30" fill="${GOLD}">Every buy counts toward the $PRINT airdrop.</text>
+  ${footer(H - 52)}
+  `,
+  { size: 300, left: W / 2 - 150, top: 120 }
 );
