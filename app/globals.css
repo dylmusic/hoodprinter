@@ -1357,9 +1357,6 @@ footer {
   .pb-page {
     padding: 26px 14px 80px;
   }
-  .pb-head h1 {
-    font-size: 1.55rem;
-  }
   .pb-card {
     padding: 16px 14px;
   }
@@ -1558,9 +1555,11 @@ footer {
 }
 
 .pb-head h1 {
-  font-size: 2rem;
+  /* Fluid: caps at 2rem on desktop, shrinks on phones so
+     "Robinhood Chain Buy Bot" stays on a single line. */
+  font-size: clamp(1.1rem, 5vw, 2rem);
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .pb-head p {
