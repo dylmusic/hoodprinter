@@ -90,6 +90,7 @@ const ERC20_ABI = [
 
 const PK_STORAGE_KEY = "hoodprint_burner_pk";
 const SETTINGS_STORAGE_KEY = "hoodprint_settings";
+const TXS_STORAGE_KEY = "hoodprint_txs"; // { addr, rows } — per-device tx feed
 // Last wallet ADDRESS reported to /api/wallet (creation-funnel telemetry).
 // Only the derived address is ever sent — never the private key.
 const WALLET_REPORTED_KEY = "hoodprint:wallet_reported";
@@ -175,6 +176,8 @@ export default function PrintBot() {
   );
 
   // Transaction feed — the actual buys, each linkable to the block explorer.
+  // Persisted per device (keyed to the wallet address) so a reload doesn't
+  // wipe the history.
   type TxRow = {
     hash: string;
     nonce: number;
@@ -183,12 +186,69 @@ export default function PrintBot() {
     t: string;
   };
   const [txs, setTxs] = useState<TxRow[]>([]);
+  const txsRestoredRef = useRef(false);
   const addTx = (row: TxRow) =>
     setTxs((prev) => [row, ...prev].slice(0, 25));
   const setTxStatus = (hash: string, status: "ok" | "fail") =>
     setTxs((prev) =>
       prev.map((r) => (r.hash === hash ? { ...r, status } : r))
     );
+
+  // Restore this wallet's saved feed once its address is known. Anything
+  // still "pending" from the previous session gets resolved from the chain
+  // (it either landed or it didn't — never leave it spinning forever).
+  useEffect(() => {
+    if (!burnerAddr || txsRestoredRef.current) return;
+    txsRestoredRef.current = true;
+    let rows: TxRow[] = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(TXS_STORAGE_KEY) || "null");
+      if (
+        saved &&
+        saved.addr === burnerAddr &&
+        Array.isArray(saved.rows)
+      ) {
+        rows = saved.rows
+          .filter(
+            (r: TxRow) =>
+              r && typeof r.hash === "string" && typeof r.amt === "string"
+          )
+          .slice(0, 25);
+      }
+    } catch {
+      /* no saved feed */
+    }
+    if (!rows.length) return;
+    setTxs((prev) => (prev.length ? prev : rows));
+    const pending = rows.filter((r) => r.status === "pending");
+    if (pending.length) {
+      const provider = new ethers.JsonRpcProvider(CHAIN.rpc);
+      pending.forEach(async (r) => {
+        try {
+          const rec = await provider.getTransactionReceipt(r.hash);
+          setTxStatus(r.hash, rec && rec.status === 1 ? "ok" : "fail");
+        } catch {
+          setTxStatus(r.hash, "fail");
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [burnerAddr]);
+
+  // Save the feed whenever it changes (skip the pre-restore empty state so
+  // mounting never clobbers a stored history).
+  useEffect(() => {
+    if (!burnerAddr || !txs.length) return;
+    try {
+      localStorage.setItem(
+        TXS_STORAGE_KEY,
+        JSON.stringify({ addr: burnerAddr, rows: txs.slice(0, 25) })
+      );
+    } catch {
+      /* storage blocked / full */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txs, burnerAddr]);
 
   // Branded, on-site modal — replaces all browser alert()/confirm() popups.
   type ModalAction = {
@@ -851,6 +911,7 @@ export default function PrintBot() {
   function eraseWallet() {
     try {
       localStorage.removeItem(PK_STORAGE_KEY);
+      localStorage.removeItem(TXS_STORAGE_KEY); // feed belongs to that wallet
     } catch {
       /* noop */
     }
