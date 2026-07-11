@@ -132,8 +132,6 @@ const jsonLd = {
 
 export default function Home() {
   const { chain, presaleActive, presaleLink } = siteConfig;
-  const buyHref = presaleActive ? presaleLink : siteConfig.buyLink;
-  const buyLabel = presaleActive ? "Join Presale" : "Buy $PRINT";
 
   return (
     <>
@@ -163,13 +161,8 @@ export default function Home() {
               Buy Bot <span className="nav-beta">BETA</span>
             </a>
             <a href="#faq">FAQ</a>
-            <a
-              className="btn btn-primary"
-              href={buyHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {buyLabel}
+            <a className="btn btn-primary" href="/print">
+              Level Up
             </a>
           </div>
         </div>

@@ -1104,12 +1104,21 @@ footer {
   margin-bottom: 26px;
 }
 
+.pb-logo-link {
+  display: block;
+  width: 44px;
+  margin: 0 auto 12px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.pb-logo-link:hover {
+  transform: translateY(-1px);
+  opacity: 0.85;
+}
 .pb-logo {
   display: block;
   width: 44px;
   height: 44px;
   object-fit: contain;
-  margin: 0 auto 12px;
   border-radius: 10px;
 }
 

@@ -38,8 +38,10 @@ export default function PrintPage() {
   return (
     <main className="pb-page">
       <div className="pb-head">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="pb-logo" src="/logo.png" alt="HOOD Printer" />
+        <a className="pb-logo-link" href="/" aria-label="Back to HOOD Printer home">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="pb-logo" src="/logo.png" alt="HOOD Printer" />
+        </a>
         <h1>
           Robinhood Chain <span className="green">Buy Bot</span>
         </h1>

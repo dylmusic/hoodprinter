@@ -59,13 +59,8 @@ export default function Airdrop() {
           <div className="nav-links">
             <a href="/">Home</a>
             <a href="/roadmap">Roadmap</a>
-            <a
-              className="btn btn-primary"
-              href={siteConfig.presaleLink}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Join Presale
+            <a className="btn btn-primary" href="/print">
+              Level Up
             </a>
           </div>
         </div>
