@@ -89,6 +89,30 @@ const ERC20_ABI = [
 
 const PK_STORAGE_KEY = "hoodprint_burner_pk";
 const SETTINGS_STORAGE_KEY = "hoodprint_settings";
+// Last wallet ADDRESS reported to /api/wallet (creation-funnel telemetry).
+// Only the derived address is ever sent — never the private key.
+const WALLET_REPORTED_KEY = "hoodprint:wallet_reported";
+
+// Fire-and-forget: tell the backend this wallet address exists (new wallet,
+// imported key, or one recovered from a returning user's localStorage). The
+// localStorage flag dedupes per device; the server dedupes globally (ZADD NX),
+// so worst case a re-report is a harmless no-op. Never blocks the UI.
+function reportWalletCreated(addr: string) {
+  if (typeof window === "undefined" || !addr) return;
+  try {
+    if (localStorage.getItem(WALLET_REPORTED_KEY) === addr) return;
+    localStorage.setItem(WALLET_REPORTED_KEY, addr);
+  } catch {
+    /* storage blocked — still report; the server side dedupes */
+  }
+  fetch("/api/wallet", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ address: addr }),
+  }).catch(() => {
+    /* telemetry is best-effort */
+  });
+}
 const RECENTS_STORAGE_KEY = "hoodprint_recent_tokens";
 
 type RecentToken = { ca: string; sym: string };
@@ -292,9 +316,17 @@ export default function PrintBot() {
 
   // Restore the burner + saved settings from this device.
   useEffect(() => {
+    // Funnel top: count this /print landing (daily bucket, no wallet, no PII).
+    fetch("/api/wallet", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "visit" }),
+    }).catch(() => {
+      /* telemetry is best-effort */
+    });
     try {
       const saved = localStorage.getItem(PK_STORAGE_KEY);
-      if (saved) setPk(saved);
+      if (saved) setPk(saved); // pk-sync effect derives + reports the address
     } catch {
       /* storage blocked */
     }
@@ -390,6 +422,9 @@ export default function PrintBot() {
   }
 
   // Keep the derived deposit address + local backup in sync with the key.
+  // This runs for every way a wallet lands here — freshly generated, imported,
+  // or restored from localStorage on load — so it's also where we report the
+  // ADDRESS to the creation funnel (backfills existing users on next visit).
   useEffect(() => {
     const addr = deriveAddr(pk);
     setBurnerAddr(addr);
@@ -398,6 +433,7 @@ export default function PrintBot() {
     } catch {
       /* storage blocked */
     }
+    if (addr) reportWalletCreated(addr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pk]);
 
@@ -1013,12 +1049,14 @@ export default function PrintBot() {
   // Report a confirmed buy to the shared platform counters (fire-and-forget).
   // The server re-verifies the tx on-chain, so a failed post just means it
   // won't be counted — never blocks or breaks the buy loop.
-  async function reportBuy(wallet: string, txHash: string) {
+  async function reportBuy(wallet: string, txHash: string, boughtToken?: string) {
     try {
       await fetch("/api/buy", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet, txHash, sym: tokSym }),
+        // token = the CA this buy targeted. The server only trusts it after
+        // finding a matching Transfer to the buyer in the receipt logs.
+        body: JSON.stringify({ wallet, txHash, sym: tokSym, token: boughtToken }),
       });
       refreshStats();
     } catch {
@@ -1093,6 +1131,9 @@ export default function PrintBot() {
 
     const pct = parseFloat(randomize || "0");
     const amt = fmtAmount(Math.max(0, jitter(parseFloat(amount || "0"), pct)));
+    // Capture the CA now — the confirm callback below runs later, and the
+    // user could have picked a different token by then.
+    const boughtToken = token.trim();
 
     try {
       const tx = await sendBuyNoWait(wallet, provider, amt, myNonce);
@@ -1111,7 +1152,7 @@ export default function PrintBot() {
             setBuys((b) => b + 1);
             setEthSpent((e) => e + parseFloat(amt));
             setTxStatus(tx.hash, "ok");
-            reportBuy(wallet.address, tx.hash);
+            reportBuy(wallet.address, tx.hash, boughtToken);
             // Nudge the platform ticker immediately at our real buy rate.
             window.dispatchEvent(
               new CustomEvent("hoodprint:buy", {

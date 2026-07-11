@@ -25,6 +25,29 @@ function tokenFromCalldata(input?: string): string | undefined {
   return undefined;
 }
 
+// Universal Router execute() calldata can't be decoded like the legacy direct
+// swap, so the client tells us which CA it bought — and we only believe it if
+// the receipt contains a Transfer of THAT token to the buyer. Spoofing a CA
+// onto the leaderboard would require the token itself to have paid you.
+const TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
+type Log = { address: string; topics: string[] };
+function tokenFromReceiptLogs(
+  logs: Log[] | undefined,
+  claimedToken: string,
+  buyer: string
+): string | undefined {
+  if (!logs?.length) return undefined;
+  const t = claimedToken.toLowerCase();
+  const toTopic = "0x" + buyer.toLowerCase().slice(2).padStart(64, "0");
+  const hit = logs.some(
+    (l) =>
+      (l.address || "").toLowerCase() === t &&
+      l.topics?.[0] === TRANSFER_TOPIC &&
+      (l.topics?.[2] || "").toLowerCase() === toTopic
+  );
+  return hit ? claimedToken : undefined;
+}
+
 async function rpc<T>(method: string, params: unknown[]): Promise<T | null> {
   try {
     const res = await fetch(RPC, {
@@ -47,7 +70,7 @@ async function rpc<T>(method: string, params: unknown[]): Promise<T | null> {
  * the counters can't be inflated by a spoofed request.
  */
 export async function POST(req: NextRequest) {
-  let body: { wallet?: string; txHash?: string; sym?: string };
+  let body: { wallet?: string; txHash?: string; sym?: string; token?: string };
   try {
     body = await req.json();
   } catch {
@@ -58,6 +81,12 @@ export async function POST(req: NextRequest) {
   // Symbol is display-only (label for the leaderboard); the CA is authoritative.
   const sym =
     typeof body.sym === "string" ? body.sym.slice(0, 16).trim() : undefined;
+  // The CA the bot says it bought — verified against receipt logs below,
+  // never trusted blindly.
+  const claimedToken =
+    typeof body.token === "string" && /^0x[0-9a-fA-F]{40}$/.test(body.token.trim())
+      ? body.token.trim()
+      : undefined;
   if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) {
     return NextResponse.json({ ok: false, error: "bad wallet" }, { status: 400 });
   }
@@ -70,9 +99,10 @@ export async function POST(req: NextRequest) {
     "eth_getTransactionByHash",
     [txHash]
   );
-  const receipt = await rpc<{ status: string }>("eth_getTransactionReceipt", [
-    txHash,
-  ]);
+  const receipt = await rpc<{ status: string; logs?: Log[] }>(
+    "eth_getTransactionReceipt",
+    [txHash]
+  );
   if (!tx || !receipt) {
     return NextResponse.json(
       { ok: false, error: "tx not found" },
@@ -97,7 +127,12 @@ export async function POST(req: NextRequest) {
     ethAmount = 0;
   }
 
-  const token = tokenFromCalldata(tx.input);
+  // Attribution: prefer the receipt-verified client claim (covers Universal
+  // Router buys), fall back to decoding legacy direct-router calldata.
+  const token =
+    (claimedToken &&
+      tokenFromReceiptLogs(receipt.logs, claimedToken, wallet)) ||
+    tokenFromCalldata(tx.input);
   const { counted } = await recordBuy(wallet, txHash, ethAmount, token, sym);
   return NextResponse.json({ ok: true, counted, ethAmount, token: token ?? null });
 }
