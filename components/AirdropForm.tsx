@@ -15,6 +15,7 @@ export default function AirdropForm() {
   const [gempadChecked, setGempadChecked] = useState("");
   const [presaleEth, setPresaleEth] = useState("");
   const [xFollowed, setXFollowed] = useState("");
+  const [betaAware, setBetaAware] = useState("");
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +50,7 @@ export default function AirdropForm() {
     if (!gempadChecked) return setError("Answer the GemPad presale question.");
     if (!presaleEth) return setError("Answer the presale amount question.");
     if (!xFollowed) return setError("Answer the X follow + repost question.");
+    if (!betaAware) return setError("Answer the beta-testing question.");
 
     setSubmitting(true);
     try {
@@ -62,6 +64,7 @@ export default function AirdropForm() {
           gempadChecked,
           presaleEth,
           xFollowed: xFollowed === "yes",
+          betaAware,
         }),
       });
       const j = await res.json();
@@ -244,6 +247,36 @@ export default function AirdropForm() {
                 name="xfollow"
                 checked={xFollowed === o.v}
                 onChange={() => setXFollowed(o.v)}
+              />
+              <span>{o.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="adf-field">
+        <span className="adf-qlabel">
+          Are you aware you get tokens for beta testing our Buy Bot?{" "}
+          <span className="adf-req">*</span>
+        </span>
+        <div className="adf-opts">
+          {[
+            {
+              v: "aware",
+              label:
+                "Yes, I know I can spend $1, $10, $100 or more testing the beta and it will probably be a very high ROI play.",
+            },
+            {
+              v: "free",
+              label: "No, I don't care about the prelaunch crap. Give me free money.",
+            },
+          ].map((o) => (
+            <label key={o.v} className={`adf-opt ${betaAware === o.v ? "on" : ""}`}>
+              <input
+                type="radio"
+                name="betaaware"
+                checked={betaAware === o.v}
+                onChange={() => setBetaAware(o.v)}
               />
               <span>{o.label}</span>
             </label>

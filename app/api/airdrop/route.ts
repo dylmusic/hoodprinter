@@ -70,6 +70,14 @@ export async function POST(req: NextRequest) {
 
   const xFollowed = body.xFollowed === true || body.xFollowed === "yes";
 
+  const betaAware = clean(body.betaAware, 8);
+  if (betaAware !== "aware" && betaAware !== "free") {
+    return NextResponse.json(
+      { ok: false, error: "Answer the beta-testing question." },
+      { status: 400 }
+    );
+  }
+
   // Soft anti-spam: cap submissions per IP per hour. Dedupe by address handles
   // honest resubmits (they keep their original rank).
   const ip =
@@ -90,6 +98,7 @@ export async function POST(req: NextRequest) {
     gempadChecked,
     presaleEth,
     xFollowed,
+    betaAware,
   });
 
   if (!res.ok) {

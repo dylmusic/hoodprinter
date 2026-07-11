@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
         gempadChecked: mapGempad(gempad || ""),
         presaleEth: mapPresale(presale || ""),
         xFollowed: /yes/i.test(xfollow || ""),
+        betaAware: "", // question didn't exist on the old Google Form
       },
     });
   }
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const header =
-      "rank,address,telegram,joined_telegram,gempad_checked,presale_eth_intent,x_followed,tier,submitted_at";
+      "rank,address,telegram,joined_telegram,gempad_checked,presale_eth_intent,x_followed,beta_aware,tier,submitted_at";
     const body = subs
       .map((s) =>
         [
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
           s.gempadChecked,
           s.presaleEth,
           s.xFollowed ? "yes" : "no",
+          s.betaAware,
           s.tier,
           s.submittedAt ? new Date(s.submittedAt).toISOString() : "",
         ].join(",")

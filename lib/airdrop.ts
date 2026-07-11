@@ -20,6 +20,7 @@ export type AirdropSubmission = {
   gempadChecked: string; // "considering" | "farming"
   presaleEth: string; // "0" | "0.01" | "0.1" | "0.3"
   xFollowed: boolean;
+  betaAware: string; // "aware" | "free" | "" (old signups)
 };
 
 export type AirdropTier = "big" | "small" | "waitlist";
@@ -64,6 +65,7 @@ export async function recordSubmission(
     gempadChecked: sub.gempadChecked,
     presaleEth: sub.presaleEth,
     xFollowed: sub.xFollowed ? "1" : "0",
+    betaAware: sub.betaAware,
     updatedAt: String(now),
   };
   if (added) hash.submittedAt = String(now);
@@ -97,6 +99,7 @@ export async function seedSubmission(
     gempadChecked: sub.gempadChecked,
     presaleEth: sub.presaleEth,
     xFollowed: sub.xFollowed ? "1" : "0",
+    betaAware: sub.betaAware,
   };
   if (added) hash.submittedAt = String(timestampMs);
   hash.updatedAt = String(Date.now());
@@ -150,6 +153,7 @@ export async function readAllSubmissions(): Promise<AirdropRow[]> {
       gempadChecked: str(h.gempadChecked),
       presaleEth: str(h.presaleEth),
       xFollowed: str(h.xFollowed) === "1",
+      betaAware: str(h.betaAware),
       rank,
       tier: tierForRank(rank),
       submittedAt: Number(str(h.submittedAt) || str(h.updatedAt) || 0),
