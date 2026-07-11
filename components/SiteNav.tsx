@@ -44,7 +44,8 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
         aria-haspopup="menu"
         onClick={() => setToolsOpen((o) => !o)}
       >
-        Tools <span className="nav-caret" aria-hidden="true">▾</span>
+        Tools <span className="nav-beta">BETA</span>{" "}
+        <span className="nav-caret" aria-hidden="true">▾</span>
       </button>
       {toolsOpen && (
         <div className="nav-drop" role="menu">
