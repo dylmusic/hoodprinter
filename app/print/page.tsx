@@ -2,15 +2,18 @@ import type { Metadata } from "next";
 import PrintBot from "@/components/PrintBot";
 import PlatformStatsNote from "@/components/PlatformStatsNote";
 
-const title = "Buy Bot — Auto-Buy Any Robinhood Chain Token";
+const title = "Buy Bot — Robinhood Chain Volume Bot | Auto-Buy Any Token";
 const description =
-  "Auto-buy any token on Robinhood Chain in one click and create real, on-chain buy volume. Level up as you print and climb the ranks for the $PRINT airdrop. Beta now live.";
+  "The Robinhood Chain volume bot: auto-buy any token in one click and create real, on-chain buy volume. Level up as you print and climb the ranks for the $PRINT airdrop. Beta now live.";
 
 export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: "/print" },
   keywords: [
+    "Robinhood volume bot",
+    "Robinhood Chain volume bot",
+    "Robinhood buy bot",
     "Robinhood Chain buy bot",
     "auto buy bot",
     "crypto volume bot",
@@ -49,7 +52,7 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   name: "HOODPrinter Buy Bot",
-  alternateName: "Robinhood Chain Buy Bot",
+  alternateName: ["Robinhood Chain Buy Bot", "Robinhood Volume Bot"],
   url: "https://hoodprinter.xyz/print",
   applicationCategory: "FinanceApplication",
   operatingSystem: "Web",
@@ -79,8 +82,8 @@ export default function PrintPage() {
           token with your ETH rewards.
         </p>
         <p className="pb-tagline pb-tagline-sub">
-          Use HOOD Printer to create automatic buy volume for any project on
-          Robinhood.
+          The volume bot for Robinhood Chain — create automatic buy volume
+          for any project.
         </p>
       </div>
       <PrintBot />
