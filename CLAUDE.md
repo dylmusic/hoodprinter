@@ -199,6 +199,15 @@ Current state (last checked 2026-07-11): **3 buy-bot wallets** —
 
 ---
 
+## Analytics / Search Console
+
+`site.config.ts` → `GA_MEASUREMENT_ID` (GA4 gtag snippet in layout.tsx via
+next/script) and `GOOGLE_SITE_VERIFICATION` (GSC HTML-tag meta). Both empty =
+nothing rendered. Mirrors RemoteWorkUnion's setup (its GA is `G-J84MSTXMXF` —
+NEVER reuse it here; hoodprinter needs its own GA4 property). Waiting on
+Dylan to create the GA4 property + GSC property and supply the IDs
+(as of 2026-07-11).
+
 ## Site pages & metadata
 
 - `app/page.tsx` (home): nav has "Level Up" → `/print` + "Buy Bot BETA" link;
