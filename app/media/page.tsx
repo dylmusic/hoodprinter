@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import MediaKit from "@/components/MediaKit";
-import NavSocials from "@/components/NavSocials";
+import SiteNav from "@/components/SiteNav";
 import { siteConfig } from "@/site.config";
 
 const mediaTitle = "Media Kit — logos, banners & memes";
@@ -42,29 +41,7 @@ export const metadata: Metadata = {
 export default function Media() {
   return (
     <>
-      <nav className="nav">
-        <div className="container nav-inner">
-          <a href="/" className="nav-logo">
-            <Image
-              src="/brand/logo-icon.svg?v=2"
-              alt="HOODPrinter logo"
-              width={36}
-              height={36}
-              unoptimized
-            />
-            HOODPrinter
-          </a>
-          <NavSocials />
-          <div className="nav-links">
-            <a href="/">Home</a>
-            <a href="/roadmap">Roadmap</a>
-            <a href="/airdrop">Airdrop</a>
-            <a className="btn btn-primary" href="/print">
-              Level Up
-            </a>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       <header className="hero mk-hero">
         <div className="container">

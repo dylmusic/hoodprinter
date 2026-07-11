@@ -1,7 +1,7 @@
 import Image from "next/image";
 import MoneyPrinter from "@/components/MoneyPrinter";
 import CopyAddress from "@/components/CopyAddress";
-import NavSocials from "@/components/NavSocials";
+import SiteNav from "@/components/SiteNav";
 import { siteConfig } from "@/site.config";
 
 const faqs = [
@@ -157,34 +157,7 @@ export default function Home() {
         🖨️ Sign Up For FREE Pre-Launch Airdrop
         <span className="announce-arrow">→</span>
       </a>
-      <nav className="nav">
-        <div className="container nav-inner">
-          <a href="#" className="nav-logo">
-            <Image
-              src="/brand/logo-icon.svg?v=2"
-              alt="HOODPrinter logo"
-              width={36}
-              height={36}
-              unoptimized
-            />
-            HOODPrinter
-          </a>
-          <NavSocials />
-          <div className="nav-links">
-            <a href="#how-it-works">How It Works</a>
-            <a href="#tokenomics">Tokenomics</a>
-            <a href="#how-to-buy">How To Buy</a>
-            <a href="/roadmap">Roadmap</a>
-            <a className="nav-buybot" href="/print">
-              Buy Bot <span className="nav-beta">BETA</span>
-            </a>
-            <a href="#faq">FAQ</a>
-            <a className="btn btn-primary" href="/print">
-              Level Up
-            </a>
-          </div>
-        </div>
-      </nav>
+      <SiteNav variant="home" />
 
       <header className="hero">
         <div className="container">

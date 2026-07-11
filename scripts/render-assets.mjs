@@ -145,6 +145,42 @@ await renderComposite({
   console.log("wrote public/brand/og-print.png");
 }
 
+// --- OG image 1200x630 for /multisend (bespoke, product-card style like /print) ---
+{
+  const chip = (x, w, label, color = "#ffffff") => `
+    <rect x="${x}" y="452" width="${w}" height="62" rx="31" fill="#00c805" opacity="0.08"/>
+    <rect x="${x}" y="452" width="${w}" height="62" rx="31" fill="none" stroke="#00c805" stroke-width="2" opacity="0.45"/>
+    <text x="${x + w / 2}" y="491" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="27" fill="${color}">${label}</text>
+  `;
+  const bg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
+      ${backdrop(1200, 630)}
+      <text x="212" y="116" font-family="${FONT}" font-weight="800" font-size="44" letter-spacing="-1">
+        <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan>
+      </text>
+      <text x="214" y="150" font-family="${FONT}" font-weight="700" font-size="17" fill="#8fa898" letter-spacing="4">ROBINHOOD CHAIN TOOLS</text>
+      <!-- FREE badge, top-right -->
+      <rect x="1002" y="66" width="128" height="46" rx="23" fill="#00c805" opacity="0.12"/>
+      <rect x="1002" y="66" width="128" height="46" rx="23" fill="none" stroke="#00c805" stroke-width="2" opacity="0.65"/>
+      <text x="1066" y="97" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="24" fill="#00c805" letter-spacing="3">FREE</text>
+      <text x="70" y="322" font-family="${FONT}" font-weight="800" font-size="104" letter-spacing="-3">
+        <tspan fill="#ffffff">Multi</tspan><tspan fill="#00c805">send</tspan>
+      </text>
+      <text x="74" y="388" font-family="${FONT}" font-weight="700" font-size="35" fill="#f5c518">Send any token to thousands of wallets in one run.</text>
+      ${chip(70, 250, "Paste any list")}
+      ${chip(340, 250, "Any ERC-20")}
+      ${chip(610, 290, "Sub-cent gas", "#f5c518")}
+      <text x="74" y="586" font-family="${FONT}" font-weight="700" font-size="28" fill="#00c805">hoodprinter.xyz/multisend</text>
+    </svg>`
+  );
+  const icon = await iconPng(120);
+  await sharp(bg)
+    .composite([{ input: icon, left: 70, top: 52 }])
+    .png()
+    .toFile(path.join(brand, "og-multisend.png"));
+  console.log("wrote public/brand/og-multisend.png");
+}
+
 // --- OG image 1200x630 for /media (the media kit) ---
 await renderComposite({
   w: 1200,

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import NavSocials from "@/components/NavSocials";
 import RoadmapTimeline from "@/components/RoadmapTimeline";
+import SiteNav from "@/components/SiteNav";
 import { siteConfig } from "@/site.config";
 
 const roadmapTitle = "Roadmap — The HOODPrinter Master Plan";
@@ -42,28 +41,7 @@ export const metadata: Metadata = {
 export default function Roadmap() {
   return (
     <>
-      <nav className="nav">
-        <div className="container nav-inner">
-          <a href="/" className="nav-logo">
-            <Image
-              src="/brand/logo-icon.svg?v=2"
-              alt="HOODPrinter logo"
-              width={36}
-              height={36}
-              unoptimized
-            />
-            HOODPrinter
-          </a>
-          <NavSocials />
-          <div className="nav-links">
-            <a href="/">Home</a>
-            <a href="/airdrop">Airdrop</a>
-            <a className="btn btn-primary" href="/print">
-              Level Up
-            </a>
-          </div>
-        </div>
-      </nav>
+      <SiteNav />
 
       <header className="hero rm-hero">
         <div className="container">
