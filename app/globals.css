@@ -3797,3 +3797,19 @@ footer {
   .lb-buys { grid-area: buys; }
   .lb-eth { grid-area: eth; }
 }
+
+/* Bottom-align the inputs in multi-column rows so a label that wraps to two
+   lines (e.g. "Buy amount (ETH)" at 393px) doesn't push its field out of
+   line with the neighbors. Appended last on purpose — source order beats the
+   earlier equal-specificity rule (see the mobile-CSS gotcha in CLAUDE.md). */
+.pb-row > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.pb-row > div label {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
