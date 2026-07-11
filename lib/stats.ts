@@ -71,11 +71,16 @@ export async function recordBuy(
   });
   if (first !== "OK") return { counted: false };
 
+  // Increment the wallet's count first so we can mirror the exact total into
+  // the wallets index (score = buy count) — self-correcting, no drift.
+  const walletBuys = await redis.incr(`wallet:${w}:buys`);
+
   const writes: Promise<unknown>[] = [
     redis.incr("stats:buys"),
     redis.incrbyfloat("stats:eth", ethAmount),
-    redis.incr(`wallet:${w}:buys`),
     redis.incrbyfloat(`wallet:${w}:eth`, ethAmount),
+    // Index of every wallet, ranked by buys — the basis for an airdrop CSV.
+    redis.zadd("wallets:bybuys", { score: walletBuys, member: w }),
   ];
 
   // Per-token leaderboard: sorted sets make "top tokens" a one-shot read.
@@ -121,4 +126,83 @@ export async function readTopTokens(limit = 10): Promise<TopToken[]> {
       return { ca, sym: sym ?? null, buys: num(buys), eth: ethByCa[ca] };
     })
   );
+}
+
+// ---- wallet ranks / airdrop export ----
+
+// Buy-count thresholds → rank name. Mirrors the UI's level ladder.
+export const RANKS: { name: string; at: number }[] = [
+  { name: "Bronze", at: 100 },
+  { name: "Silver", at: 1000 },
+  { name: "Gold", at: 10000 },
+  { name: "Platinum", at: 100000 },
+  { name: "Diamond", at: 1000000 },
+];
+
+export function tierFor(buys: number): string {
+  let name = "Rookie";
+  for (const r of RANKS) if (buys >= r.at) name = r.name;
+  return name;
+}
+
+export type WalletRow = {
+  address: string;
+  buys: number;
+  eth: number;
+  tier: string;
+};
+
+/** Every wallet, ranked by buys (high→low), with volume + computed tier. */
+export async function readAllWallets(): Promise<WalletRow[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+  const flat = (await redis.zrange("wallets:bybuys", 0, -1, {
+    rev: true,
+    withScores: true,
+  })) as (string | number)[];
+  const addrs: string[] = [];
+  const buysBy: Record<string, number> = {};
+  for (let i = 0; i < flat.length; i += 2) {
+    const a = String(flat[i]);
+    addrs.push(a);
+    buysBy[a] = num(flat[i + 1]);
+  }
+  if (!addrs.length) return [];
+  const eths = await redis.mget<(string | number | null)[]>(
+    ...addrs.map((a) => `wallet:${a}:eth`)
+  );
+  return addrs.map((a, i) => ({
+    address: a,
+    buys: buysBy[a],
+    eth: num(eths[i]),
+    tier: tierFor(buysBy[a]),
+  }));
+}
+
+/**
+ * One-time: seed the wallets index from any pre-existing `wallet:*:buys` keys
+ * (so wallets counted before the index existed still appear). Idempotent —
+ * ZADD sets the score to the authoritative count. Returns how many it indexed.
+ */
+export async function backfillWallets(): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  let cursor = "0";
+  let count = 0;
+  do {
+    const [next, keys] = (await redis.scan(cursor, {
+      match: "wallet:*:buys",
+      count: 200,
+    })) as [string, string[]];
+    cursor = String(next);
+    for (const key of keys) {
+      const addr = key.slice("wallet:".length, -":buys".length);
+      const buys = num(await redis.get(key));
+      if (buys > 0) {
+        await redis.zadd("wallets:bybuys", { score: buys, member: addr });
+        count++;
+      }
+    }
+  } while (cursor !== "0");
+  return count;
 }
