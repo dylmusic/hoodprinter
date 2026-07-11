@@ -2067,7 +2067,7 @@ footer {
 
 .pb-mon-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
@@ -2536,6 +2536,14 @@ footer {
   color: var(--green);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+.pb-hourly-usd {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text);
+  opacity: 0.75;
+}
 .pb-hourly-label {
   display: block;
   margin-top: 3px;
@@ -2559,6 +2567,9 @@ footer {
   }
   .pb-hourly-num {
     font-size: 0.82rem;
+  }
+  .pb-hourly-usd {
+    font-size: 0.6rem;
   }
   .pb-hourly-label {
     font-size: 0.54rem;

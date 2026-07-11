@@ -175,11 +175,46 @@ export default function PrintBot() {
     title: string;
     body: ReactNode;
     actions: ModalAction[];
+    input?: { placeholder?: string }; // when set, a text field is rendered
   } | null;
   const [modal, setModal] = useState<ModalState>(null);
+  // Value for the modal's text field (branded replacement for window.prompt).
+  const [promptValue, setPromptValue] = useState("");
+  const promptValueRef = useRef(""); // latest value, readable inside action closures
 
   const showAlert = (body: ReactNode, title = "Heads up", icon = "⚠️") =>
     setModal({ icon, title, body, actions: [{ label: "Got it", variant: "primary" }] });
+
+  // Branded text prompt. Calls onSubmit(value) when confirmed with non-empty input.
+  const showPrompt = (
+    body: ReactNode,
+    onSubmit: (value: string) => void,
+    opts?: {
+      title?: string;
+      confirmLabel?: string;
+      icon?: string;
+      placeholder?: string;
+      initial?: string;
+    }
+  ) => {
+    const init = opts?.initial ?? "";
+    setPromptValue(init);
+    promptValueRef.current = init;
+    setModal({
+      icon: opts?.icon ?? "✏️",
+      title: opts?.title ?? "Enter a value",
+      body,
+      input: { placeholder: opts?.placeholder },
+      actions: [
+        { label: "Cancel", variant: "ghost" },
+        {
+          label: opts?.confirmLabel ?? "Continue",
+          variant: "primary",
+          onClick: () => onSubmit(promptValueRef.current.trim()),
+        },
+      ],
+    });
+  };
 
   const showConfirm = (
     body: ReactNode,
@@ -225,6 +260,8 @@ export default function PrintBot() {
 
   // live gas price (wei) for the "buy too low" warning
   const [gasPriceWei, setGasPriceWei] = useState<bigint | null>(null);
+  // live ETH/USD price so hourly costs can be shown in dollars
+  const [ethUsd, setEthUsd] = useState<number | null>(null);
 
   // "add token by CA" popup
   const [addOpen, setAddOpen] = useState(false);
@@ -550,6 +587,30 @@ export default function PrintBot() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live ETH/USD price so hourly costs can be shown in dollars. Best-effort —
+  // if it fails we just don't render the USD line.
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+        );
+        const j = await res.json();
+        const p = Number(j?.ethereum?.usd);
+        if (alive && Number.isFinite(p) && p > 0) setEthUsd(p);
+      } catch {
+        /* best-effort — USD line just stays hidden */
+      }
+    };
+    load();
+    const id = setInterval(load, 5 * 60 * 1000); // refresh every 5 min
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
   // Estimated gas cost (ETH) and its share of the current buy amount.
   const gasCostEth = gasPriceWei
     ? Number(GAS_UNITS_ESTIMATE * gasPriceWei) / 1e18
@@ -567,6 +628,17 @@ export default function PrintBot() {
   const gasPerHour = gasCostEth * buysPerHour;
   const totalPerHour = spendPerHour + gasPerHour;
   const showHourly = buysPerHour > 0 && buyNum > 0;
+  // USD conversions (only shown when the price fetch succeeded).
+  const usd = (eth: number) => (ethUsd ? eth * ethUsd : null);
+  const fmtUsd = (v: number) =>
+    v >= 1
+      ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+      : `$${v.toFixed(2)}`;
+  // Runway: how long the current wallet balance lasts at this total burn rate.
+  const ethBalNum = parseFloat(ethBal || "0");
+  const runwayHours =
+    totalPerHour > 0 && ethBalNum > 0 ? ethBalNum / totalPerHour : 0;
+  const runwayMs = runwayHours * 3600 * 1000;
 
   // Rank the wallet by its all-time buy count — a little game to level up.
   const myBuysN = myBuys ?? 0;
@@ -1223,18 +1295,37 @@ export default function PrintBot() {
   }
 
   // ---- withdraw (sweep the burner) ----
-  // One-tap withdraw from a balance tile: use the saved destination, or ask.
-  async function quickWithdraw(kind: "eth" | "tok", tokenAddr?: string) {
-    let dest = withdrawTo.trim();
-    if (!ethers.isAddress(dest)) {
-      dest = (window.prompt("Withdraw to which address?", withdrawTo) || "").trim();
-      if (!dest) return;
-      if (!ethers.isAddress(dest)) return showAlert("That address is not valid.");
-      setWithdrawTo(dest);
-      saveSettings();
+  function runWithdraw(kind: "eth" | "tok", dest: string, tokenAddr?: string) {
+    if (kind === "eth") return withdrawEth(dest);
+    return withdrawToken(dest, tokenAddr);
+  }
+
+  // One-tap withdraw from a balance tile: use the saved destination, or ask
+  // for one via the branded modal (no browser prompt).
+  function quickWithdraw(kind: "eth" | "tok", tokenAddr?: string) {
+    const dest = withdrawTo.trim();
+    if (ethers.isAddress(dest)) {
+      void runWithdraw(kind, dest, tokenAddr);
+      return;
     }
-    if (kind === "eth") await withdrawEth(dest);
-    else await withdrawToken(dest, tokenAddr);
+    showPrompt(
+      "Where should we send your funds? Paste the wallet address to withdraw to.",
+      (value) => {
+        if (!ethers.isAddress(value)) {
+          return showAlert("That address is not valid.");
+        }
+        setWithdrawTo(value);
+        saveSettings({ withdrawTo: value });
+        void runWithdraw(kind, value, tokenAddr);
+      },
+      {
+        title: "Withdraw to",
+        confirmLabel: "Withdraw",
+        icon: "💸",
+        placeholder: "0x… destination address",
+        initial: withdrawTo,
+      }
+    );
   }
 
   async function withdrawEth(to?: string) {
@@ -1374,6 +1465,23 @@ export default function PrintBot() {
               <div className="pb-ms-num">{fmtDur(upMs)}</div>
               <div className="pb-ms-label">Uptime</div>
             </div>
+            {showHourly && (
+              <div>
+                <div className="pb-ms-num">{totalPerHour.toFixed(4)}</div>
+                <div className="pb-ms-label">
+                  ETH / hr
+                  {usd(totalPerHour) != null
+                    ? ` · ${fmtUsd(usd(totalPerHour)!)}`
+                    : ""}
+                </div>
+              </div>
+            )}
+            {runwayMs > 0 && (
+              <div>
+                <div className="pb-ms-num">{fmtDur(runwayMs)}</div>
+                <div className="pb-ms-label">Runway left</div>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -1711,16 +1819,31 @@ export default function PrintBot() {
             <div className="pb-hourly">
               <div className="pb-hourly-item">
                 <span className="pb-hourly-num">{spendPerHour.toFixed(5)}</span>
+                {usd(spendPerHour) != null && (
+                  <span className="pb-hourly-usd">
+                    ≈ {fmtUsd(usd(spendPerHour)!)}
+                  </span>
+                )}
                 <span className="pb-hourly-label">ETH spend / hr</span>
               </div>
               <div className="pb-hourly-item">
                 <span className="pb-hourly-num">
                   {gasPriceWei ? gasPerHour.toFixed(5) : "…"}
                 </span>
+                {gasPriceWei && usd(gasPerHour) != null && (
+                  <span className="pb-hourly-usd">
+                    ≈ {fmtUsd(usd(gasPerHour)!)}
+                  </span>
+                )}
                 <span className="pb-hourly-label">ETH gas / hr</span>
               </div>
               <div className="pb-hourly-item pb-hourly-total">
                 <span className="pb-hourly-num">{totalPerHour.toFixed(5)}</span>
+                {usd(totalPerHour) != null && (
+                  <span className="pb-hourly-usd">
+                    ≈ {fmtUsd(usd(totalPerHour)!)}
+                  </span>
+                )}
                 <span className="pb-hourly-label">ETH total / hr</span>
               </div>
             </div>
@@ -1728,7 +1851,14 @@ export default function PrintBot() {
           {showHourly && (
             <p className="pb-hourly-note">
               Estimate at ~{Math.round(buysPerHour).toLocaleString("en-US")} buys/hr
-              {gasPriceWei ? " · gas at current network rate" : ""}.
+              {gasPriceWei ? " · gas at current network rate" : ""}
+              {runwayMs > 0 && (
+                <>
+                  {" · "}your balance lasts ~
+                  <strong>{fmtDur(runwayMs)}</strong>
+                </>
+              )}
+              .
             </p>
           )}
         </div>
@@ -1816,6 +1946,27 @@ export default function PrintBot() {
             {modal.icon && <div className="pb-modal-icon">{modal.icon}</div>}
             <h3 className="pb-modal-title">{modal.title}</h3>
             <div className="pb-modal-body">{modal.body}</div>
+            {modal.input && (
+              <input
+                className="pb-modal-input"
+                value={promptValue}
+                placeholder={modal.input.placeholder}
+                autoFocus
+                spellCheck={false}
+                onChange={(e) => {
+                  setPromptValue(e.target.value);
+                  promptValueRef.current = e.target.value;
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const confirmAction = modal.actions.find(
+                      (a) => a.variant === "primary"
+                    );
+                    if (confirmAction) runModalAction(confirmAction);
+                  }
+                }}
+              />
+            )}
             <div className="pb-modal-actions">
               {modal.actions.map((a, i) => (
                 <button
