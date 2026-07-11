@@ -3443,3 +3443,121 @@ footer {
 .ms-recents {
   margin: 0 0 4px;
 }
+
+/* ---------- mobile hamburger nav ---------- */
+
+.nav-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  padding: 0 9px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nav-burger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--text);
+  border-radius: 2px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.nav-burger.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.nav-burger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-burger.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.nav-burger.open,
+.nav-burger:hover {
+  border-color: rgba(0, 200, 5, 0.55);
+}
+
+.nav-mobile {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: rgba(7, 11, 8, 0.97);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px 18px;
+  flex-direction: column;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.55);
+}
+
+.nav-mobile > a:not(.nav-mobile-tool):not(.btn) {
+  padding: 13px 2px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid rgba(29, 43, 34, 0.6);
+}
+
+.nav-mobile-label {
+  margin-top: 14px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.nav-mobile-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 11px 12px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.nav-mobile-tool .nd-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--green);
+}
+
+.nav-mobile-tool .nd-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.nav-mobile-cta {
+  margin-top: 16px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .nav-burger {
+    display: flex;
+  }
+  .nav-mobile {
+    display: flex;
+  }
+  /* The bar's Level Up button gives way to the hamburger; it lives in the
+     menu instead. */
+  .nav-links .btn {
+    display: none;
+  }
+}

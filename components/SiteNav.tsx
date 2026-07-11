@@ -8,19 +8,31 @@ import NavSocials from "@/components/NavSocials";
  * Shared site navigation. `variant="home"` shows section anchors; every other
  * page uses `variant="sub"` with page links. The Tools dropdown groups the
  * product pages (Buy Bot, Multisend) so the bar stays lean as tools ship.
+ * On mobile (≤720px) the text links collapse into a hamburger menu that
+ * replaces the Level Up button — Level Up lives inside the menu instead.
  */
 export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" }) {
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
-  // Close the dropdown on outside click / Escape.
+  // Close the dropdown / mobile menu on outside click / Escape.
   useEffect(() => {
-    if (!toolsOpen) return;
+    if (!toolsOpen && !menuOpen) return;
     const onClick = (e: MouseEvent) => {
-      if (!toolsRef.current?.contains(e.target as Node)) setToolsOpen(false);
+      if (toolsOpen && !toolsRef.current?.contains(e.target as Node)) {
+        setToolsOpen(false);
+      }
+      if (menuOpen && !navRef.current?.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setToolsOpen(false);
+      if (e.key === "Escape") {
+        setToolsOpen(false);
+        setMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("keydown", onKey);
@@ -28,7 +40,9 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
       document.removeEventListener("mousedown", onClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [toolsOpen]);
+  }, [toolsOpen, menuOpen]);
+
+  const close = () => setMenuOpen(false);
 
   const tools = (
     <div
@@ -67,7 +81,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
   );
 
   return (
-    <nav className="nav">
+    <nav className="nav" ref={navRef}>
       <div className="container nav-inner">
         <a href="/" className="nav-logo">
           <Image
@@ -102,7 +116,54 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             Level Up
           </a>
         </div>
+        <button
+          type="button"
+          className={`nav-burger${menuOpen ? " open" : ""}`}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
       </div>
+
+      {menuOpen && (
+        <div className="nav-mobile" role="menu">
+          {variant === "home" ? (
+            <>
+              <a href="#how-it-works" onClick={close}>How It Works</a>
+              <a href="#tokenomics" onClick={close}>Tokenomics</a>
+              <a href="/roadmap" onClick={close}>Roadmap</a>
+              <a href="/airdrop" onClick={close}>Airdrop</a>
+              <a href="#faq" onClick={close}>FAQ</a>
+            </>
+          ) : (
+            <>
+              <a href="/" onClick={close}>Home</a>
+              <a href="/roadmap" onClick={close}>Roadmap</a>
+              <a href="/airdrop" onClick={close}>Airdrop</a>
+            </>
+          )}
+          <div className="nav-mobile-label">Tools</div>
+          <a className="nav-mobile-tool" href="/print" onClick={close}>
+            <span className="nd-title">
+              Buy Bot <span className="nav-beta">BETA</span>
+            </span>
+            <span className="nd-sub">Auto-buy any Robinhood Chain token</span>
+          </a>
+          <a className="nav-mobile-tool" href="/multisend" onClick={close}>
+            <span className="nd-title">
+              Multisend <span className="nav-new">NEW</span>
+            </span>
+            <span className="nd-sub">Airdrop any token to thousands of wallets</span>
+          </a>
+          <a className="btn btn-primary nav-mobile-cta" href="/print" onClick={close}>
+            Level Up
+          </a>
+        </div>
+      )}
     </nav>
   );
 }
