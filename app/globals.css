@@ -2874,3 +2874,208 @@ footer {
 .pb-print-tile .pb-help-close:hover {
   color: var(--text);
 }
+
+/* ============ Media kit (/media) ============ */
+
+.mk-hero {
+  padding-bottom: 30px;
+}
+
+.mk-section {
+  padding: 44px 0 10px;
+  background: transparent;
+}
+
+.mk-section:last-of-type {
+  padding-bottom: 90px;
+}
+
+.mk-title {
+  font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.mk-sub {
+  color: var(--muted);
+  max-width: 640px;
+  margin-bottom: 26px;
+  line-height: 1.55;
+}
+
+.mk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.mk-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.mk-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(0, 200, 5, 0.55);
+  box-shadow: 0 10px 34px rgba(0, 200, 5, 0.12);
+}
+
+.mk-card.wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 560px) {
+  .mk-card.wide {
+    grid-column: span 1;
+  }
+}
+
+.mk-preview {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(0, 200, 5, 0.07), transparent 70%),
+    var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  aspect-ratio: 16 / 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.mk-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.mk-tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #f5c518;
+  border: 1px solid rgba(245, 197, 24, 0.5);
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: rgba(7, 11, 8, 0.75);
+}
+
+.mk-meta {
+  padding: 12px 14px 0;
+}
+
+.mk-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.mk-dims {
+  color: var(--muted);
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.mk-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  margin-top: auto;
+}
+
+.mk-btn {
+  flex: 1;
+  text-align: center;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease,
+    color 0.15s ease;
+}
+
+.mk-btn:hover {
+  border-color: rgba(0, 200, 5, 0.55);
+}
+
+.mk-btn.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: #04240a;
+}
+
+.mk-btn.primary:hover {
+  background: #17d51c;
+}
+
+.mk-tweets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.mk-tweet {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.mk-tweet:hover {
+  border-color: rgba(0, 200, 5, 0.55);
+  box-shadow: 0 10px 34px rgba(0, 200, 5, 0.1);
+}
+
+.mk-tweet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 0;
+}
+
+.mk-tweet-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.mk-tweet-count {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.mk-tweet-text {
+  white-space: pre-wrap;
+  padding: 10px 16px 4px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.footer-socials a.footer-media-link {
+  width: auto;
+  padding: 0 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}

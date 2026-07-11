@@ -145,6 +145,22 @@ await renderComposite({
   console.log("wrote public/brand/og-print.png");
 }
 
+// --- OG image 1200x630 for /media (the media kit) ---
+await renderComposite({
+  w: 1200,
+  h: 630,
+  iconSize: 200,
+  iconPos: { left: 500, top: 60 },
+  textSvg: `
+    <text x="600" y="390" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="84" letter-spacing="-2">
+      <tspan fill="#ffffff">MEDIA</tspan><tspan fill="#00c805" dx="22">KIT</tspan>
+    </text>
+    <text x="600" y="460" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="31" fill="#8fa898">Logos · banners · memes · ready-to-post tweets</text>
+    <text x="600" y="530" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#00c805">hoodprinter.xyz/media</text>
+  `,
+  out: path.join(brand, "og-media.png"),
+});
+
 // --- X banner 1500x500 ---
 await renderComposite({
   w: 1500,

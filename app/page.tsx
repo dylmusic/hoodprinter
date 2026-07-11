@@ -28,6 +28,20 @@ const faqs = [
     ),
   },
   {
+    q: "What does the Buy Bot have to do with $PRINT?",
+    a: (
+      <>
+        The Buy Bot is $PRINT&rsquo;s first utility — auto-buy any Robinhood
+        Chain token in one click from a dedicated in-browser wallet. Hold
+        $PRINT in that wallet and it earns <strong>ETH reflections</strong>{" "}
+        like any other holder, and the bot spends that ETH on more buys.
+        Every buy also levels your wallet up toward rewards and airdrop rank.
+        It&rsquo;s live in beta at{" "}
+        <a href="/print">hoodprinter.xyz/print</a>.
+      </>
+    ),
+  },
+  {
     q: "Why Robinhood Chain?",
     a: (
       <>
@@ -291,6 +305,50 @@ export default function Home() {
         </div>
       </section>
 
+      <section id="utility">
+        <div className="container">
+          <p className="section-kicker">Utility</p>
+          <h2 className="section-title">Reflections that reload.</h2>
+          <p className="section-sub">
+            $PRINT pays you ETH for holding. The Buy Bot is where that ETH
+            goes to work — the printer&rsquo;s first tool, live in beta today.
+          </p>
+          <div className="grid-3">
+            <div className="card">
+              <h3>
+                The Buy Bot <span className="nav-beta">BETA</span>
+              </h3>
+              <p>
+                Auto-buy <strong>any Robinhood Chain token</strong> in one
+                click from a dedicated in-browser wallet. No pair addresses,
+                no setup — pick a token, set your amount, let it rip.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Load it with $PRINT</h3>
+              <p>
+                Hold $PRINT in your bot wallet and the <strong>5% tax</strong>{" "}
+                pays it ETH like any other holder. The bot spends those
+                reflections on auto-buys — a bag that refuels itself.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Level up as you print</h3>
+              <p>
+                Every buy counts. Climb <strong>Bronze → Diamond</strong> on
+                real, on-chain-verified volume — your rank feeds upcoming
+                rewards and the $PRINT airdrop.
+              </p>
+            </div>
+          </div>
+          <div className="hero-ctas" style={{ marginTop: 28, justifyContent: "center" }}>
+            <a className="btn btn-primary" href="/print">
+              Try the Buy Bot
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section id="how-to-buy">
         <div className="container">
           <p className="section-kicker">How To Buy</p>
@@ -366,8 +424,9 @@ export default function Home() {
                     >
                       official swap link
                     </a>
-                    , paste the contract address, set slippage to ~6% (the 5%
-                    tax plus wiggle room), and swap. Welcome to the print run.
+                    , paste the contract address, set slippage to at least 7%
+                    (the 5% tax plus wiggle room), and swap. Welcome to the
+                    print run.
                   </p>
                 </>
               )}
@@ -447,6 +506,9 @@ export default function Home() {
               </span>
             </div>
             <div className="footer-socials">
+              <a className="footer-media-link" href="/media">
+                Media Kit
+              </a>
               <a
                 href={siteConfig.twitter}
                 target="_blank"

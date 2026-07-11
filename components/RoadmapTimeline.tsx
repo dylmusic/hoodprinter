@@ -67,6 +67,11 @@ const PHASES: Phase[] = [
         status: "upcoming",
       },
       {
+        title: "The $PRINT Flywheel",
+        desc: "Hold $PRINT in your bot wallet and its ETH reflections refuel your auto-buys — rewards become buying power, automatically.",
+        status: "upcoming",
+      },
+      {
         title: "Level-Up Rewards",
         desc: "Rank up to unlock real rewards — the higher your tier, the more the printer pays.",
         status: "upcoming",
@@ -219,8 +224,9 @@ export default function RoadmapTimeline() {
                     <a
                       className="rm-link"
                       href={m.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      {...(m.href.startsWith("http")
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
                     >
                       {m.hrefLabel}
                     </a>
