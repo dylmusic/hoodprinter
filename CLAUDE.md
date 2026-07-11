@@ -122,8 +122,13 @@ this). Key never leaves the browser; txs go straight to RPC.
   `hoodprint:wallet_reported`.
 - `RANKS`/`tierFor()` mirror the UI ladder. `readAllWallets()` +
   `backfillWallets()` (one-time seed of pre-index wallets — already run once).
-- TODO(P3): anonymous `stats:buy_fails` counter for failed-buy churn — not
-  built yet, see note in recordBuy.
+- **Buy-fail churn** (P3 done): bot POSTs `{type:"buy_fail"|"buy_stop"}` to
+  /api/wallet → `stats:buy_fails[( :<day>)]` / `stats:buy_stops` counters.
+  Anonymous + unverifiable — directional only, never leaderboard input.
+- **Multisend telemetry**: `POST /api/multisend` once per completed run →
+  `ms:runs` (last 500 JSON), `ms:senders` (FCFS zset), `ms:sender:<a>:txs`,
+  `ms:tokens(+:sym)`, `stats:ms:runs/txs(+:<day>)`. /multisend mount pings
+  `stats:visits:ms:<day>`. Airdrop signups bucket into `stats:airdrop:<day>`.
 
 ---
 
@@ -188,14 +193,19 @@ Gated by **`STATS_ADMIN_KEY`** env var (set in Vercel; value
 - `GET ?key=SECRET&dataset=wallets_created` → every bot wallet ever seen,
   first-seen order (`address,created_at_iso,has_bought,buys`); JSON form adds
   a `neverBought` count.
+- `GET ?key=SECRET&dataset=multisend` → runs CSV; `&format=json` adds senders.
+- `GET ?key=SECRET&dataset=summary` → one-shot JSON of EVERY platform counter
+  (buys/eth + today, visits per tool, wallets created, buyers, airdrop count,
+  multisend runs/txs/senders, buy fails/stops). THE quick health check.
+- `&format=list` → plain address-per-line text, paste-ready for /multisend
+  (default = buyers, `dataset=airdrop` FCFS + `&limit=N`, `dataset=wallets_created`).
 - `?format=json`, `?backfill=1` (wallet index seed).
 - `POST ?import=airdrop&key=SECRET` with raw CSV body → migrate old signups.
 
-Current state (last checked 2026-07-11): **3 buy-bot wallets** —
-`0x7a8c…cae6` 2,032 buys (Silver, dev testing), `0x5ed0…ae8d` 136 buys
-(Bronze), `0x40fd…3e13` 66 buys (Rookie) — real users have arrived.
-`wallets:created` starts empty and backfills as users revisit /print.
-**~20 airdrop signups** (19 imported + native ones), all "big" tier so far.
+Current state (last checked 2026-07-11 late): **112 airdrop signups**,
+**35 wallets created**, 3 buyer wallets (2,291 buys / 0.0507 ETH total),
+163 /print visits today. Growth is real — check `dataset=summary` for live
+numbers instead of trusting this snapshot.
 
 ---
 
