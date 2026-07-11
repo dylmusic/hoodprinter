@@ -75,8 +75,9 @@ export default function Media() {
             <span className="green">Let it print.</span>
           </h1>
           <p className="hero-sub">
-            Every logo, banner, and meme card we&rsquo;ve made — free to use,
-            sized for socials, in the official $PRINT green. Tweets included.
+            Every graphic we&rsquo;ve made — meme cards, banners, the logo —
+            free to use, sized for socials, in the official $PRINT green.
+            Tweets included.
           </p>
           <div className="hero-ctas">
             <a

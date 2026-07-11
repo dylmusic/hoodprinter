@@ -23,27 +23,6 @@ type AssetSection = {
 
 const SECTIONS: AssetSection[] = [
   {
-    id: "logos",
-    title: "Logos & PFP",
-    sub: "The capped printer, ready for avatars, stickers, and embeds. SVGs scale forever.",
-    items: [
-      { src: "/brand/pfp.png", name: "PFP — printer icon", dims: "400×400", fmt: "PNG" },
-      { src: "/logo.png", name: "Logo — hi-res", dims: "1254×1254", fmt: "PNG" },
-      { src: "/brand/logo-icon.svg", name: "Icon — app tile", dims: "Vector", fmt: "SVG" },
-      { src: "/brand/logo-icon-hood.svg", name: "Icon — hood variant", dims: "Vector", fmt: "SVG" },
-      { src: "/brand/logo-full.svg", name: "Full lockup", dims: "Vector", fmt: "SVG", wide: true },
-    ],
-  },
-  {
-    id: "banners",
-    title: "Banners",
-    sub: "Drop-in headers for X profiles, Telegram, and anywhere wide.",
-    items: [
-      { src: "/brand/banner.png", name: "X profile banner", dims: "1500×500", fmt: "PNG", wide: true },
-      { src: "/brand/banner-900x200.png", name: "Compact banner", dims: "900×200", fmt: "PNG", wide: true },
-    ],
-  },
-  {
     id: "promos",
     title: "The $PRINT story",
     sub: "Square cards that explain the printer — post them as-is or thread them.",
@@ -65,6 +44,15 @@ const SECTIONS: AssetSection[] = [
       { src: "/brand/promo/promo-8-levels.png", name: "Every buy levels you up", dims: "1080×1080", fmt: "PNG" },
       { src: "/brand/promo/promo-9-flywheel.png", name: "The bag that refuels itself", dims: "1080×1080", fmt: "PNG" },
       { src: "/brand/promo/promo-10-beta.png", name: "The Buy Bot is live", dims: "1080×1080", fmt: "PNG" },
+    ],
+  },
+  {
+    id: "banners",
+    title: "Banners",
+    sub: "Drop-in headers for X profiles, Telegram, and anywhere wide.",
+    items: [
+      { src: "/brand/banner.png", name: "X profile banner", dims: "1500×500", fmt: "PNG", wide: true },
+      { src: "/brand/banner-900x200.png", name: "Compact banner", dims: "900×200", fmt: "PNG", wide: true },
     ],
   },
   {
@@ -168,6 +156,36 @@ export default function MediaKit() {
           </div>
         </section>
       ))}
+
+      <section className="mk-section" id="logos">
+        <div className="container">
+          <h2 className="mk-title">The logo</h2>
+          <p className="mk-sub">
+            One printer, three files. That&rsquo;s all you need.
+          </p>
+          <div className="mk-logo-card">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/pfp.png" alt="HOODPrinter logo" loading="lazy" />
+            <div className="mk-logo-info">
+              <div className="mk-name">HOODPrinter — the capped printer</div>
+              <div className="mk-dims">
+                PFP-ready PNG, hi-res PNG, and a vector lockup
+              </div>
+            </div>
+            <div className="mk-actions">
+              <a className="mk-btn primary" href="/brand/pfp.png" download="hoodprinter-pfp.png">
+                PFP · PNG
+              </a>
+              <a className="mk-btn" href="/logo.png" download="hoodprinter-logo.png">
+                Hi-res · PNG
+              </a>
+              <a className="mk-btn" href="/brand/logo-full.svg" download="hoodprinter-lockup.svg">
+                Lockup · SVG
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="mk-section" id="tweets">
         <div className="container">

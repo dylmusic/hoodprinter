@@ -168,7 +168,12 @@ Current state (last checked): **1 buy-bot user** — `0x7a8c…cae6`, 1,852 buys
   link cards, and six ready-to-post tweets (copy + `x.com/intent/post` links).
   "Download everything" serves `public/brand/hoodprinter-media-kit.zip` —
   **rebuild that zip whenever brand assets change** (folders: logos/, banners/,
-  promos/, link-cards/).
+  promos/, link-cards/). **Section order is infographics-first on purpose**
+  (Dylan: "the infographics are the most important content"): story promos →
+  Buy Bot pack → banners → link cards → one compact logo strip → tweets. The
+  logo gets ONE `.mk-logo-card` box with three download buttons, not a grid of
+  variants. `logo-icon-hood.svg` was deleted permanently (Dylan hated it) —
+  never recreate it.
 - **Buy Bot story on the site**: homepage `#utility` section ("Reflections that
   reload") + a Buy Bot FAQ weave the bot into the reflection narrative — the
   angle is the flywheel: hold $PRINT in the bot wallet → 5% tax pays it ETH →

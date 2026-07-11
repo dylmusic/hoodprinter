@@ -2878,7 +2878,11 @@ footer {
 /* ============ Media kit (/media) ============ */
 
 .mk-hero {
-  padding-bottom: 30px;
+  padding-bottom: 0;
+}
+
+.mk-hero .hero-ctas {
+  margin-bottom: 6px;
 }
 
 .mk-section {
@@ -3070,6 +3074,45 @@ footer {
   font-size: 0.9rem;
   line-height: 1.55;
   color: var(--text);
+}
+
+/* compact single-card logo strip */
+.mk-logo-card {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  flex-wrap: wrap;
+}
+
+.mk-logo-card img {
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  flex-shrink: 0;
+}
+
+.mk-logo-info {
+  flex: 1;
+  min-width: 200px;
+}
+
+.mk-logo-info .mk-name {
+  font-size: 1rem;
+}
+
+.mk-logo-card .mk-actions {
+  padding: 0;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.mk-logo-card .mk-btn {
+  flex: 0 0 auto;
+  padding: 8px 16px;
 }
 
 .footer-socials a.footer-media-link {
