@@ -3561,3 +3561,239 @@ footer {
     display: none;
   }
 }
+
+/* ---------- pre-launch flag (/print) ---------- */
+
+.plf-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(90deg, #b45a09, #f7931a, #b45a09);
+  border: none;
+  color: #180d02;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.plf-flag:hover {
+  filter: brightness(1.08);
+}
+
+.plf-arrow {
+  transition: transform 0.15s ease;
+}
+
+.plf-flag:hover .plf-arrow {
+  transform: translateX(3px);
+}
+
+.plf-lede {
+  text-align: center;
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+
+.plf-gold {
+  color: #f5c518;
+  letter-spacing: 0.03em;
+}
+
+.plf-ranks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plf-rank {
+  display: grid;
+  grid-template-columns: 30px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.88rem;
+}
+
+.plf-rank-emoji {
+  font-size: 1.05rem;
+}
+
+.plf-rank-name {
+  font-weight: 800;
+}
+
+.plf-rank-txns {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plf-rank-gas {
+  color: var(--green);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 74px;
+  text-align: right;
+}
+
+.plf-note {
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ---------- leaderboard (/print) ---------- */
+
+.lb-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.lb-card::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 90%;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 200, 5, 0.09), transparent 70%);
+  pointer-events: none;
+}
+
+.lb-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.lb-head h2 {
+  margin: 0;
+}
+
+.lb-sub {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lb-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lb-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.88rem;
+  transition: border-color 0.15s ease;
+}
+
+.lb-row.top {
+  background: linear-gradient(180deg, rgba(0, 200, 5, 0.07), var(--bg-elev));
+  border-color: rgba(0, 200, 5, 0.28);
+}
+
+.lb-row.me {
+  border-color: var(--green);
+  box-shadow: 0 0 18px rgba(0, 200, 5, 0.18);
+}
+
+.lb-rank {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-align: center;
+}
+
+.lb-addr {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lb-you {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #041007;
+  background: var(--green);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+.lb-tier {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 3px 7px;
+}
+
+.lb-buys {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lb-buys em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.lb-eth {
+  font-variant-numeric: tabular-nums;
+  color: var(--green);
+  font-weight: 700;
+  font-size: 0.82rem;
+  min-width: 86px;
+  text-align: right;
+}
+
+.lb-note {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .lb-row {
+    grid-template-columns: 32px 1fr auto;
+    grid-template-areas:
+      "rank addr tier"
+      "rank buys eth";
+    row-gap: 4px;
+  }
+  .lb-rank { grid-area: rank; }
+  .lb-addr { grid-area: addr; }
+  .lb-tier { grid-area: tier; justify-self: end; }
+  .lb-buys { grid-area: buys; }
+  .lb-eth { grid-area: eth; }
+}

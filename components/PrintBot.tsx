@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { ethers } from "ethers";
+import Leaderboard from "@/components/Leaderboard";
 import { siteConfig } from "@/site.config";
 
 /**
@@ -1931,6 +1932,8 @@ export default function PrintBot() {
         </div>
 
       </section>
+
+      <Leaderboard me={burnerAddr} />
 
       <section className="pb-card">
         <h2>Transactions</h2>

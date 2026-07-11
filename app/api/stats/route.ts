@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRedis, readStats, readTopTokens } from "@/lib/stats";
+import { getRedis, readStats, readTopTokens, readTopWallets } from "@/lib/stats";
 
 export const runtime = "nodejs";
 
@@ -26,6 +26,21 @@ export async function GET(req: NextRequest) {
         { headers: { "cache-control": "no-store" } }
       );
     }
+  }
+
+  // Wallet leaderboard (shared → CDN-cached). Addresses are public on-chain
+  // data; the client shortens them for display.
+  const boardParam = req.nextUrl.searchParams.get("board");
+  if (boardParam) {
+    const board = await readTopWallets(parseInt(boardParam) || 10);
+    return NextResponse.json(
+      { board },
+      {
+        headers: {
+          "cache-control": "public, s-maxage=15, stale-while-revalidate=60",
+        },
+      }
+    );
   }
 
   // Leaderboard read (shared → CDN-cached).

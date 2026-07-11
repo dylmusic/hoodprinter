@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import PrintBot from "@/components/PrintBot";
 import PlatformStatsNote from "@/components/PlatformStatsNote";
+import PreLaunchFlag from "@/components/PreLaunchFlag";
 import SiteNav from "@/components/SiteNav";
 
 const title = "Buy Bot — Robinhood Chain Volume Bot | Auto-Buy Any Token";
@@ -65,6 +66,7 @@ export default function PrintPage() {
   return (
     <>
       <SiteNav />
+      <PreLaunchFlag />
       <main className="pb-page">
       <script
         type="application/ld+json"

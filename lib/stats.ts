@@ -350,6 +350,28 @@ export type WalletRow = {
   tier: string;
 };
 
+/** Top N wallets by buys — the public /print leaderboard. */
+export async function readTopWallets(limit = 10): Promise<WalletRow[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+  const n = Math.max(1, Math.min(25, limit));
+  const flat = (await redis.zrange("wallets:bybuys", 0, n - 1, {
+    rev: true,
+    withScores: true,
+  })) as (string | number)[];
+  const rows: WalletRow[] = [];
+  for (let i = 0; i < flat.length; i += 2) {
+    const buys = num(flat[i + 1]);
+    rows.push({ address: String(flat[i]), buys, eth: 0, tier: tierFor(buys) });
+  }
+  if (!rows.length) return [];
+  const eths = await redis.mget<(string | number | null)[]>(
+    ...rows.map((r) => `wallet:${r.address}:eth`)
+  );
+  rows.forEach((r, i) => (r.eth = num(eths[i])));
+  return rows;
+}
+
 /** Every wallet, ranked by buys (high→low), with volume + computed tier. */
 export async function readAllWallets(): Promise<WalletRow[]> {
   const redis = getRedis();
