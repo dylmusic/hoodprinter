@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { siteConfig } from "@/site.config";
 
 const X_LAUNCH_POST =
-  "https://x.com/HOODPrinterxyz/status/2075549684907614512";
+  "https://x.com/HOODPrinterxyz/status/2075759741217739206";
 
 type Result = { rank: number; tier: "big" | "small" | "waitlist"; already: boolean };
 
