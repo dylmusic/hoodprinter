@@ -65,8 +65,8 @@ export default function Leaderboard({ me }: { me?: string | null }) {
   async function saveName() {
     if (!me) return;
     const name = draft.trim();
-    if (name && !/^[\w@.\- ]{2,20}$/.test(name)) {
-      setErr("2–20 characters: letters, numbers, @ . _ -");
+    if (name && !/^[\w@.()\-! ]{2,24}$/.test(name)) {
+      setErr("2–24 characters: letters, numbers, spaces, @ . _ - ( ) !");
       return;
     }
     setSaving(true);
@@ -122,7 +122,7 @@ export default function Leaderboard({ me }: { me?: string | null }) {
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveName()}
                       placeholder="X / Telegram name"
-                      maxLength={20}
+                      maxLength={24}
                       autoFocus
                       disabled={saving}
                     />
@@ -180,11 +180,13 @@ export default function Leaderboard({ me }: { me?: string | null }) {
                 {r.buys.toLocaleString()} <em>buys</em>
               </span>
               <span className="lb-eth">{fmtEth(r.eth)} ETH</span>
+              {isMe && editing && err && (
+                <span className="lb-err-inline">{err}</span>
+              )}
             </div>
           );
         })}
       </div>
-      {err && <p className="lb-err">{err}</p>}
       <p className="lb-note">
         Every confirmed buy climbs the board. Level up before rewards go live.
       </p>

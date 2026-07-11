@@ -3826,19 +3826,25 @@ footer {
   font-size: 0.68rem;
 }
 
-.lb-pencil {
+/* The `.lb-card` prefix out-specifies the generic `.pb-card button` block
+   styling (width:100%, 12px padding, top margin) that was inflating these
+   tiny controls into full-size buttons. */
+.lb-card .lb-pencil {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
+  width: auto;
+  margin: 0;
   padding: 0 2px;
   line-height: 1;
-  opacity: 0.75;
+  opacity: 0.7;
+  flex: 0 0 auto;
 }
 
-.lb-pencil:hover {
+.lb-card .lb-pencil:hover {
   opacity: 1;
-  transform: scale(1.12);
+  transform: scale(1.15);
 }
 
 .lb-edit {
@@ -3849,7 +3855,7 @@ footer {
 }
 
 .lb-edit input {
-  width: 150px;
+  width: 168px;
   min-width: 0;
   background: var(--bg);
   border: 1px solid rgba(0, 200, 5, 0.5);
@@ -3865,30 +3871,34 @@ footer {
   border-color: var(--green);
 }
 
-.lb-edit button {
+.lb-card .lb-edit button {
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--text);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 700;
   width: 26px;
   height: 26px;
+  margin: 0;
+  padding: 0;
   line-height: 1;
+  flex: 0 0 auto;
 }
 
-.lb-edit button:first-of-type {
+.lb-card .lb-edit button:first-of-type {
   color: var(--green);
   border-color: rgba(0, 200, 5, 0.5);
 }
 
-.lb-edit button:hover {
+.lb-card .lb-edit button:hover {
   border-color: var(--green);
 }
 
-.lb-err {
-  margin-top: 10px;
+.lb-err-inline {
+  grid-column: 1 / -1;
   color: #ff7b6b;
-  font-size: 0.8rem;
-  text-align: center;
+  font-size: 0.76rem;
+  padding-top: 2px;
 }

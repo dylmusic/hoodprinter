@@ -6,9 +6,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
-// Display names: letters, numbers, @ . _ - and spaces, 2–20 chars. Empty
-// string clears the name.
-const NAME_RE = /^[\w@.\- ]{2,20}$/;
+// Display names: letters, numbers, spaces, @ . _ - ( ) !, 2–24 chars.
+// Empty string clears the name.
+const NAME_RE = /^[\w@.()\-! ]{2,24}$/;
 
 /**
  * Set a leaderboard display name. Ownership-proved: the client signs
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
   if (name !== "" && !NAME_RE.test(name)) {
     return NextResponse.json(
-      { ok: false, error: "Name must be 2–20 characters: letters, numbers, @ . _ -" },
+      { ok: false, error: "Name must be 2–24 characters: letters, numbers, spaces, @ . _ - ( ) !" },
       { status: 400 }
     );
   }
