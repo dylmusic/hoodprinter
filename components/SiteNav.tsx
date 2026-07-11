@@ -59,7 +59,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             <span className="nd-title">
               Multisend <span className="nav-new">NEW</span>
             </span>
-            <span className="nd-sub">Send tokens to thousands of wallets</span>
+            <span className="nd-sub">Airdrop any token to thousands of wallets</span>
           </a>
         </div>
       )}

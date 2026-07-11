@@ -94,6 +94,10 @@ const TWEETS: { label: string; text: string }[] = [
     text: "The $PRINT airdrop is open and it's free.\n\nFirst 100 wallets get the BIG drop. First 1,000 still get paid. After that, the printer moves on.\n\nhoodprinter.xyz/airdrop",
   },
   {
+    label: "The airdrop tool",
+    text: "Robinhood Chain has an airdrop tool now.\n\nPaste a list of wallets, load any token, press send — thousands of transfers in minutes at sub-cent gas. Free.\n\nBuilt by @HOODPrinterxyz. hoodprinter.xyz/multisend",
+  },
+  {
     label: "The short one",
     text: "Hold $PRINT. Get paid ETH. Brrr. 🖨️\n\n@HOODPrinterxyz · hoodprinter.xyz",
   },
