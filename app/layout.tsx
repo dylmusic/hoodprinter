@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { siteConfig } from "@/site.config";
+import Script from "next/script";
+import {
+  siteConfig,
+  GA_MEASUREMENT_ID,
+  GOOGLE_SITE_VERIFICATION,
+} from "@/site.config";
 import "./globals.css";
 
 const defaultTitle = `${siteConfig.name} (${siteConfig.symbol}) — ${siteConfig.tagline}`;
@@ -28,6 +33,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  ...(GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: GOOGLE_SITE_VERIFICATION } }
+    : {}),
   robots: {
     index: true,
     follow: true,
@@ -71,7 +79,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        {GA_MEASUREMENT_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_MEASUREMENT_ID}');`}
+            </Script>
+          </>
+        )}
+      </body>
     </html>
   );
 }

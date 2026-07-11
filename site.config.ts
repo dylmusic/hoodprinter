@@ -15,6 +15,15 @@ export const PRESALE_ACTIVE = false;
 export const PRESALE_LINK =
   "https://gempad.app/presale/0xc9D8f13a1293f43554F89dD07f9C6CC4730CD0c6?network=Robinhood_Chain";
 
+// Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = GA script not
+// rendered. Create the property at analytics.google.com → Admin → Create
+// property → hoodprinter.xyz, then paste the ID here.
+export const GA_MEASUREMENT_ID = "";
+
+// Google Search Console "HTML tag" verification token (the content= value).
+// Empty = meta tag not rendered. Not needed if verifying via DNS or GA.
+export const GOOGLE_SITE_VERIFICATION = "";
+
 export const siteConfig = {
   name: "HOODPrinter",
   symbol: "$PRINT",
