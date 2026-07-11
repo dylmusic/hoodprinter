@@ -18,7 +18,7 @@ export const PRESALE_LINK =
 // Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = GA script not
 // rendered. Create the property at analytics.google.com → Admin → Create
 // property → hoodprinter.xyz, then paste the ID here.
-export const GA_MEASUREMENT_ID = "";
+export const GA_MEASUREMENT_ID = "G-YM2PTVBGS5";
 
 // Google Search Console "HTML tag" verification token (the content= value).
 // Empty = meta tag not rendered. Not needed if verifying via DNS or GA.
