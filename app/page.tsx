@@ -139,6 +139,10 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <a className="announce-bar" href="/airdrop">
+        🖨️ Sign Up For FREE Pre-Launch Airdrop
+        <span className="announce-arrow">→</span>
+      </a>
       <nav className="nav">
         <div className="container nav-inner">
           <a href="#" className="nav-logo">

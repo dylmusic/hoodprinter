@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import NavSocials from "@/components/NavSocials";
+import AirdropForm from "@/components/AirdropForm";
 import { siteConfig } from "@/site.config";
-
-const FORM_EMBED_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLSd0FemJeYIe5IXHKTIyoRWy0DDw_Dud4EU4UIGon72gj0Uxaw/viewform?embedded=true";
 
 const airdropTitle = "$PRINT Airdrop — First Come, First Served";
 const airdropDescription =
@@ -98,26 +96,8 @@ export default function Airdrop() {
           </div>
 
           <div className="airdrop-form-wrap">
-            <iframe
-              src={FORM_EMBED_URL}
-              title="$PRINT airdrop registration form"
-              loading="lazy"
-            >
-              Loading…
-            </iframe>
+            <AirdropForm />
           </div>
-
-          <p className="airdrop-fallback">
-            Form not loading?{" "}
-            <a
-              href="https://forms.gle/of1oajsbLLBMq167A"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open it in a new tab
-            </a>
-            .
-          </p>
         </div>
       </header>
     </>
