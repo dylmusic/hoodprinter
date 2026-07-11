@@ -76,11 +76,155 @@ export async function recordWalletCreated(addr: string): Promise<void> {
   });
 }
 
-/** Count one /print landing into today's funnel bucket. No PII, no wallet. */
-export async function recordVisit(): Promise<void> {
+/**
+ * Count one tool-page landing into today's funnel bucket. No PII, no wallet.
+ * /print keeps the legacy key (`stats:visits:<day>`) for continuity; other
+ * pages get their own namespace (`stats:visits:ms:<day>` for multisend).
+ */
+export async function recordVisit(page: "print" | "multisend" = "print"): Promise<void> {
   const redis = getRedis();
   if (!redis) return;
-  await redis.incr(`stats:visits:${dayKey()}`);
+  const key =
+    page === "multisend" ? `stats:visits:ms:${dayKey()}` : `stats:visits:${dayKey()}`;
+  await redis.incr(key);
+}
+
+/**
+ * Anonymous buy-failure counters (the P3 churn signal): `fail` = one buy tx
+ * failed, `stop` = a user hit the 5-fails-in-a-row stop. Self-reported and
+ * unverifiable, so treat as directional — never mix into the leaderboard.
+ */
+export async function recordBuyFail(kind: "fail" | "stop"): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  const day = dayKey();
+  await Promise.all([
+    redis.incr(kind === "stop" ? "stats:buy_stops" : "stats:buy_fails"),
+    redis.incr(
+      kind === "stop" ? `stats:buy_stops:${day}` : `stats:buy_fails:${day}`
+    ),
+  ]);
+}
+
+// ---- multisend usage ----
+
+export type MultisendRun = {
+  wallet: string;
+  token: string;
+  sym?: string;
+  recipients: number;
+  confirmed: number;
+  failed: number;
+  amount: number; // total token amount attempted (display units)
+  at: number; // ms
+};
+
+/**
+ * Record one completed multisend run. Self-reported by the client at the end
+ * of a run — no spoof incentive (nothing user-facing keys off it), so we skip
+ * on-chain verification and keep it cheap. Keys:
+ *   stats:ms:runs / stats:ms:txs      totals (txs = confirmed transfers)
+ *   stats:ms:txs:<day>                daily bucket
+ *   ms:senders                        zset, score = first-seen ms (NX)
+ *   ms:sender:<addr>:txs              per-wallet confirmed transfers
+ *   ms:tokens / ms:tokens:sym         transfers per token + display labels
+ *   ms:runs                           last 500 runs as JSON (newest first)
+ */
+export async function recordMultisendRun(run: MultisendRun): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  const w = run.wallet.toLowerCase();
+  const t = run.token.toLowerCase();
+  const writes: Promise<unknown>[] = [
+    redis.incr("stats:ms:runs"),
+    redis.incrby("stats:ms:txs", run.confirmed),
+    redis.incrby(`stats:ms:txs:${dayKey()}`, run.confirmed),
+    redis.zadd("ms:senders", { nx: true }, { score: run.at, member: w }),
+    redis.incrby(`ms:sender:${w}:txs`, run.confirmed),
+    redis.zincrby("ms:tokens", run.confirmed, t),
+    redis.lpush("ms:runs", JSON.stringify(run)),
+    redis.ltrim("ms:runs", 0, 499),
+  ];
+  if (run.sym) writes.push(redis.hset("ms:tokens:sym", { [t]: run.sym }));
+  await Promise.all(writes);
+}
+
+/** One-shot platform counters for the admin summary (dataset=summary). */
+export async function readPlatformSummary(): Promise<Record<string, number>> {
+  const redis = getRedis();
+  if (!redis) return {};
+  const day = dayKey();
+  const keys = [
+    "stats:buys",
+    "stats:eth",
+    `stats:buys:${day}`,
+    `stats:eth:${day}`,
+    `stats:visits:${day}`,
+    `stats:visits:ms:${day}`,
+    "stats:ms:runs",
+    "stats:ms:txs",
+    `stats:ms:txs:${day}`,
+    "stats:buy_fails",
+    "stats:buy_stops",
+    `stats:airdrop:${day}`,
+  ];
+  const [vals, created, buyers, senders] = await Promise.all([
+    redis.mget<(string | number | null)[]>(...keys),
+    redis.zcard("wallets:created"),
+    redis.zcard("wallets:bybuys"),
+    redis.zcard("ms:senders"),
+  ]);
+  return {
+    buys: num(vals[0]),
+    eth: num(vals[1]),
+    buysToday: num(vals[2]),
+    ethToday: num(vals[3]),
+    printVisitsToday: num(vals[4]),
+    multisendVisitsToday: num(vals[5]),
+    multisendRuns: num(vals[6]),
+    multisendTxs: num(vals[7]),
+    multisendTxsToday: num(vals[8]),
+    buyFails: num(vals[9]),
+    buyStops: num(vals[10]),
+    airdropSignupsToday: num(vals[11]),
+    walletsCreated: num(created),
+    buyerWallets: num(buyers),
+    multisendSenders: num(senders),
+  };
+}
+
+/** Every multisend run on record (newest first) + sender totals. */
+export async function readMultisendData(): Promise<{
+  runs: MultisendRun[];
+  senders: { address: string; firstSeen: number; txs: number }[];
+}> {
+  const redis = getRedis();
+  if (!redis) return { runs: [], senders: [] };
+  const [rawRuns, flat] = await Promise.all([
+    redis.lrange("ms:runs", 0, -1) as Promise<(string | MultisendRun)[]>,
+    redis.zrange("ms:senders", 0, -1, { withScores: true }) as Promise<
+      (string | number)[]
+    >,
+  ]);
+  const runs: MultisendRun[] = [];
+  for (const r of rawRuns) {
+    try {
+      runs.push(typeof r === "string" ? JSON.parse(r) : r);
+    } catch {
+      /* skip malformed */
+    }
+  }
+  const senders: { address: string; firstSeen: number; txs: number }[] = [];
+  for (let i = 0; i < flat.length; i += 2) {
+    senders.push({ address: String(flat[i]), firstSeen: num(flat[i + 1]), txs: 0 });
+  }
+  if (senders.length) {
+    const txs = await redis.mget<(string | number | null)[]>(
+      ...senders.map((s) => `ms:sender:${s.address}:txs`)
+    );
+    senders.forEach((s, i) => (s.txs = num(txs[i])));
+  }
+  return { runs, senders };
 }
 
 export async function readStats(wallet?: string): Promise<PlatformStats> {

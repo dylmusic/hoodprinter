@@ -4,8 +4,14 @@ import {
   backfillWallets,
   readCreatedWallets,
   createdWalletCount,
+  readMultisendData,
+  readPlatformSummary,
 } from "@/lib/stats";
-import { readAllSubmissions, seedSubmission } from "@/lib/airdrop";
+import {
+  readAllSubmissions,
+  seedSubmission,
+  submissionCount,
+} from "@/lib/airdrop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +22,12 @@ export const dynamic = "force-dynamic";
  *   /api/export?key=SECRET&dataset=airdrop            → airdrop signups CSV (FCFS order)
  *   /api/export?key=SECRET&dataset=wallets_created    → every bot wallet ever seen,
  *                                                       first-seen order, with buy join
+ *   /api/export?key=SECRET&dataset=multisend          → multisend runs + senders
+ *   /api/export?key=SECRET&dataset=summary            → one-shot JSON of every counter
  *   /api/export?key=SECRET&format=json                → JSON instead of CSV
+ *   /api/export?key=SECRET&format=list                → plain address-per-line text,
+ *       paste-ready for the /multisend tool (works on the default, airdrop, and
+ *       wallets_created datasets; airdrop supports &limit=N, e.g. first 100)
  *   /api/export?key=SECRET&backfill=1                 → seed the wallet index
  * POST /api/export?import=airdrop&key=SECRET  → import old Google-Form CSV
  *   (send the raw CSV as the request body)
@@ -133,14 +144,78 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, indexed });
   }
 
-  const asJson = req.nextUrl.searchParams.get("format") === "json";
+  const format = req.nextUrl.searchParams.get("format") || "csv";
+  const asJson = format === "json";
+  const asList = format === "list";
+  const dataset = req.nextUrl.searchParams.get("dataset") || "";
   const stamp = new Date().toISOString().slice(0, 10);
   const csvField = (v: string) =>
     /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const listResponse = (addrs: string[], name: string) =>
+    new NextResponse(addrs.join("\n") + "\n", {
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "content-disposition": `attachment; filename="${name}-${stamp}.txt"`,
+        "cache-control": "no-store",
+      },
+    });
+
+  // ---- one-shot platform summary ----
+  if (dataset === "summary") {
+    const [counters, airdropSignups] = await Promise.all([
+      readPlatformSummary(),
+      submissionCount(),
+    ]);
+    return NextResponse.json(
+      { ok: true, at: new Date().toISOString(), airdropSignups, ...counters },
+      { headers: { "cache-control": "no-store" } }
+    );
+  }
+
+  // ---- multisend usage ----
+  if (dataset === "multisend") {
+    const { runs, senders } = await readMultisendData();
+    if (asJson) {
+      return NextResponse.json(
+        { ok: true, runs: runs.length, senders, recentRuns: runs },
+        { headers: { "cache-control": "no-store" } }
+      );
+    }
+    const header = "at_iso,wallet,token,symbol,recipients,confirmed,failed,amount";
+    const body = runs
+      .map((r) =>
+        [
+          new Date(r.at).toISOString(),
+          r.wallet,
+          r.token,
+          csvField(r.sym || ""),
+          r.recipients,
+          r.confirmed,
+          r.failed,
+          r.amount,
+        ].join(",")
+      )
+      .join("\n");
+    return new NextResponse(`${header}\n${body}\n`, {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": `attachment; filename="hoodprint-multisend-${stamp}.csv"`,
+        "cache-control": "no-store",
+      },
+    });
+  }
 
   // ---- airdrop signups ----
-  if (req.nextUrl.searchParams.get("dataset") === "airdrop") {
+  if (dataset === "airdrop") {
     const subs = await readAllSubmissions();
+    if (asList) {
+      const limit = parseInt(req.nextUrl.searchParams.get("limit") || "0", 10);
+      const rows = limit > 0 ? subs.slice(0, limit) : subs;
+      return listResponse(
+        rows.map((s) => s.address),
+        "hoodprint-airdrop-addresses"
+      );
+    }
     if (asJson) {
       return NextResponse.json(
         { ok: true, count: subs.length, signups: subs },
@@ -175,8 +250,14 @@ export async function GET(req: NextRequest) {
   }
 
   // ---- every bot wallet ever seen (creation funnel) ----
-  if (req.nextUrl.searchParams.get("dataset") === "wallets_created") {
+  if (dataset === "wallets_created") {
     const created = await readCreatedWallets();
+    if (asList) {
+      return listResponse(
+        created.map((c) => c.address),
+        "hoodprint-created-wallets"
+      );
+    }
     if (asJson) {
       return NextResponse.json(
         {
@@ -211,6 +292,12 @@ export async function GET(req: NextRequest) {
     readAllWallets(),
     createdWalletCount(),
   ]);
+  if (asList) {
+    return listResponse(
+      rows.map((r) => r.address),
+      "hoodprint-buyer-wallets"
+    );
+  }
   if (asJson) {
     return NextResponse.json(
       { ok: true, count: rows.length, walletsCreated, wallets: rows },

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ipThrottled, recordVisit, recordWalletCreated } from "@/lib/stats";
+import {
+  ipThrottled,
+  recordBuyFail,
+  recordVisit,
+  recordWalletCreated,
+} from "@/lib/stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +22,7 @@ const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
  * client; internal failures here return ok so the bot UI is never affected.
  */
 export async function POST(req: NextRequest) {
-  let body: { address?: unknown; type?: unknown } = {};
+  let body: { address?: unknown; type?: unknown; page?: unknown } = {};
   try {
     body = await req.json();
   } catch {
@@ -32,7 +37,16 @@ export async function POST(req: NextRequest) {
   try {
     if (body.type === "visit") {
       // Landings are frequent by nature — throttle generously.
-      if (!(await ipThrottled("visit", ip, 120))) await recordVisit();
+      if (!(await ipThrottled("visit", ip, 120))) {
+        await recordVisit(body.page === "multisend" ? "multisend" : "print");
+      }
+      return NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
+    }
+
+    if (body.type === "buy_fail" || body.type === "buy_stop") {
+      if (!(await ipThrottled("fail", ip, 240))) {
+        await recordBuyFail(body.type === "buy_stop" ? "stop" : "fail");
+      }
       return NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
     }
 

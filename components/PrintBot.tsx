@@ -1103,9 +1103,19 @@ export default function PrintBot() {
   // After several failures in a row, stop and tell the user instead of
   // spinning silently (e.g. a token with no V2 liquidity, or a V3-only token).
   const FAIL_LIMIT = 5;
+  // Anonymous churn telemetry — no wallet attached, fire-and-forget.
+  function reportFail(type: "buy_fail" | "buy_stop") {
+    fetch("/api/wallet", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type }),
+    }).catch(() => {});
+  }
   function noteFailure() {
     failStreakRef.current += 1;
+    reportFail("buy_fail");
     if (failStreakRef.current >= FAIL_LIMIT && runningRef.current) {
+      reportFail("buy_stop");
       stopLoop();
       showAlert(
         <>

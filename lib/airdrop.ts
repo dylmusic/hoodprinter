@@ -70,6 +70,10 @@ export async function recordSubmission(
   };
   if (added) hash.submittedAt = String(now);
   await redis.hset(subKey(a), hash);
+  // Daily signup bucket (new addresses only) — for charting the funnel.
+  if (added) {
+    await redis.incr(`stats:airdrop:${new Date().toISOString().slice(0, 10)}`);
+  }
 
   const idx = await redis.zrank(ORDER_KEY, a);
   const rank = (idx ?? 0) + 1;

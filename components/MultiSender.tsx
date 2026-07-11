@@ -120,6 +120,12 @@ export default function MultiSender() {
 
   // Restore the shared wallet + the Buy Bot's recent tokens.
   useEffect(() => {
+    // Funnel: count this /multisend landing (daily bucket, no PII).
+    fetch("/api/wallet", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "visit", page: "multisend" }),
+    }).catch(() => {});
     try {
       const saved = localStorage.getItem(PK_STORAGE_KEY);
       if (saved) setPk(saved.startsWith("0x") ? saved : "0x" + saved);
@@ -350,6 +356,7 @@ export default function MultiSender() {
 
     let nonce = await provider.getTransactionCount(addr, "pending");
     const fails: Failure[] = [];
+    let okCount = 0;
 
     for (let i = 0; i < rows.length && !stopRef.current; i += WAVE_SIZE) {
       const wave = rows.slice(i, i + WAVE_SIZE);
@@ -364,8 +371,10 @@ export default function MultiSender() {
           setSent((s) => s + 1);
           setLastTx(tx.hash);
           const rec = await tx.wait();
-          if (rec && rec.status === 1) setConfirmed((c) => c + 1);
-          else fails.push({ to: r.to, amt: r.amt, reason: "reverted" });
+          if (rec && rec.status === 1) {
+            okCount++;
+            setConfirmed((c) => c + 1);
+          } else fails.push({ to: r.to, amt: r.amt, reason: "reverted" });
         } catch (e) {
           fails.push({ to: r.to, amt: r.amt, reason: shortErr(e) });
         }
@@ -380,6 +389,21 @@ export default function MultiSender() {
     setFailures(fails);
     setPhase("done");
     refreshBalances();
+
+    // Usage telemetry: one fire-and-forget report per completed run.
+    fetch("/api/multisend", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        wallet: addr,
+        token: ca.trim(),
+        sym: tok.symbol,
+        recipients: rows.length,
+        confirmed: okCount,
+        failed: fails.length,
+        amount: parsed.total,
+      }),
+    }).catch(() => {});
   }
 
   function retryFailures() {
