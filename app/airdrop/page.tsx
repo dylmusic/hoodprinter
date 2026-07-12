@@ -61,7 +61,7 @@ export default function Airdrop() {
         <div className="container">
           <span className="hero-kicker">$PRINT Airdrop &amp; Whitelist</span>
           <h1>
-            Get on the <span className="green">whitelist</span>.
+            Get on the <span className="green">drop list</span>.
           </h1>
           <p className="hero-sub">
             Fill out the form below and the printer will find you. The airdrop
