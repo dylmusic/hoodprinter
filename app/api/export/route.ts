@@ -11,6 +11,7 @@ import {
   readAllSubmissions,
   seedSubmission,
   submissionCount,
+  deleteSubmissions,
 } from "@/lib/airdrop";
 
 export const runtime = "nodejs";
@@ -124,6 +125,33 @@ export async function POST(req: NextRequest) {
     duplicates: parsed.length - added,
     skipped: skipped.length,
   });
+}
+
+/** DELETE ?dataset=airdrop&key=SECRET&address=0x..[,0x..] — remove bad signups. */
+export async function DELETE(req: NextRequest) {
+  const secret = process.env.STATS_ADMIN_KEY;
+  const key = req.nextUrl.searchParams.get("key");
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: "STATS_ADMIN_KEY is not set" }, { status: 503 });
+  }
+  if (key !== secret) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  if (req.nextUrl.searchParams.get("dataset") !== "airdrop") {
+    return NextResponse.json({ ok: false, error: "unknown dataset" }, { status: 400 });
+  }
+  const addrs = (req.nextUrl.searchParams.get("address") || "")
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean);
+  if (!addrs.length) {
+    return NextResponse.json({ ok: false, error: "no address given" }, { status: 400 });
+  }
+  const removed = await deleteSubmissions(addrs);
+  return NextResponse.json(
+    { ok: true, removed, requested: addrs.length },
+    { headers: { "cache-control": "no-store" } }
+  );
 }
 
 export async function GET(req: NextRequest) {

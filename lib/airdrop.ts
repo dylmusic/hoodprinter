@@ -40,6 +40,27 @@ export function tierForRank(rank: number): AirdropTier {
   return "waitlist";
 }
 
+/**
+ * Permanently remove signups (admin cleanup — e.g. someone who pasted a
+ * contract address instead of their wallet). Drops each from the FCFS order
+ * set and deletes its answer hash. Ranks of everyone after them shift up
+ * automatically since rank is derived from position. Returns how many existed
+ * and were removed.
+ */
+export async function deleteSubmissions(addresses: string[]): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  let removed = 0;
+  for (const raw of addresses) {
+    const a = raw.trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(a)) continue;
+    const gone = await redis.zrem(ORDER_KEY, a);
+    await redis.del(subKey(a));
+    if (gone) removed++;
+  }
+  return removed;
+}
+
 /** Store/refresh a signup. First submission fixes the FCFS timestamp; later
  *  edits from the same address update the answers but keep the original rank. */
 export async function recordSubmission(
