@@ -3,23 +3,28 @@ import AirdropForm from "@/components/AirdropForm";
 import SiteNav from "@/components/SiteNav";
 import { siteConfig } from "@/site.config";
 
-const airdropTitle = "$PRINT Airdrop — First Come, First Served";
+const airdropTitle = "$PRINT Airdrop & Whitelist — First Come, First Served";
 const airdropDescription =
-  "Big airdrop for the first 100 Telegram users, small airdrop for the first 1,000. Register now — the printer will find you.";
+  "The $PRINT airdrop signup list is the pre-launch whitelist. Big airdrop for the first 100 Telegram users, small airdrop for the first 1,000. Register now — the printer will find you.";
 
 export const metadata: Metadata = {
-  title: "Airdrop — Free $PRINT, First Come First Served",
+  title: "Airdrop & Whitelist — Free $PRINT, First Come First Served",
   description: airdropDescription,
   alternates: {
     canonical: "/airdrop",
   },
   keywords: [
     "$PRINT airdrop",
+    "$PRINT whitelist",
     "Robinhood Chain airdrop",
+    "Robinhood Chain whitelist",
+    "presale whitelist",
     "free crypto airdrop",
     "Robinhood Chain free tokens",
     "airdrop signup",
+    "whitelist signup",
     "HOODPrinter airdrop",
+    "HOODPrinter whitelist",
     "PRINT token airdrop",
   ],
   openGraph: {
@@ -54,13 +59,14 @@ export default function Airdrop() {
 
       <header className="hero airdrop-hero">
         <div className="container">
-          <span className="hero-kicker">$PRINT Airdrop</span>
+          <span className="hero-kicker">$PRINT Airdrop &amp; Whitelist</span>
           <h1>
-            Get on the <span className="green">drop list</span>.
+            Get on the <span className="green">whitelist</span>.
           </h1>
           <p className="hero-sub">
-            Fill out the form below and the printer will find you. First come,
-            first served — join the{" "}
+            Fill out the form below and the printer will find you. The airdrop
+            signup list <em>is</em> the pre-launch whitelist — first come, first
+            served. Join the{" "}
             <a
               href={siteConfig.telegram}
               target="_blank"
