@@ -6,7 +6,7 @@ import SiteNav from "@/components/SiteNav";
 
 const title = "Buy Bot — Robinhood Chain Volume Bot | Auto-Buy Any Token";
 const description =
-  "The Robinhood Chain volume bot: auto-buy any token in one click and create real, on-chain buy volume. Level up as you print and climb the ranks for the $PRINT airdrop. Beta now live.";
+  "The Robinhood Chain volume bot: auto-buy any token in one click and create real, on-chain buy volume through the verified HOODPrinter Buy Router contract. Level up as you print and climb the ranks for the $PRINT airdrop.";
 
 export const metadata: Metadata = {
   title,
@@ -21,6 +21,8 @@ export const metadata: Metadata = {
     "crypto volume bot",
     "buy volume generator",
     "Robinhood Chain trading bot",
+    "on-chain buy bot",
+    "verified buy bot contract",
     "$PRINT",
     "HOODPrinter",
   ],
@@ -89,6 +91,18 @@ export default function PrintPage() {
         <p className="pb-tagline pb-tagline-sub">
           The volume bot for Robinhood Chain — create automatic buy volume
           for any project.
+        </p>
+        <p className="pb-tagline pb-tagline-sub">
+          Every buy runs on-chain through our{" "}
+          <a
+            href="https://robinhoodchain.blockscout.com/address/0x0e211d54b747832B28a9C8cA74e35069b0049653?tab=contract"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "var(--green)" }}
+          >
+            verified HOODPrinter Buy Router
+          </a>{" "}
+          contract.
         </p>
       </div>
       <PrintBot />
