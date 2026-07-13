@@ -5,8 +5,9 @@
 // Robinhood Chain: forwards ETH-in swaps to the swap router (attributing volume
 // + gas to HOODPrinter) and records per-wallet buy stats on-chain.
 
-// Canonical deployed instance. Empty until deployed on-chain, then pinned here.
-export const BUYROUTER_ADDRESS = "";
+// Canonical deployed instance on Robinhood Chain (bytecode-verified match to
+// contracts/BuyRouter.sol). owner = main wallet, operator = Buy Bot burner.
+export const BUYROUTER_ADDRESS = "0x0e211d54b747832B28a9C8cA74e35069b0049653";
 
 export const BUYROUTER_ABI = [
   {
