@@ -3244,6 +3244,11 @@ footer {
   font-weight: 700;
 }
 
+.ms-warn {
+  color: #f5c451;
+  font-weight: 700;
+}
+
 .ms-err {
   color: #ff7b6b;
   font-size: 0.88rem;

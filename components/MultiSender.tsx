@@ -250,6 +250,7 @@ export default function MultiSender() {
   const parsed = useMemo(() => {
     const rows: Row[] = [];
     const invalid: string[] = [];
+    let needAmt = 0; // valid address, but no per-line amount and no default set
     const seen = new Set<string>();
     let dupes = 0;
     const lines = listText
@@ -272,7 +273,11 @@ export default function MultiSender() {
       const am = rest.match(AMT_RE);
       const amt = am ? am[1] : defaultAmt.trim();
       if (!amt || !(parseFloat(amt) > 0)) {
-        invalid.push(line);
+        // The address is fine — it just has no amount to send. Only count it as
+        // truly unparseable if the line carried its own bad amount; a bare
+        // address with an empty default just needs the default field filled in.
+        if (am) invalid.push(line);
+        else needAmt++;
         continue;
       }
       seen.add(key);
@@ -280,7 +285,7 @@ export default function MultiSender() {
     }
     let total = 0;
     for (const r of rows) total += parseFloat(r.amt);
-    return { rows, invalid, dupes, total };
+    return { rows, invalid, needAmt, dupes, total };
   }, [listText, defaultAmt]);
 
   const ready =
@@ -576,6 +581,11 @@ export default function MultiSender() {
           <div className="ms-parse">
             <span className="ms-ok">{parsed.rows.length} valid</span>
             {parsed.dupes > 0 && <span>· {parsed.dupes} duplicates skipped</span>}
+            {parsed.needAmt > 0 && (
+              <span className="ms-warn">
+                · {parsed.needAmt} need an amount — set a default above
+              </span>
+            )}
             {parsed.invalid.length > 0 && (
               <span className="ms-bad">· {parsed.invalid.length} unparseable</span>
             )}
