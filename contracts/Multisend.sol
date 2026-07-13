@@ -11,7 +11,7 @@ pragma solidity ^0.8.20;
     ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 
                ┌─────────────────────────────────────────────┐
-               │   $PRINT · D I S P E R S E · ROBINHOOD CHAIN │
+               │  $PRINT · M U L T I S E N D · ROBINHOOD CHAIN│
                │        ┌───────────────────────────┐        │
                │        │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄  │        │
                │        │  █  H O O D P R I N T E R █  │      │
@@ -22,12 +22,12 @@ pragma solidity ^0.8.20;
                │            "When we print, everyone prints."  │
                └─────────────────────────────────────────────┘
 
-    HOODPrinter Disperse — the public multisend / airdrop tool for Robinhood Chain.
-    Built by the team behind HOODPrinter ($PRINT), the ETH-reflection token, and
-    the HOODPrinter Buy Bot & Multisend.  🖨️ 💸
+    HOODPrinter Multisend — the public airdrop / bulk-send tool for Robinhood
+    Chain. Built by the team behind HOODPrinter ($PRINT), the ETH-reflection
+    token, and the HOODPrinter Buy Bot.  🖨️ 💸
 
-    Robinhood Chain launched without a multisender (the classic disperse.app
-    contract isn't deployed here), so this fills the gap — free, forever.
+    Robinhood Chain launched without a multisender, so this is the first one —
+    free, forever.
 
     ── Permissionless & ownerless ─────────────────────────────────────────────
     No owner. No admin. No upgradeability. No stored funds. This contract can
@@ -40,15 +40,15 @@ pragma solidity ^0.8.20;
 //////////////////////////////////////////////////////////////////////////////*/
 
 /**
- * @title HOODPrinter Disperse
+ * @title HOODPrinter Multisend
  * @author HOODPrinter ($PRINT) — https://www.hoodprinter.xyz
- * @notice Public, ownerless multisend for Robinhood Chain (disperse.app model).
+ * @notice Public, ownerless bulk-send / airdrop tool for Robinhood Chain.
  *
  *         Entrypoints:
- *           - disperseEther(recipients, values): split the ETH you send.
- *           - disperseToken(token, recipients, values): pull the total once via
+ *           - multisendEther(recipients, values): split the ETH you send.
+ *           - multisendToken(token, recipients, values): pull the total once via
  *             transferFrom, then fan out from this contract; refunds any dust.
- *           - disperseTokenSimple(token, recipients, values): transferFrom the
+ *           - multisendTokenSimple(token, recipients, values): transferFrom the
  *             caller straight to each recipient — the contract never custodies
  *             tokens (safest for fee-on-transfer / rebasing tokens).
  *
@@ -62,21 +62,21 @@ interface IERC20 {
     function allowance(address owner, address spender) external view returns (uint256);
 }
 
-contract HOODPrinterDisperse {
+contract HOODPrinterMultisend {
     /*//////////////////////////////////////////////////////////////
                                 BRANDING
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Human-readable identity, visible on the block explorer.
-    string public constant name = "HOODPrinter Disperse";
+    string public constant name = "HOODPrinter Multisend";
     string public constant token = "$PRINT";
     string public constant website = "https://www.hoodprinter.xyz";
     string public constant twitter = "@HOODPrinterxyz";
     string public constant tagline = "When we print, everyone prints.";
     string public constant version = "1.0.0";
 
-    /// @notice Emitted once per disperse call — every airdrop stamps the logs
-    ///         with HOODPrinter branding, verifiable on the explorer.
+    /// @notice Emitted once per send — every airdrop stamps the logs with
+    ///         HOODPrinter branding, verifiable on the explorer.
     event Printed(
         address indexed sender,
         address indexed tokenAddr,
@@ -85,12 +85,12 @@ contract HOODPrinterDisperse {
     );
 
     /*//////////////////////////////////////////////////////////////
-                                DISPERSE
+                                MULTISEND
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Send ETH to many recipients in one transaction. Any unspent ETH
     ///         (e.g. from rounding) is returned to the sender.
-    function disperseEther(address[] calldata recipients, uint256[] calldata values)
+    function multisendEther(address[] calldata recipients, uint256[] calldata values)
         external
         payable
     {
@@ -111,7 +111,7 @@ contract HOODPrinterDisperse {
 
     /// @notice Pull the total from the caller once, then distribute. Requires
     ///         prior approve(). Any surplus held afterwards is refunded.
-    function disperseToken(
+    function multisendToken(
         IERC20 tokenContract,
         address[] calldata recipients,
         uint256[] calldata values
@@ -134,7 +134,7 @@ contract HOODPrinterDisperse {
 
     /// @notice transferFrom the caller straight to each recipient — this
     ///         contract never holds the tokens. Requires prior approve().
-    function disperseTokenSimple(
+    function multisendTokenSimple(
         IERC20 tokenContract,
         address[] calldata recipients,
         uint256[] calldata values

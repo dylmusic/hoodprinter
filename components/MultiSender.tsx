@@ -4,17 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { siteConfig } from "@/site.config";
 import {
-  DISPERSE_ADDRESS,
-  DISPERSE_ABI,
-  DISPERSE_BYTECODE,
-} from "@/lib/disperse";
+  MULTISEND_ADDRESS,
+  MULTISEND_ABI,
+  MULTISEND_BYTECODE,
+} from "@/lib/multisend";
 
 /**
- * /multisend — disperse-style bulk sender for any Robinhood Chain token.
- * Contract-free: fires plain ERC-20 transfer() txs back-to-back with locally
- * reserved nonces (the Buy Bot's spam-mode pattern), in confirmation waves.
- * Uses the SAME dedicated in-browser wallet as the Buy Bot (shared
- * localStorage key) — the private key never leaves the browser.
+ * /multisend — bulk airdrop sender for any Robinhood Chain token.
+ * Batches through the HOODPrinter Multisend contract (~150 wallets per tx),
+ * with an automatic fallback to per-recipient transfer() txs (fired back-to-
+ * back with locally reserved nonces, the Buy Bot's spam-mode pattern) if no
+ * contract is available. Uses the SAME dedicated in-browser wallet as the Buy
+ * Bot (shared localStorage key) — the private key never leaves the browser.
  */
 
 const RPC = siteConfig.chain.rpcUrl;
@@ -32,11 +33,11 @@ const ERC20_ABI = [
   "function allowance(address owner, address spender) view returns (uint256)",
 ];
 
-// Batch mode (opt-in): one Disperse-contract call fans out to many recipients,
-// vs. one plain transfer() per recipient. Uses the canonical deployed contract
-// if pinned in lib/disperse.ts, else a locally-deployed one saved here. The
-// per-transfer path stays the default + fallback so batch never breaks sends.
-const DISPERSE_STORAGE_KEY = "hoodprint_disperse_addr";
+// One HOODPrinter Multisend contract call fans out to many recipients, vs. one
+// plain transfer() per recipient. Uses the canonical deployed contract pinned in
+// lib/multisend.ts, else a locally-deployed one saved here. The per-transfer
+// path stays as an automatic fallback if no contract is available.
+const MULTISEND_STORAGE_KEY = "hoodprint_multisend_addr";
 // Recipients per batched tx. A single call must fit the block gas limit; ~150
 // keeps a comfortable margin (each transferFrom is ~30–55k gas).
 const BATCH_SIZE = 150;
@@ -130,10 +131,9 @@ export default function MultiSender() {
   );
   const [gasEstBusy, setGasEstBusy] = useState(false);
 
-  // ---- batch mode (opt-in Disperse contract) ----
-  const [batchMode, setBatchMode] = useState(false);
-  const [disperseAddr, setDisperseAddr] = useState<string>(
-    DISPERSE_ADDRESS || ""
+  // ---- on-chain multisend contract (always used when available) ----
+  const [multisendAddr, setMultisendAddr] = useState<string>(
+    MULTISEND_ADDRESS || ""
   );
   const [deployBusy, setDeployBusy] = useState(false);
 
@@ -162,12 +162,12 @@ export default function MultiSender() {
     } catch {
       /* storage blocked */
     }
-    // Resolve the Disperse contract: canonical pin wins, else a locally-deployed
+    // Resolve the Multisend contract: canonical pin wins, else a locally-deployed
     // instance saved on this device.
-    if (!DISPERSE_ADDRESS) {
+    if (!MULTISEND_ADDRESS) {
       try {
-        const local = localStorage.getItem(DISPERSE_STORAGE_KEY);
-        if (local && ethers.isAddress(local)) setDisperseAddr(local);
+        const local = localStorage.getItem(MULTISEND_STORAGE_KEY);
+        if (local && ethers.isAddress(local)) setMultisendAddr(local);
       } catch {
         /* storage blocked */
       }
@@ -400,10 +400,10 @@ export default function MultiSender() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addr, ca, tok?.decimals, recipientCount, sampleAmt, phase]);
 
-  // Deploy the public Disperse contract once, from the in-browser burner wallet
+  // Deploy the public HOODPrinter Multisend contract once, from the in-browser burner wallet
   // (the key never leaves the browser — same as every send). It's ownerless and
   // permissionless, so this one address then works for everyone.
-  async function deployDisperse() {
+  async function deployMultisend() {
     if (!addr) {
       setPreflightErr("Load a wallet first.");
       return;
@@ -415,8 +415,8 @@ export default function MultiSender() {
       const feeData = await provider.getFeeData();
       const baseGuess = feeData.maxFeePerGas ?? feeData.gasPrice ?? 100000000n;
       const factory = new ethers.ContractFactory(
-        DISPERSE_ABI as unknown as ethers.InterfaceAbi,
-        DISPERSE_BYTECODE,
+        MULTISEND_ABI as unknown as ethers.InterfaceAbi,
+        MULTISEND_BYTECODE,
         wallet
       );
       const c = await factory.deploy({
@@ -426,12 +426,11 @@ export default function MultiSender() {
       await c.waitForDeployment();
       const address = await c.getAddress();
       try {
-        localStorage.setItem(DISPERSE_STORAGE_KEY, address);
+        localStorage.setItem(MULTISEND_STORAGE_KEY, address);
       } catch {
         /* storage blocked */
       }
-      setDisperseAddr(address);
-      setBatchMode(true);
+      setMultisendAddr(address);
     } catch (e) {
       setPreflightErr("Deploy failed: " + shortErr(e));
     } finally {
@@ -439,14 +438,14 @@ export default function MultiSender() {
     }
   }
 
-  // ---- batched send engine: one Disperse call per BATCH_SIZE recipients ----
+  // ---- batched send engine: one Multisend call per BATCH_SIZE recipients ----
   async function startSendBatched() {
-    if (!addr || !tok || !parsed.rows.length || !disperseAddr) return;
+    if (!addr || !tok || !parsed.rows.length || !multisendAddr) return;
     setPreflightErr("");
 
     const wallet = new ethers.Wallet(pk.trim(), provider);
     const erc = new ethers.Contract(ca.trim(), ERC20_ABI, wallet);
-    const disperse = new ethers.Contract(disperseAddr, DISPERSE_ABI, wallet);
+    const multisend = new ethers.Contract(multisendAddr, MULTISEND_ABI, wallet);
 
     // Parse amounts to units + total.
     let totalUnits = 0n;
@@ -477,13 +476,13 @@ export default function MultiSender() {
     const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? 1000000n;
     const maxFeePerGas = baseGuess * 3n;
 
-    // One-time approval: let the Disperse contract pull this token. It can only
-    // ever move what you pass into a disperse call, so approving max is safe.
+    // One-time approval: let the Multisend contract pull this token. It can only
+    // ever move what you pass into a multisend call, so approving max is safe.
     try {
-      const current = (await erc.allowance(addr, disperseAddr)) as bigint;
+      const current = (await erc.allowance(addr, multisendAddr)) as bigint;
       if (current < totalUnits) {
         setPreflightErr(""); // clear; show progress via the sending UI
-        const atx = await erc.approve(disperseAddr, ethers.MaxUint256, {
+        const atx = await erc.approve(multisendAddr, ethers.MaxUint256, {
           maxFeePerGas,
           maxPriorityFeePerGas,
         });
@@ -520,7 +519,7 @@ export default function MultiSender() {
         let gasLimit: bigint;
         try {
           gasLimit =
-            ((await disperse.disperseTokenSimple.estimateGas(
+            ((await multisend.multisendTokenSimple.estimateGas(
               ca.trim(),
               recips,
               values
@@ -531,7 +530,7 @@ export default function MultiSender() {
           // ~70k/transfer + overhead if the estimate hiccups.
           gasLimit = BigInt(batch.length) * 70000n + 100000n;
         }
-        const tx = await disperse.disperseTokenSimple(ca.trim(), recips, values, {
+        const tx = await multisend.multisendTokenSimple(ca.trim(), recips, values, {
           nonce: myNonce,
           gasLimit,
           maxFeePerGas,
@@ -580,8 +579,9 @@ export default function MultiSender() {
   // ---- send engine: waves of fire-and-forget transfers ----
   async function startSend() {
     if (!addr || !tok || !parsed.rows.length) return;
-    // Opt-in batch mode routes through the Disperse contract instead.
-    if (batchMode && disperseAddr) return startSendBatched();
+    // Always route through the on-chain multisend contract when we have one;
+    // the per-transfer path below is the automatic fallback if we ever don't.
+    if (multisendAddr) return startSendBatched();
     setPreflightErr("");
 
     const wallet = new ethers.Wallet(pk.trim(), provider);
@@ -919,66 +919,48 @@ export default function MultiSender() {
       <div className="pb-card">
         <h2>4 · Send</h2>
 
-        {addr && phase !== "sending" && (
+        {addr && phase !== "sending" && multisendAddr && (
           <div className="ms-batch">
-            {disperseAddr ? (
-              <>
-                <label className="ms-batch-toggle">
-                  <input
-                    type="checkbox"
-                    checked={batchMode}
-                    onChange={(e) => setBatchMode(e.target.checked)}
-                  />
-                  <span>
-                    ⚡ <strong>Batch mode</strong> — send ~{BATCH_SIZE} wallets
-                    per transaction via the Disperse contract (one-time token
-                    approval the first time). Fewer, cheaper txs for big drops.
-                  </span>
-                </label>
-                <div className="ms-batch-meta">
-                  <a
-                    className="ms-batch-addr"
-                    href={`${EXPLORER}/address/${disperseAddr}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Disperse contract: {disperseAddr.slice(0, 8)}…
-                    {disperseAddr.slice(-6)}
-                  </a>
-                  {!DISPERSE_ADDRESS && (
-                    <button
-                      className="ms-relink"
-                      onClick={deployDisperse}
-                      disabled={deployBusy}
-                      type="button"
-                    >
-                      {deployBusy ? "Deploying…" : "Redeploy"}
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="ms-batch-deploy">
-                <span>
-                  Want <strong>one transaction per ~{BATCH_SIZE} wallets</strong>{" "}
-                  instead of one per recipient? Deploy the public Disperse
-                  contract once (~1¢ of gas, from this wallet). It&apos;s
-                  ownerless and reusable by anyone afterward.
-                </span>
-                <button
-                  className="ms-deploy-btn"
-                  onClick={deployDisperse}
-                  disabled={deployBusy || !addr}
-                  type="button"
-                >
-                  {deployBusy ? "Deploying…" : "Deploy Disperse contract"}
-                </button>
-              </div>
-            )}
+            <div className="ms-batch-meta">
+              <span className="ms-batch-note">
+                ⚡ Sends run on-chain through the{" "}
+                <strong>HOODPrinter Multisend contract</strong> — up to ~
+                {BATCH_SIZE} wallets per transaction (a one-time token approval
+                the first time you send each token).
+              </span>
+              <a
+                className="ms-batch-addr"
+                href={`${EXPLORER}/address/${multisendAddr}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Verified contract: {multisendAddr.slice(0, 8)}…
+                {multisendAddr.slice(-6)} ↗
+              </a>
+            </div>
           </div>
         )}
 
-        {ready && (phase === "idle" || phase === "confirm") && !batchMode && (
+        {addr && phase !== "sending" && !multisendAddr && (
+          <div className="ms-batch">
+            <div className="ms-batch-deploy">
+              <span>
+                The HOODPrinter Multisend contract isn&apos;t configured. Deploy
+                it once (~1¢ of gas, from this wallet) to send in batches.
+              </span>
+              <button
+                className="ms-deploy-btn"
+                onClick={deployMultisend}
+                disabled={deployBusy || !addr}
+                type="button"
+              >
+                {deployBusy ? "Deploying…" : "Deploy Multisend contract"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {ready && (phase === "idle" || phase === "confirm") && (
           <p className="ms-gas">
             {gasEstBusy && !gasEst ? (
               <>Estimating network cost…</>
@@ -1016,7 +998,7 @@ export default function MultiSender() {
             <p>
               Send <strong>{fmtBal(String(parsed.total))} {tok.symbol}</strong>{" "}
               to <strong>{parsed.rows.length} wallets</strong> in{" "}
-              {batchMode && disperseAddr
+              {multisendAddr
                 ? `${Math.ceil(
                     parsed.rows.length / BATCH_SIZE
                   )} batched transaction${

@@ -5,7 +5,7 @@ import { siteConfig } from "@/site.config";
 
 const title = "Multisend — Robinhood Chain Airdrop Tool | Send Tokens to Thousands of Wallets";
 const description =
-  "The Robinhood Chain airdrop tool: free multisend / disperse for any ERC-20 token. Paste a list of addresses and batch-send to thousands of wallets in minutes — airdrops, rewards, and payouts at sub-cent gas.";
+  "The Robinhood Chain airdrop tool, powered by the first multisend contract deployed & verified on the chain. Paste a list of addresses and batch-send any ERC-20 to thousands of wallets in minutes — airdrops, rewards, and payouts at sub-cent gas.";
 
 export const metadata: Metadata = {
   title: "Multisend — Robinhood Chain Airdrop Tool",
@@ -21,7 +21,9 @@ export const metadata: Metadata = {
     "bulk token sender",
     "batch token transfer",
     "send tokens to multiple wallets",
-    "disperse app alternative",
+    "first Robinhood Chain multisend contract",
+    "verified multisend contract",
+    "onchain multisend contract",
     "HOODPrinter",
     "$PRINT",
   ],
@@ -121,14 +123,16 @@ export default function MultisendPage() {
         <MultiSender />
 
         <section className="ms-about">
-          <h2>The airdrop &amp; disperse tool for Robinhood Chain</h2>
+          <h2>The airdrop &amp; multisend tool for Robinhood Chain</h2>
           <p>
-            Robinhood Chain launched without a multisender — the classic
-            disperse contract isn&rsquo;t deployed here. HOODPrinter Multisend
-            fills the gap: batch-send <strong>any ERC-20 token</strong> to a
-            pasted list of addresses, straight from a dedicated in-browser
-            wallet. No contract approvals, no per-recipient popups, and your
-            private key never leaves the browser.
+            Robinhood Chain launched without a multisender, so we built and
+            deployed the <strong>first one</strong> — an ownerless, permissionless
+            multisend contract, source-verified on-chain. HOODPrinter Multisend
+            batch-sends <strong>any ERC-20 token</strong> to a pasted list of
+            addresses in one transaction per ~150 wallets, straight from a
+            dedicated in-browser wallet whose private key never leaves your
+            browser. No per-recipient popups — just one approval per token, then
+            send.
           </p>
           <p>
             It&rsquo;s the <strong>airdrop tool for Robinhood Chain</strong>:
@@ -161,9 +165,10 @@ export default function MultisendPage() {
               <div className="faq-body">
                 Use Multisend above: load the token&rsquo;s contract address,
                 paste your list of recipient addresses (with optional
-                per-wallet amounts), and press send. It batch-sends the
-                airdrop wallet by wallet in confirmation waves — thousands of
-                transfers clear in minutes at sub-cent gas.
+                per-wallet amounts), and press send. It routes through the
+                HOODPrinter Multisend contract — one transaction per ~150
+                wallets — so thousands of transfers clear in minutes at
+                sub-cent gas.
               </div>
             </details>
             <details className="faq-item">

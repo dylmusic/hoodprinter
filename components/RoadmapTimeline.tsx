@@ -85,6 +85,31 @@ const PHASES: Phase[] = [
   },
   {
     num: "03",
+    name: "The Multisender",
+    items: [
+      {
+        title: "Designing the First Robinhood Chain Multisender",
+        desc: "Robinhood Chain launched with no way to bulk-send tokens — no multisend contract existed on the chain. We set out to build the first one.",
+        status: "done",
+      },
+      {
+        title: "Multisend Tool Launched",
+        desc: "A public bulk sender went live — airdrop any token to a pasted list of wallets, straight from your dedicated in-browser wallet.",
+        status: "done",
+        href: "/multisend",
+        hrefLabel: "Open Multisend →",
+      },
+      {
+        title: "First Multisend Contract Deployed & Verified on Robinhood Chain",
+        desc: "The HOODPrinter Multisend contract — ownerless and permissionless — deployed and source-verified on-chain. One transaction now fans out to ~150 wallets. A first for the chain.",
+        status: "done",
+        href: "/multisend",
+        hrefLabel: "Try Multisend →",
+      },
+    ],
+  },
+  {
+    num: "04",
     name: "Launch",
     items: [
       {
@@ -110,7 +135,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "04",
+    num: "05",
     name: "Expansion",
     items: [
       {
@@ -131,7 +156,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "05",
+    num: "06",
     name: "Ascension",
     items: [
       {
