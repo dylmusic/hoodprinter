@@ -935,15 +935,27 @@ export default function MultiSender() {
                     approval the first time). Fewer, cheaper txs for big drops.
                   </span>
                 </label>
-                <a
-                  className="ms-batch-addr"
-                  href={`${EXPLORER}/address/${disperseAddr}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Disperse contract: {disperseAddr.slice(0, 8)}…
-                  {disperseAddr.slice(-6)}
-                </a>
+                <div className="ms-batch-meta">
+                  <a
+                    className="ms-batch-addr"
+                    href={`${EXPLORER}/address/${disperseAddr}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Disperse contract: {disperseAddr.slice(0, 8)}…
+                    {disperseAddr.slice(-6)}
+                  </a>
+                  {!DISPERSE_ADDRESS && (
+                    <button
+                      className="ms-relink"
+                      onClick={deployDisperse}
+                      disabled={deployBusy}
+                      type="button"
+                    >
+                      {deployBusy ? "Deploying…" : "Redeploy"}
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
               <div className="ms-batch-deploy">
