@@ -4,8 +4,9 @@
 // Disperse is the public, ownerless multisend contract (disperse.app model) for
 // Robinhood Chain. Deploy it once; DISPERSE_ADDRESS then points every user at it.
 
-// Canonical deployed instance. Empty until deployed on-chain, then pinned here.
-export const DISPERSE_ADDRESS = "";
+// Canonical deployed instance on Robinhood Chain (bytecode-verified match to
+// contracts/Disperse.sol). Every user shares this one contract.
+export const DISPERSE_ADDRESS = "0xA2f01e6e373FD29c63c808D2925bdb9aFbb7433e";
 
 export const DISPERSE_ABI = [
   {
