@@ -107,6 +107,13 @@ export default function MultiSender() {
   const [listText, setListText] = useState("");
   const [defaultAmt, setDefaultAmt] = useState("");
 
+  // ---- live gas-cost preview ----
+  const [ethUsd, setEthUsd] = useState<number | null>(null);
+  const [gasEst, setGasEst] = useState<{ eth: number; perGas: bigint } | null>(
+    null
+  );
+  const [gasEstBusy, setGasEstBusy] = useState(false);
+
   // ---- run state ----
   const [phase, setPhase] = useState<Phase>("idle");
   const [preflightErr, setPreflightErr] = useState("");
@@ -297,6 +304,69 @@ export default function MultiSender() {
   const ready =
     !!addr && !!tok && parsed.rows.length > 0 && phase !== "sending";
 
+  // Live ETH/USD so the gas preview can show dollars (best-effort).
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
+        );
+        const j = await res.json();
+        const p = Number(j?.ethereum?.usd);
+        if (alive && Number.isFinite(p) && p > 0) setEthUsd(p);
+      } catch {
+        /* USD line just stays hidden */
+      }
+    };
+    load();
+    const id = setInterval(load, 5 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  // Live gas-cost preview: estimate one transfer's gas × recipient count at the
+  // current network price, so a 1,000-wallet airdrop shows its cost up front.
+  // Debounced, and skipped while a send is running.
+  const recipientCount = parsed.rows.length;
+  const sampleAmt = parsed.rows[0]?.amt;
+  useEffect(() => {
+    if (!addr || !tok || !ca || recipientCount === 0 || phase === "sending") {
+      setGasEst(null);
+      return;
+    }
+    let alive = true;
+    setGasEstBusy(true);
+    const t = setTimeout(async () => {
+      try {
+        const erc = new ethers.Contract(ca.trim(), ERC20_ABI, provider);
+        const units = ethers.parseUnits(sampleAmt || "0", tok.decimals);
+        // Estimate from the sending wallet; a fresh recipient is the pricier
+        // case, so bias the sample toward it with a +20k cold-write cushion.
+        const est = (await erc.transfer.estimateGas(addr, units, {
+          from: addr,
+        })) as bigint;
+        const perGas = est + 20000n;
+        const feeData = await provider.getFeeData();
+        const price = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n;
+        const totalWei = perGas * price * BigInt(recipientCount);
+        if (alive)
+          setGasEst({ eth: Number(ethers.formatEther(totalWei)), perGas });
+      } catch {
+        if (alive) setGasEst(null);
+      } finally {
+        if (alive) setGasEstBusy(false);
+      }
+    }, 600);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addr, ca, tok?.decimals, recipientCount, sampleAmt, phase]);
+
   // ---- send engine: waves of fire-and-forget transfers ----
   async function startSend() {
     if (!addr || !tok || !parsed.rows.length) return;
@@ -331,10 +401,10 @@ export default function MultiSender() {
     // Estimate gas on the first transfer — this is also where a token that
     // blocks transfers (e.g. $PRINT before trading starts, unless the sender
     // is fee-excluded) fails loudly instead of burning gas N times.
-    let gasLimit: bigint;
+    let baseGas: bigint;
     try {
       const est = (await erc.transfer.estimateGas(rows[0].to, rows[0].units)) as bigint;
-      gasLimit = (est * 13n) / 10n; // +30% headroom (dividend trackers vary)
+      baseGas = (est * 13n) / 10n; // +30% headroom
     } catch (e) {
       const r = shortErr(e);
       setPreflightErr(
@@ -344,6 +414,15 @@ export default function MultiSender() {
       );
       return;
     }
+    // The first recipient's estimate can't stand in for the whole list: sending
+    // to an address that has never held this token costs ~20k more gas (a cold
+    // zero→nonzero storage write) than sending to an existing holder. Estimating
+    // once on recipient #1 (often an existing holder) and reusing that limit is
+    // what made new-holder transfers revert out-of-gas. So we estimate PER
+    // recipient in the loop below; this generous fallback covers a cold new
+    // holder if a per-recipient estimate ever hiccups. You only pay gasUsed, so
+    // a high limit is free.
+    const fallbackGas = baseGas * 2n > baseGas + 60000n ? baseGas * 2n : baseGas + 60000n;
     // Fee strategy mirrors the Buy Bot: pay via EIP-1559 fields with real
     // base-fee headroom. A bare legacy `gasPrice` pinned at the current base
     // fee gets rejected the instant the base fee ticks up over a multi-minute
@@ -354,7 +433,7 @@ export default function MultiSender() {
     const baseGuess = feeData.maxFeePerGas ?? feeData.gasPrice ?? 100000000n;
     const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? 1000000n;
     const maxFeePerGas = baseGuess * 3n;
-    const ethNeeded = gasLimit * maxFeePerGas * BigInt(rows.length);
+    const ethNeeded = fallbackGas * maxFeePerGas * BigInt(rows.length);
     const ethHave = await provider.getBalance(addr);
     if (ethHave < ethNeeded) {
       setPreflightErr(
@@ -382,6 +461,15 @@ export default function MultiSender() {
       const inFlight = wave.map(async (r) => {
         const myNonce = nonce++;
         try {
+          // Estimate THIS recipient's gas (new holders cost ~20k more than
+          // existing ones); fall back to the generous constant on any hiccup.
+          let gasLimit = fallbackGas;
+          try {
+            const est = (await erc.transfer.estimateGas(r.to, r.units)) as bigint;
+            gasLimit = (est * 13n) / 10n; // +30% headroom
+          } catch {
+            /* transient RPC or a recipient that would revert — use fallback */
+          }
           const tx = await erc.transfer(r.to, r.units, {
             nonce: myNonce,
             gasLimit,
@@ -618,6 +706,25 @@ export default function MultiSender() {
       {/* ---- send ---- */}
       <div className="pb-card">
         <h2>4 · Send</h2>
+
+        {ready && (phase === "idle" || phase === "confirm") && (
+          <p className="ms-gas">
+            {gasEstBusy && !gasEst ? (
+              <>Estimating network cost…</>
+            ) : gasEst ? (
+              <>
+                Estimated network cost:{" "}
+                <strong>~{gasEst.eth.toFixed(6)} ETH</strong>
+                {ethUsd != null && (
+                  <> (~${(gasEst.eth * ethUsd).toFixed(2)})</>
+                )}{" "}
+                for {parsed.rows.length.toLocaleString()} transfers · gas only,
+                paid in ETH
+              </>
+            ) : null}
+          </p>
+        )}
+
         {preflightErr && <p className="ms-err">{preflightErr}</p>}
 
         {phase === "idle" && (
