@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import PrintBotTesting from "@/components/PrintBotTesting";
+import BuyRouterAdmin from "@/components/BuyRouterAdmin";
 import PlatformStatsNote from "@/components/PlatformStatsNote";
 import PreLaunchFlag from "@/components/PreLaunchFlag";
 import SiteNav from "@/components/SiteNav";
@@ -50,6 +51,7 @@ export default function PrintTestingPage() {
           <p>Auto-buy any token on Robinhood Chain — via the Buy Router contract</p>
         </div>
         <PrintBotTesting />
+        <BuyRouterAdmin />
       </main>
     </>
   );

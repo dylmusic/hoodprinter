@@ -1412,7 +1412,8 @@ export default function PrintBotTesting() {
         BUYROUTER_BYTECODE,
         wallet
       );
-      const c = await factory.deploy(ownerAddr, {
+      // owner = your secure wallet; operator = this burner (sweep-to-owner only).
+      const c = await factory.deploy(ownerAddr, wallet.address, {
         maxFeePerGas: base * 3n,
         maxPriorityFeePerGas: fee.maxPriorityFeePerGas ?? 1000000n,
       });

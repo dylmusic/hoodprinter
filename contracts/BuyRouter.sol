@@ -32,13 +32,20 @@ pragma solidity ^0.8.20;
     This contract NEVER custodies your swap funds and holds no user balance
     between calls — any ETH dust is refunded to you in the same transaction.
 
-    ── Treasury (airdrops) ────────────────────────────────────────────────────
+    ── Treasury (airdrops), owner + operator ──────────────────────────────────
     Ecosystem airdrops and reward tokens are often sent to the most active
-    contracts. So this contract has a treasury owner who can claim/sweep tokens
-    or ETH that ACCUMULATE here (airdrops), and call reward/claim contracts on
-    this contract's behalf. The owner can NEVER touch a user's in-flight swap —
-    those funds pass through atomically and never rest here. User safety does
-    not depend on trusting the owner.
+    contracts. Two roles manage what accrues here:
+      • owner    — a secure wallet (e.g. the team's main wallet / multisig).
+                   Full control: claim airdrops via arbitrary calls, sweep to
+                   any address, set the operator, transfer ownership.
+      • operator — a convenience role (e.g. the Buy Bot's in-browser wallet).
+                   Can trigger sweeps too, but sweeps it initiates can ONLY send
+                   funds to the owner. It cannot pick a destination, make
+                   arbitrary calls, or change roles.
+
+    So a compromised operator key can, at worst, move the contract's airdrops to
+    the OWNER — never to an attacker. Neither role can ever touch a user's
+    in-flight swap; those funds pass through atomically and never rest here.
 
     Site:  https://www.hoodprinter.xyz
     X:     @HOODPrinterxyz
@@ -77,8 +84,12 @@ contract HOODPrinterBuyRouter {
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Treasury owner — can claim/sweep airdrops that accrue here.
+    /// @notice Treasury owner — full control over airdrops that accrue here.
     address public owner;
+
+    /// @notice Convenience role (e.g. the burner). Can trigger sweeps, but only
+    ///         to the owner. Cannot make arbitrary calls or change roles.
+    address public operator;
 
     /// @notice Global lifetime stats (a canonical on-chain volume source).
     uint256 public totalBuys;
@@ -99,6 +110,7 @@ contract HOODPrinterBuyRouter {
     /// @notice Emitted on every buy — stamps HOODPrinter branding + volume.
     event Printed(address indexed buyer, uint256 ethIn, uint256 buyerBuyCount);
     event OwnershipTransferred(address indexed from, address indexed to);
+    event OperatorChanged(address indexed from, address indexed to);
     event Swept(address indexed t, address indexed to, uint256 amount);
     event OwnerCall(address indexed target, uint256 value, bytes data);
 
@@ -111,6 +123,11 @@ contract HOODPrinterBuyRouter {
         _;
     }
 
+    modifier onlyOwnerOrOperator() {
+        require(msg.sender == owner || msg.sender == operator, "not authorized");
+        _;
+    }
+
     modifier nonReentrant() {
         require(_lock == 1, "reentrancy");
         _lock = 2;
@@ -118,10 +135,12 @@ contract HOODPrinterBuyRouter {
         _lock = 1;
     }
 
-    constructor(address initialOwner) {
+    constructor(address initialOwner, address initialOperator) {
         require(initialOwner != address(0), "owner=0");
         owner = initialOwner;
+        operator = initialOperator; // may be address(0) if unused
         emit OwnershipTransferred(address(0), initialOwner);
+        emit OperatorChanged(address(0), initialOperator);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -182,24 +201,38 @@ contract HOODPrinterBuyRouter {
                             TREASURY / AIRDROPS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Sweep an ERC-20 (e.g. an airdrop) that accrued to this contract.
-    ///         Cannot affect user swaps — those never leave tokens here.
-    function sweepToken(address t, address to, uint256 amount) external onlyOwner {
-        require(to != address(0), "to=0");
-        require(IERC20(t).transfer(to, amount), "sweep failed");
-        emit Swept(t, to, amount);
-    }
-
-    /// @notice Sweep the full ERC-20 balance of a token held by this contract.
-    function sweepTokenAll(address t, address to) external onlyOwner {
-        require(to != address(0), "to=0");
+    /// @notice Sweep the full ERC-20 balance of a token held by this contract
+    ///         (e.g. an airdrop) TO THE OWNER. Callable by owner or operator, so
+    ///         the burner can pull airdrops in with one click — but the funds
+    ///         can only ever go to the owner. Cannot affect user swaps.
+    function sweepToken(address t) external onlyOwnerOrOperator {
+        address to = owner;
         uint256 amount = IERC20(t).balanceOf(address(this));
         require(IERC20(t).transfer(to, amount), "sweep failed");
         emit Swept(t, to, amount);
     }
 
-    /// @notice Sweep ETH that accrued here (airdrops / dust).
-    function sweepETH(address to, uint256 amount) external onlyOwner {
+    /// @notice Sweep this contract's ETH balance TO THE OWNER. Owner/operator.
+    function sweepETH() external onlyOwnerOrOperator {
+        address to = owner;
+        uint256 amount = address(this).balance;
+        (bool ok, ) = to.call{value: amount}("");
+        require(ok, "sweep failed");
+        emit Swept(address(0), to, amount);
+    }
+
+    /// @notice Owner-only: sweep a token to ANY address (full flexibility).
+    function sweepTokenTo(address t, address to, uint256 amount)
+        external
+        onlyOwner
+    {
+        require(to != address(0), "to=0");
+        require(IERC20(t).transfer(to, amount), "sweep failed");
+        emit Swept(t, to, amount);
+    }
+
+    /// @notice Owner-only: sweep ETH to ANY address.
+    function sweepETHTo(address to, uint256 amount) external onlyOwner {
         require(to != address(0), "to=0");
         (bool ok, ) = to.call{value: amount}("");
         require(ok, "sweep failed");
@@ -235,6 +268,13 @@ contract HOODPrinterBuyRouter {
         require(newOwner != address(0), "owner=0");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
+    }
+
+    /// @notice Set (or clear, with address(0)) the operator — the convenience
+    ///         role that can sweep airdrops to the owner. Owner-only.
+    function setOperator(address newOperator) external onlyOwner {
+        emit OperatorChanged(operator, newOperator);
+        operator = newOperator;
     }
 
     /*//////////////////////////////////////////////////////////////
