@@ -923,10 +923,8 @@ export default function MultiSender() {
           <div className="ms-batch">
             <div className="ms-batch-meta">
               <span className="ms-batch-note">
-                ⚡ Sends run on-chain through the{" "}
-                <strong>HOODPrinter Multisend contract</strong> — up to ~
-                {BATCH_SIZE} wallets per transaction (a one-time token approval
-                the first time you send each token).
+                ⚡ Batched on-chain via the{" "}
+                <strong>HOODPrinter Multisend contract</strong>
               </span>
               <a
                 className="ms-batch-addr"
@@ -934,8 +932,7 @@ export default function MultiSender() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Verified contract: {multisendAddr.slice(0, 8)}…
-                {multisendAddr.slice(-6)} ↗
+                {multisendAddr.slice(0, 6)}…{multisendAddr.slice(-4)} ↗
               </a>
             </div>
           </div>
