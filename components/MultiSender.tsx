@@ -251,6 +251,8 @@ export default function MultiSender() {
     const rows: Row[] = [];
     const invalid: string[] = [];
     let needAmt = 0; // valid address, but no per-line amount and no default set
+    let selfSkipped = 0; // your own sending wallet — a self-send just wastes gas
+    const self = addr ? addr.toLowerCase() : null;
     const seen = new Set<string>();
     let dupes = 0;
     const lines = listText
@@ -265,6 +267,10 @@ export default function MultiSender() {
       }
       const to = m[0];
       const key = to.toLowerCase();
+      if (self && key === self) {
+        selfSkipped++;
+        continue;
+      }
       if (seen.has(key)) {
         dupes++;
         continue;
@@ -285,8 +291,8 @@ export default function MultiSender() {
     }
     let total = 0;
     for (const r of rows) total += parseFloat(r.amt);
-    return { rows, invalid, needAmt, dupes, total };
-  }, [listText, defaultAmt]);
+    return { rows, invalid, needAmt, selfSkipped, dupes, total };
+  }, [listText, defaultAmt, addr]);
 
   const ready =
     !!addr && !!tok && parsed.rows.length > 0 && phase !== "sending";
@@ -581,6 +587,11 @@ export default function MultiSender() {
           <div className="ms-parse">
             <span className="ms-ok">{parsed.rows.length} valid</span>
             {parsed.dupes > 0 && <span>· {parsed.dupes} duplicates skipped</span>}
+            {parsed.selfSkipped > 0 && (
+              <span className="ms-warn">
+                · skipped your own wallet (a self-send just wastes gas)
+              </span>
+            )}
             {parsed.needAmt > 0 && (
               <span className="ms-warn">
                 · {parsed.needAmt} need an amount — set a default above
