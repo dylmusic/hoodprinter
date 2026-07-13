@@ -82,7 +82,7 @@ const jsonLd = {
           name: "What does the Robinhood Chain airdrop tool cost?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Multisend is free — you only pay network gas, which is sub-cent per transfer on Robinhood Chain. The only extra step is a single one-time token approval the first time you send a given token. No service fees.",
+            text: "Multisend is free — you only pay network gas, which is sub-cent per transfer on Robinhood Chain (plus a one-time token approval the first time you send a given token, also sub-cent). No service fees, and no external wallet to connect — the dedicated in-browser wallet signs everything for you.",
           },
         },
         {
@@ -131,8 +131,10 @@ export default function MultisendPage() {
             batch-sends <strong>any ERC-20 token</strong> to a pasted list of
             addresses in one transaction per ~150 wallets, straight from a
             dedicated in-browser wallet whose private key never leaves your
-            browser. No per-recipient popups — just one approval per token, then
-            send. The contract is ownerless, permissionless, and{" "}
+            browser. No wallet to connect and no approval popups — that
+            in-browser wallet signs everything for you, including a one-time
+            approval the first time you send each token. The contract is
+            ownerless, permissionless, and{" "}
             <a
               href={`${siteConfig.chain.explorerUrl}/address/0x891172B6d7ad82774025C045f6eae517817a6269?tab=contract`}
               target="_blank"
@@ -183,9 +185,10 @@ export default function MultisendPage() {
               <summary>What does the airdrop tool cost?</summary>
               <div className="faq-body">
                 Multisend is <strong>free</strong> — you only pay network gas,
-                which is sub-cent per transfer on Robinhood Chain. The one extra
-                step is a single one-time token approval the first time you send
-                a given token. No service fees.
+                which is sub-cent per transfer on Robinhood Chain (plus a
+                one-time token approval the first time you send a token, also
+                sub-cent). No service fees, and no external wallet to connect —
+                the dedicated in-browser wallet signs everything for you.
               </div>
             </details>
             <details className="faq-item">
