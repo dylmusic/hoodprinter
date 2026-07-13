@@ -4,8 +4,9 @@
 // HOODPrinterMultisend is the public, ownerless bulk-send contract for Robinhood
 // Chain. Deployed once; MULTISEND_ADDRESS points every user at it.
 
-// Canonical deployed instance. Empty until deployed on-chain, then pinned here.
-export const MULTISEND_ADDRESS = "";
+// Canonical deployed instance on Robinhood Chain (bytecode-verified match to
+// contracts/Multisend.sol). Every user shares this one contract.
+export const MULTISEND_ADDRESS = "0x891172B6d7ad82774025C045f6eae517817a6269";
 
 export const MULTISEND_ABI = [
   {
