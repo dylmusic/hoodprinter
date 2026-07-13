@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { siteConfig } from "@/site.config";
+import {
+  DISPERSE_ADDRESS,
+  DISPERSE_ABI,
+  DISPERSE_BYTECODE,
+} from "@/lib/disperse";
 
 /**
  * /multisend — disperse-style bulk sender for any Robinhood Chain token.
@@ -23,7 +28,18 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
   "function transfer(address to, uint256 amount) returns (bool)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
 ];
+
+// Batch mode (opt-in): one Disperse-contract call fans out to many recipients,
+// vs. one plain transfer() per recipient. Uses the canonical deployed contract
+// if pinned in lib/disperse.ts, else a locally-deployed one saved here. The
+// per-transfer path stays the default + fallback so batch never breaks sends.
+const DISPERSE_STORAGE_KEY = "hoodprint_disperse_addr";
+// Recipients per batched tx. A single call must fit the block gas limit; ~150
+// keeps a comfortable margin (each transferFrom is ~30–55k gas).
+const BATCH_SIZE = 150;
 
 // Quick-select row — same look/idea as the Buy Bot's. PRINT + CASHCAT pinned,
 // then the user's recent tokens from the Buy Bot (shared localStorage key),
@@ -114,6 +130,13 @@ export default function MultiSender() {
   );
   const [gasEstBusy, setGasEstBusy] = useState(false);
 
+  // ---- batch mode (opt-in Disperse contract) ----
+  const [batchMode, setBatchMode] = useState(false);
+  const [disperseAddr, setDisperseAddr] = useState<string>(
+    DISPERSE_ADDRESS || ""
+  );
+  const [deployBusy, setDeployBusy] = useState(false);
+
   // ---- run state ----
   const [phase, setPhase] = useState<Phase>("idle");
   const [preflightErr, setPreflightErr] = useState("");
@@ -138,6 +161,16 @@ export default function MultiSender() {
       if (saved) setPk(saved.startsWith("0x") ? saved : "0x" + saved);
     } catch {
       /* storage blocked */
+    }
+    // Resolve the Disperse contract: canonical pin wins, else a locally-deployed
+    // instance saved on this device.
+    if (!DISPERSE_ADDRESS) {
+      try {
+        const local = localStorage.getItem(DISPERSE_STORAGE_KEY);
+        if (local && ethers.isAddress(local)) setDisperseAddr(local);
+      } catch {
+        /* storage blocked */
+      }
     }
     try {
       const skip = new Set(
@@ -367,9 +400,188 @@ export default function MultiSender() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addr, ca, tok?.decimals, recipientCount, sampleAmt, phase]);
 
+  // Deploy the public Disperse contract once, from the in-browser burner wallet
+  // (the key never leaves the browser — same as every send). It's ownerless and
+  // permissionless, so this one address then works for everyone.
+  async function deployDisperse() {
+    if (!addr) {
+      setPreflightErr("Load a wallet first.");
+      return;
+    }
+    setPreflightErr("");
+    setDeployBusy(true);
+    try {
+      const wallet = new ethers.Wallet(pk.trim(), provider);
+      const feeData = await provider.getFeeData();
+      const baseGuess = feeData.maxFeePerGas ?? feeData.gasPrice ?? 100000000n;
+      const factory = new ethers.ContractFactory(
+        DISPERSE_ABI as unknown as ethers.InterfaceAbi,
+        DISPERSE_BYTECODE,
+        wallet
+      );
+      const c = await factory.deploy({
+        maxFeePerGas: baseGuess * 3n,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? 1000000n,
+      });
+      await c.waitForDeployment();
+      const address = await c.getAddress();
+      try {
+        localStorage.setItem(DISPERSE_STORAGE_KEY, address);
+      } catch {
+        /* storage blocked */
+      }
+      setDisperseAddr(address);
+      setBatchMode(true);
+    } catch (e) {
+      setPreflightErr("Deploy failed: " + shortErr(e));
+    } finally {
+      setDeployBusy(false);
+    }
+  }
+
+  // ---- batched send engine: one Disperse call per BATCH_SIZE recipients ----
+  async function startSendBatched() {
+    if (!addr || !tok || !parsed.rows.length || !disperseAddr) return;
+    setPreflightErr("");
+
+    const wallet = new ethers.Wallet(pk.trim(), provider);
+    const erc = new ethers.Contract(ca.trim(), ERC20_ABI, wallet);
+    const disperse = new ethers.Contract(disperseAddr, DISPERSE_ABI, wallet);
+
+    // Parse amounts to units + total.
+    let totalUnits = 0n;
+    let rows: (Row & { units: bigint })[];
+    try {
+      rows = parsed.rows.map((r) => {
+        const units = ethers.parseUnits(r.amt, tok.decimals);
+        totalUnits += units;
+        return { ...r, units };
+      });
+    } catch {
+      setPreflightErr("One of the amounts has more decimals than the token allows.");
+      return;
+    }
+
+    const bal = (await erc.balanceOf(addr)) as bigint;
+    if (bal < totalUnits) {
+      setPreflightErr(
+        `Not enough ${tok.symbol}: sending ${fmtBal(
+          ethers.formatUnits(totalUnits, tok.decimals)
+        )} but the wallet holds ${fmtBal(ethers.formatUnits(bal, tok.decimals))}.`
+      );
+      return;
+    }
+
+    const feeData = await provider.getFeeData();
+    const baseGuess = feeData.maxFeePerGas ?? feeData.gasPrice ?? 100000000n;
+    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? 1000000n;
+    const maxFeePerGas = baseGuess * 3n;
+
+    // One-time approval: let the Disperse contract pull this token. It can only
+    // ever move what you pass into a disperse call, so approving max is safe.
+    try {
+      const current = (await erc.allowance(addr, disperseAddr)) as bigint;
+      if (current < totalUnits) {
+        setPreflightErr(""); // clear; show progress via the sending UI
+        const atx = await erc.approve(disperseAddr, ethers.MaxUint256, {
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+        });
+        setLastTx(atx.hash);
+        await atx.wait();
+      }
+    } catch (e) {
+      setPreflightErr(
+        `Approval failed: ${shortErr(
+          e
+        )} — turn off Batch mode to use the per-transfer sender.`
+      );
+      return;
+    }
+
+    // Go.
+    setPhase("sending");
+    setSent(0);
+    setConfirmed(0);
+    setFailures([]);
+    setLastTx(null);
+    stopRef.current = false;
+
+    let nonce = await provider.getTransactionCount(addr, "pending");
+    const fails: Failure[] = [];
+    let okCount = 0;
+
+    for (let i = 0; i < rows.length && !stopRef.current; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const recips = batch.map((r) => r.to);
+      const values = batch.map((r) => r.units);
+      const myNonce = nonce++;
+      try {
+        let gasLimit: bigint;
+        try {
+          gasLimit =
+            ((await disperse.disperseTokenSimple.estimateGas(
+              ca.trim(),
+              recips,
+              values
+            )) as bigint *
+              13n) /
+            10n;
+        } catch {
+          // ~70k/transfer + overhead if the estimate hiccups.
+          gasLimit = BigInt(batch.length) * 70000n + 100000n;
+        }
+        const tx = await disperse.disperseTokenSimple(ca.trim(), recips, values, {
+          nonce: myNonce,
+          gasLimit,
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+        });
+        setSent((s) => s + batch.length);
+        setLastTx(tx.hash);
+        const rec = await tx.wait();
+        if (rec && rec.status === 1) {
+          okCount += batch.length;
+          setConfirmed((c) => c + batch.length);
+        } else {
+          batch.forEach((r) =>
+            fails.push({ to: r.to, amt: r.amt, reason: "batch reverted" })
+          );
+        }
+      } catch (e) {
+        const reason = shortErr(e);
+        batch.forEach((r) => fails.push({ to: r.to, amt: r.amt, reason }));
+        try {
+          nonce = await provider.getTransactionCount(addr, "pending");
+        } catch {}
+      }
+    }
+
+    setFailures(fails);
+    setPhase("done");
+    refreshBalances();
+
+    fetch("/api/multisend", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        wallet: addr,
+        token: ca.trim(),
+        sym: tok.symbol,
+        recipients: rows.length,
+        confirmed: okCount,
+        failed: fails.length,
+        amount: parsed.total,
+        mode: "batch",
+      }),
+    }).catch(() => {});
+  }
+
   // ---- send engine: waves of fire-and-forget transfers ----
   async function startSend() {
     if (!addr || !tok || !parsed.rows.length) return;
+    // Opt-in batch mode routes through the Disperse contract instead.
+    if (batchMode && disperseAddr) return startSendBatched();
     setPreflightErr("");
 
     const wallet = new ethers.Wallet(pk.trim(), provider);
@@ -707,7 +919,54 @@ export default function MultiSender() {
       <div className="pb-card">
         <h2>4 · Send</h2>
 
-        {ready && (phase === "idle" || phase === "confirm") && (
+        {addr && phase !== "sending" && (
+          <div className="ms-batch">
+            {disperseAddr ? (
+              <>
+                <label className="ms-batch-toggle">
+                  <input
+                    type="checkbox"
+                    checked={batchMode}
+                    onChange={(e) => setBatchMode(e.target.checked)}
+                  />
+                  <span>
+                    ⚡ <strong>Batch mode</strong> — send ~{BATCH_SIZE} wallets
+                    per transaction via the Disperse contract (one-time token
+                    approval the first time). Fewer, cheaper txs for big drops.
+                  </span>
+                </label>
+                <a
+                  className="ms-batch-addr"
+                  href={`${EXPLORER}/address/${disperseAddr}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Disperse contract: {disperseAddr.slice(0, 8)}…
+                  {disperseAddr.slice(-6)}
+                </a>
+              </>
+            ) : (
+              <div className="ms-batch-deploy">
+                <span>
+                  Want <strong>one transaction per ~{BATCH_SIZE} wallets</strong>{" "}
+                  instead of one per recipient? Deploy the public Disperse
+                  contract once (~1¢ of gas, from this wallet). It&apos;s
+                  ownerless and reusable by anyone afterward.
+                </span>
+                <button
+                  className="ms-deploy-btn"
+                  onClick={deployDisperse}
+                  disabled={deployBusy || !addr}
+                  type="button"
+                >
+                  {deployBusy ? "Deploying…" : "Deploy Disperse contract"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {ready && (phase === "idle" || phase === "confirm") && !batchMode && (
           <p className="ms-gas">
             {gasEstBusy && !gasEst ? (
               <>Estimating network cost…</>
@@ -745,9 +1004,15 @@ export default function MultiSender() {
             <p>
               Send <strong>{fmtBal(String(parsed.total))} {tok.symbol}</strong>{" "}
               to <strong>{parsed.rows.length} wallets</strong> in{" "}
-              {parsed.rows.length} transactions from{" "}
-              <code>{addr?.slice(0, 8)}…{addr?.slice(-6)}</code>. This can&rsquo;t
-              be undone once transfers land.
+              {batchMode && disperseAddr
+                ? `${Math.ceil(
+                    parsed.rows.length / BATCH_SIZE
+                  )} batched transaction${
+                    Math.ceil(parsed.rows.length / BATCH_SIZE) === 1 ? "" : "s"
+                  } (plus a one-time approval if needed)`
+                : `${parsed.rows.length} transactions`}{" "}
+              from <code>{addr?.slice(0, 8)}…{addr?.slice(-6)}</code>. This
+              can&rsquo;t be undone once transfers land.
             </p>
             <div className="ms-inline">
               <button className="pb-primary ms-go" onClick={startSend} type="button">
