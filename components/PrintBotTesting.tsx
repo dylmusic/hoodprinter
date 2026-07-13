@@ -10,6 +10,17 @@ import {
 import { ethers } from "ethers";
 import Leaderboard from "@/components/Leaderboard";
 import { siteConfig } from "@/site.config";
+import {
+  BUYROUTER_ADDRESS,
+  BUYROUTER_ABI,
+  BUYROUTER_BYTECODE,
+} from "@/lib/buyrouter";
+
+// Buy calldata split into the Universal Router execute() args, so the same
+// payload can be sent directly to the UR (fallback) or wrapped in the
+// HOODPrinter Buy Router's buy() call (attribution). See sendBuyNoWait.
+type SwapParts = { commands: string; inputs: string[]; deadline: number };
+const BUYROUTER_STORAGE_KEY = "hoodprint_buyrouter_addr";
 
 /**
  * Generic buy bot for any token on Robinhood Chain (Uniswap V2).
@@ -68,6 +79,10 @@ const V3_FACTORY_ABI = [
 const UNIVERSAL_ROUTER_ABI = [
   "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
 ];
+const universalRouterIface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
+const buyRouterIface = new ethers.Interface(
+  BUYROUTER_ABI as unknown as ethers.InterfaceAbi
+);
 const PAIR_ABI = [
   "function token0() view returns (address)",
   "function token1() view returns (address)",
@@ -358,6 +373,29 @@ export default function PrintBotTesting() {
   // the $1 floor synchronously (reading state in a setTimeout closure goes stale).
   const ethUsdRef = useRef<number | null>(null);
   const ethBalWeiRef = useRef<bigint | null>(null);
+
+  // HOODPrinter Buy Router: canonical pin, else a locally-deployed instance.
+  // buyRouterRef mirrors it so the fast buy loop reads it without stale closures.
+  const [buyRouter, setBuyRouter] = useState<string>(BUYROUTER_ADDRESS || "");
+  const buyRouterRef = useRef<string>(BUYROUTER_ADDRESS || "");
+  const [routerOwner, setRouterOwner] = useState<string>("");
+  const [deployBusy, setDeployBusy] = useState(false);
+  const [deployErr, setDeployErr] = useState("");
+
+  // Keep the ref in sync for the fast buy loop, and resolve a locally-deployed
+  // router if none is pinned canonically.
+  useEffect(() => {
+    buyRouterRef.current = buyRouter;
+  }, [buyRouter]);
+  useEffect(() => {
+    if (BUYROUTER_ADDRESS) return;
+    try {
+      const local = localStorage.getItem(BUYROUTER_STORAGE_KEY);
+      if (local && ethers.isAddress(local)) setBuyRouter(local);
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
 
   // "add token by CA" popup
   const [addOpen, setAddOpen] = useState(false);
@@ -1019,7 +1057,7 @@ export default function PrintBotTesting() {
     tokenAddr: string,
     weth: string,
     valueWei: bigint
-  ): string {
+  ): SwapParts {
     const w = (x: ethers.BigNumberish) => ethers.toBeHex(x, 32).slice(2);
     const wa = (a: string) => ethers.zeroPadValue(a, 32).slice(2);
     const wrap = "0x" + wa(ADDRESS_THIS) + w(valueWei); // WRAP_ETH(recipient=router, amount)
@@ -1040,9 +1078,8 @@ export default function PrintBotTesting() {
       w(0x2b) +
       pathPad +
       w(0);
-    const iface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
     const deadline = Math.floor(Date.now() / 1000) + 1200;
-    return iface.encodeFunctionData("execute", ["0x0b00", [wrap, v3], deadline]);
+    return { commands: "0x0b00", inputs: [wrap, v3], deadline };
   }
 
   // Build Universal Router calldata for an ETH→token V2 exact-in swap
@@ -1053,7 +1090,7 @@ export default function PrintBotTesting() {
     weth: string,
     valueWei: bigint,
     minOut: bigint
-  ): string {
+  ): SwapParts {
     const w = (x: ethers.BigNumberish) => ethers.toBeHex(x, 32).slice(2);
     const wa = (a: string) => ethers.zeroPadValue(a, 32).slice(2);
     const wrap = "0x" + wa(ADDRESS_THIS) + w(valueWei);
@@ -1071,9 +1108,8 @@ export default function PrintBotTesting() {
       wa(weth) +
       wa(tokenAddr) +
       w(0);
-    const iface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
     const deadline = Math.floor(Date.now() / 1000) + 1200;
-    return iface.encodeFunctionData("execute", ["0x0b08", [wrap, v2], deadline]);
+    return { commands: "0x0b08", inputs: [wrap, v2], deadline };
   }
 
   // For V2, quote via the classic router and apply slippage; V3 uses no floor
@@ -1109,15 +1145,38 @@ export default function PrintBotTesting() {
     const route = routeRef.current || { kind: "v2" };
     const tokenAddr = token.trim();
 
-    let data: string;
+    let parts: SwapParts;
     if (route.kind === "v3") {
-      data = buildV3Calldata(to, route.fee, tokenAddr, WETH_ADDR, valueWei);
+      parts = buildV3Calldata(to, route.fee, tokenAddr, WETH_ADDR, valueWei);
     } else {
       const minOut = await quoteV2MinOut(provider, WETH_ADDR, tokenAddr, valueWei);
-      data = buildV2Calldata(to, tokenAddr, WETH_ADDR, valueWei, minOut);
+      parts = buildV2Calldata(to, tokenAddr, WETH_ADDR, valueWei, minOut);
+    }
+
+    // Route through the HOODPrinter Buy Router when we have one, so the tx is
+    // attributed to HOODPrinter on-chain; the router forwards the identical
+    // swap to the Universal Router and the tokens still land with the buyer.
+    // Falls back to calling the Universal Router directly if no router is set.
+    const router = buyRouterRef.current;
+    let toAddr: string;
+    let data: string;
+    if (router) {
+      toAddr = router;
+      data = buyRouterIface.encodeFunctionData("buy", [
+        parts.commands,
+        parts.inputs,
+        parts.deadline,
+      ]);
+    } else {
+      toAddr = UNIVERSAL_ROUTER;
+      data = universalRouterIface.encodeFunctionData("execute", [
+        parts.commands,
+        parts.inputs,
+        parts.deadline,
+      ]);
     }
     return signer.sendTransaction({
-      to: UNIVERSAL_ROUTER,
+      to: toAddr,
       data,
       value: valueWei,
       nonce,
@@ -1326,6 +1385,50 @@ export default function PrintBotTesting() {
       </>,
       "$1 safety floor reached"
     );
+  }
+
+  // Deploy the HOODPrinter Buy Router from the in-browser burner. The treasury
+  // owner (who can later sweep/claim airdrops sent to the contract) is set at
+  // deploy time — use a SECURE address you control, not the burner.
+  async function deployRouter() {
+    setDeployErr("");
+    const ownerAddr = routerOwner.trim();
+    if (!ethers.isAddress(ownerAddr)) {
+      setDeployErr("Enter a valid treasury/owner address (a wallet you control).");
+      return;
+    }
+    if (!pk.trim()) {
+      setDeployErr("Load or create the in-browser wallet first.");
+      return;
+    }
+    setDeployBusy(true);
+    try {
+      const provider = readProvider();
+      const wallet = new ethers.Wallet(normalizeKey(pk), provider);
+      const fee = await provider.getFeeData();
+      const base = fee.maxFeePerGas ?? fee.gasPrice ?? 100000000n;
+      const factory = new ethers.ContractFactory(
+        BUYROUTER_ABI as unknown as ethers.InterfaceAbi,
+        BUYROUTER_BYTECODE,
+        wallet
+      );
+      const c = await factory.deploy(ownerAddr, {
+        maxFeePerGas: base * 3n,
+        maxPriorityFeePerGas: fee.maxPriorityFeePerGas ?? 1000000n,
+      });
+      await c.waitForDeployment();
+      const address = await c.getAddress();
+      try {
+        localStorage.setItem(BUYROUTER_STORAGE_KEY, address);
+      } catch {
+        /* storage blocked */
+      }
+      setBuyRouter(address);
+    } catch (e: any) {
+      setDeployErr("Deploy failed: " + (e.shortMessage || e.message || e));
+    } finally {
+      setDeployBusy(false);
+    }
   }
 
   function scheduleNext() {
@@ -1601,6 +1704,103 @@ export default function PrintBotTesting() {
 
   return (
     <div className="pb">
+      {/* ---- Buy Router (testing) status / deploy ---- */}
+      <div
+        style={{
+          margin: "0 0 1rem",
+          padding: "0.8rem 1rem",
+          borderRadius: 12,
+          border: "1px solid rgba(120,220,150,0.3)",
+          background: "rgba(60,180,100,0.06)",
+          fontSize: "0.9rem",
+        }}
+      >
+        {buyRouter ? (
+          <div>
+            <div style={{ color: "var(--green)", fontWeight: 700 }}>
+              ⚡ Buys route through the HOODPrinter Buy Router
+            </div>
+            <a
+              href={`${CHAIN.explorer}/address/${buyRouter}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#8b93a7", fontSize: "0.8rem", textDecoration: "none" }}
+            >
+              {buyRouter.slice(0, 10)}…{buyRouter.slice(-8)} ↗
+            </a>
+            {!BUYROUTER_ADDRESS && (
+              <button
+                onClick={() => {
+                  setBuyRouter("");
+                  try {
+                    localStorage.removeItem(BUYROUTER_STORAGE_KEY);
+                  } catch {}
+                }}
+                type="button"
+                style={{
+                  marginLeft: 12,
+                  background: "none",
+                  border: "none",
+                  color: "#f5c451",
+                  fontSize: "0.78rem",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                use a different router
+              </button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div style={{ color: "#f5c451", fontWeight: 700, marginBottom: 6 }}>
+              No Buy Router yet — buys currently go direct to the swap router
+              (not attributed). Deploy the HOODPrinter Buy Router to route them.
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                placeholder="Treasury / owner address (a secure wallet you control)"
+                value={routerOwner}
+                onChange={(e) => setRouterOwner(e.target.value)}
+                style={{
+                  flex: "1 1 320px",
+                  minWidth: 0,
+                  padding: "0.5rem 0.7rem",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(0,0,0,0.25)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                }}
+              />
+              <button
+                onClick={deployRouter}
+                disabled={deployBusy}
+                type="button"
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: 999,
+                  border: "1px solid rgba(120,220,150,0.5)",
+                  background: "rgba(60,180,100,0.14)",
+                  color: "var(--green)",
+                  fontWeight: 700,
+                  fontSize: "0.85rem",
+                  cursor: deployBusy ? "default" : "pointer",
+                  opacity: deployBusy ? 0.6 : 1,
+                }}
+              >
+                {deployBusy ? "Deploying…" : "Deploy Buy Router"}
+              </button>
+            </div>
+            {deployErr && (
+              <div style={{ color: "#ff7b6b", marginTop: 6, fontSize: "0.8rem" }}>
+                {deployErr}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {trending.length > 0 && (
         <div className="pb-trending">
           <span className="pb-trending-label">🔥 Trending</span>
