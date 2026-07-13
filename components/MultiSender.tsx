@@ -333,9 +333,17 @@ export default function MultiSender() {
       );
       return;
     }
+    // Fee strategy mirrors the Buy Bot: pay via EIP-1559 fields with real
+    // base-fee headroom. A bare legacy `gasPrice` pinned at the current base
+    // fee gets rejected the instant the base fee ticks up over a multi-minute
+    // run ("max fee per gas less than block base fee"). You still only pay
+    // base + priority, so the generous 3× cap is free insurance, and gas is
+    // sub-cent on this chain anyway.
     const feeData = await provider.getFeeData();
-    const gasPrice = feeData.gasPrice ?? 10000000n;
-    const ethNeeded = gasLimit * gasPrice * BigInt(rows.length);
+    const baseGuess = feeData.maxFeePerGas ?? feeData.gasPrice ?? 100000000n;
+    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas ?? 1000000n;
+    const maxFeePerGas = baseGuess * 3n;
+    const ethNeeded = gasLimit * maxFeePerGas * BigInt(rows.length);
     const ethHave = await provider.getBalance(addr);
     if (ethHave < ethNeeded) {
       setPreflightErr(
@@ -366,7 +374,8 @@ export default function MultiSender() {
           const tx = await erc.transfer(r.to, r.units, {
             nonce: myNonce,
             gasLimit,
-            gasPrice,
+            maxFeePerGas,
+            maxPriorityFeePerGas,
           });
           setSent((s) => s + 1);
           setLastTx(tx.hash);
