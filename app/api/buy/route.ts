@@ -99,10 +99,12 @@ export async function POST(req: NextRequest) {
     "eth_getTransactionByHash",
     [txHash]
   );
-  const receipt = await rpc<{ status: string; logs?: Log[] }>(
-    "eth_getTransactionReceipt",
-    [txHash]
-  );
+  const receipt = await rpc<{
+    status: string;
+    logs?: Log[];
+    gasUsed?: string;
+    effectiveGasPrice?: string;
+  }>("eth_getTransactionReceipt", [txHash]);
   if (!tx || !receipt) {
     return NextResponse.json(
       { ok: false, error: "tx not found" },
@@ -127,12 +129,32 @@ export async function POST(req: NextRequest) {
     ethAmount = 0;
   }
 
+  // Gas actually spent on this tx (ETH), from the receipt — the on-chain
+  // contribution stat. gasUsed × effectiveGasPrice.
+  let gasEth = 0;
+  try {
+    gasEth =
+      Number(
+        BigInt(receipt.gasUsed || "0x0") *
+          BigInt(receipt.effectiveGasPrice || "0x0")
+      ) / 1e18;
+  } catch {
+    gasEth = 0;
+  }
+
   // Attribution: prefer the receipt-verified client claim (covers Universal
   // Router buys), fall back to decoding legacy direct-router calldata.
   const token =
     (claimedToken &&
       tokenFromReceiptLogs(receipt.logs, claimedToken, wallet)) ||
     tokenFromCalldata(tx.input);
-  const { counted } = await recordBuy(wallet, txHash, ethAmount, token, sym);
+  const { counted } = await recordBuy(
+    wallet,
+    txHash,
+    ethAmount,
+    token,
+    sym,
+    gasEth
+  );
   return NextResponse.json({ ok: true, counted, ethAmount, token: token ?? null });
 }

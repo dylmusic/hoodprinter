@@ -354,6 +354,7 @@ export default function PrintBot() {
   // <PlatformStatsNote /> under the page title.
   const [myBuys, setMyBuys] = useState<number | null>(null);
   const [myEth, setMyEth] = useState<number | null>(null);
+  const [myGas, setMyGas] = useState<number | null>(null);
 
   // trending tokens — top by platform ETH volume
   const [trending, setTrending] = useState<
@@ -653,6 +654,7 @@ export default function PrintBot() {
       if (s.wallet) {
         setMyBuys(s.wallet.buys ?? 0);
         setMyEth(s.wallet.eth ?? 0);
+        setMyGas(s.wallet.gas ?? 0);
       }
     } catch {
       /* best-effort */
@@ -1858,6 +1860,14 @@ export default function PrintBot() {
               <span>
                 <strong>{fmtBal(myEth ?? 0)}</strong> ETH volume
               </span>
+              {myGas != null && myGas > 0 && (
+                <>
+                  <span className="pb-mystats-sep">·</span>
+                  <span title="On-chain gas you've spent creating volume">
+                    <strong>{fmtBal(myGas)}</strong> ETH gas
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="pb-level">

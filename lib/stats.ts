@@ -35,7 +35,8 @@ export function getRedis(): Redis | null {
 export type PlatformStats = {
   buys: number;
   eth: number;
-  wallet?: { buys: number; eth: number };
+  gas?: number;
+  wallet?: { buys: number; eth: number; gas: number };
 };
 
 function num(v: unknown): number {
@@ -231,11 +232,16 @@ export async function readStats(wallet?: string): Promise<PlatformStats> {
   const redis = getRedis();
   if (!redis) return { buys: 0, eth: 0 };
   const w = wallet?.toLowerCase();
-  const keys = ["stats:buys", "stats:eth"];
-  if (w) keys.push(`wallet:${w}:buys`, `wallet:${w}:eth`);
+  const keys = ["stats:buys", "stats:eth", "stats:gas"];
+  if (w) keys.push(`wallet:${w}:buys`, `wallet:${w}:eth`, `wallet:${w}:gas`);
   const vals = await redis.mget<(string | number | null)[]>(...keys);
-  const out: PlatformStats = { buys: num(vals[0]), eth: num(vals[1]) };
-  if (w) out.wallet = { buys: num(vals[2]), eth: num(vals[3]) };
+  const out: PlatformStats = {
+    buys: num(vals[0]),
+    eth: num(vals[1]),
+    gas: num(vals[2]),
+  };
+  if (w)
+    out.wallet = { buys: num(vals[3]), eth: num(vals[4]), gas: num(vals[5]) };
   return out;
 }
 
@@ -248,7 +254,8 @@ export async function recordBuy(
   txHash: string,
   ethAmount: number,
   token?: string,
-  sym?: string
+  sym?: string,
+  gasEth = 0
 ): Promise<{ counted: boolean }> {
   const redis = getRedis();
   if (!redis) return { counted: false };
@@ -269,6 +276,10 @@ export async function recordBuy(
     redis.incr("stats:buys"),
     redis.incrbyfloat("stats:eth", ethAmount),
     redis.incrbyfloat(`wallet:${w}:eth`, ethAmount),
+    // On-chain gas spent (ETH) — a badge of on-chain contribution.
+    redis.incrbyfloat("stats:gas", gasEth),
+    redis.incrbyfloat(`wallet:${w}:gas`, gasEth),
+    redis.incrbyfloat(`stats:gas:${day}`, gasEth),
     // Index of every wallet, ranked by buys — the basis for an airdrop CSV.
     redis.zadd("wallets:bybuys", { score: walletBuys, member: w }),
     // Daily time-series buckets for charting activity over time.
@@ -347,6 +358,7 @@ export type WalletRow = {
   address: string;
   buys: number;
   eth: number;
+  gas?: number;
   tier: string;
   name?: string | null;
 };
@@ -379,9 +391,12 @@ export async function readTopWallets(limit = 10): Promise<WalletRow[]> {
     rows.push({ address: String(flat[i]), buys, eth: 0, tier: tierFor(buys) });
   }
   if (!rows.length) return [];
-  const [eths, names] = await Promise.all([
+  const [eths, gases, names] = await Promise.all([
     redis.mget<(string | number | null)[]>(
       ...rows.map((r) => `wallet:${r.address}:eth`)
+    ),
+    redis.mget<(string | number | null)[]>(
+      ...rows.map((r) => `wallet:${r.address}:gas`)
     ),
     redis.hmget<Record<string, string | null>>(
       NAMES_KEY,
@@ -390,6 +405,7 @@ export async function readTopWallets(limit = 10): Promise<WalletRow[]> {
   ]);
   rows.forEach((r, i) => {
     r.eth = num(eths[i]);
+    r.gas = num(gases[i]);
     const n = names?.[r.address];
     r.name = typeof n === "string" && n ? String(n) : null;
   });

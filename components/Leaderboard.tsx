@@ -14,6 +14,7 @@ type Row = {
   address: string;
   buys: number;
   eth: number;
+  gas?: number;
   tier: string;
   name?: string | null;
 };
@@ -176,7 +177,14 @@ export default function Leaderboard({ me }: { me?: string | null }) {
               >
                 {r.tier}
               </span>
-              <span className="lb-buys">
+              <span
+                className="lb-buys"
+                title={
+                  r.gas && r.gas > 0
+                    ? `${fmtEth(r.gas)} ETH gas spent on-chain`
+                    : undefined
+                }
+              >
                 {r.buys.toLocaleString()} <em>buys</em>
               </span>
               <span className="lb-eth">{fmtEth(r.eth)} ETH</span>
