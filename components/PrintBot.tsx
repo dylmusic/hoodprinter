@@ -10,6 +10,12 @@ import {
 import { ethers } from "ethers";
 import Leaderboard from "@/components/Leaderboard";
 import { siteConfig } from "@/site.config";
+import { BUYROUTER_ADDRESS, BUYROUTER_ABI } from "@/lib/buyrouter";
+
+// Buy calldata split into Universal Router execute() args so the same payload
+// can go through the HOODPrinter Buy Router (attribution) or, as a fallback,
+// straight to the Universal Router. See sendBuyNoWait.
+type SwapParts = { commands: string; inputs: string[]; deadline: number };
 
 /**
  * Generic buy bot for any token on Robinhood Chain (Uniswap V2).
@@ -68,6 +74,10 @@ const V3_FACTORY_ABI = [
 const UNIVERSAL_ROUTER_ABI = [
   "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
 ];
+const universalRouterIface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
+const buyRouterIface = new ethers.Interface(
+  BUYROUTER_ABI as unknown as ethers.InterfaceAbi
+);
 const PAIR_ABI = [
   "function token0() view returns (address)",
   "function token1() view returns (address)",
@@ -1019,7 +1029,7 @@ export default function PrintBot() {
     tokenAddr: string,
     weth: string,
     valueWei: bigint
-  ): string {
+  ): SwapParts {
     const w = (x: ethers.BigNumberish) => ethers.toBeHex(x, 32).slice(2);
     const wa = (a: string) => ethers.zeroPadValue(a, 32).slice(2);
     const wrap = "0x" + wa(ADDRESS_THIS) + w(valueWei); // WRAP_ETH(recipient=router, amount)
@@ -1040,9 +1050,8 @@ export default function PrintBot() {
       w(0x2b) +
       pathPad +
       w(0);
-    const iface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
     const deadline = Math.floor(Date.now() / 1000) + 1200;
-    return iface.encodeFunctionData("execute", ["0x0b00", [wrap, v3], deadline]);
+    return { commands: "0x0b00", inputs: [wrap, v3], deadline };
   }
 
   // Build Universal Router calldata for an ETH→token V2 exact-in swap
@@ -1053,7 +1062,7 @@ export default function PrintBot() {
     weth: string,
     valueWei: bigint,
     minOut: bigint
-  ): string {
+  ): SwapParts {
     const w = (x: ethers.BigNumberish) => ethers.toBeHex(x, 32).slice(2);
     const wa = (a: string) => ethers.zeroPadValue(a, 32).slice(2);
     const wrap = "0x" + wa(ADDRESS_THIS) + w(valueWei);
@@ -1071,9 +1080,8 @@ export default function PrintBot() {
       wa(weth) +
       wa(tokenAddr) +
       w(0);
-    const iface = new ethers.Interface(UNIVERSAL_ROUTER_ABI);
     const deadline = Math.floor(Date.now() / 1000) + 1200;
-    return iface.encodeFunctionData("execute", ["0x0b08", [wrap, v2], deadline]);
+    return { commands: "0x0b08", inputs: [wrap, v2], deadline };
   }
 
   // For V2, quote via the classic router and apply slippage; V3 uses no floor
@@ -1109,15 +1117,38 @@ export default function PrintBot() {
     const route = routeRef.current || { kind: "v2" };
     const tokenAddr = token.trim();
 
-    let data: string;
+    let parts: SwapParts;
     if (route.kind === "v3") {
-      data = buildV3Calldata(to, route.fee, tokenAddr, WETH_ADDR, valueWei);
+      parts = buildV3Calldata(to, route.fee, tokenAddr, WETH_ADDR, valueWei);
     } else {
       const minOut = await quoteV2MinOut(provider, WETH_ADDR, tokenAddr, valueWei);
-      data = buildV2Calldata(to, tokenAddr, WETH_ADDR, valueWei, minOut);
+      parts = buildV2Calldata(to, tokenAddr, WETH_ADDR, valueWei, minOut);
+    }
+
+    // Route through the HOODPrinter Buy Router so the tx is attributed to
+    // HOODPrinter on-chain (volume, gas, and per-wallet stats). The router
+    // forwards the identical swap to the Universal Router and the tokens still
+    // land with the buyer. Falls back to the Universal Router directly if the
+    // canonical router is somehow unset — so buys never break.
+    let toAddr: string;
+    let data: string;
+    if (BUYROUTER_ADDRESS) {
+      toAddr = BUYROUTER_ADDRESS;
+      data = buyRouterIface.encodeFunctionData("buy", [
+        parts.commands,
+        parts.inputs,
+        parts.deadline,
+      ]);
+    } else {
+      toAddr = UNIVERSAL_ROUTER;
+      data = universalRouterIface.encodeFunctionData("execute", [
+        parts.commands,
+        parts.inputs,
+        parts.deadline,
+      ]);
     }
     return signer.sendTransaction({
-      to: UNIVERSAL_ROUTER,
+      to: toAddr,
       data,
       value: valueWei,
       nonce,

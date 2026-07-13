@@ -62,6 +62,13 @@ const PHASES: Phase[] = [
         status: "done",
       },
       {
+        title: "Buy Bot v2 — On-Chain Buy Router",
+        desc: "A major upgrade from the beta: every buy now routes through the canonical, verified HOODPrinter Buy Router contract — stamping HOODPrinter's volume and gas on-chain and recording provable per-wallet buy stats. All beta progress carries over seamlessly; you keep leveling up on the same ranks.",
+        status: "done",
+        href: "https://robinhoodchain.blockscout.com/address/0x0e211d54b747832B28a9C8cA74e35069b0049653?tab=contract",
+        hrefLabel: "View the Buy Router contract →",
+      },
+      {
         title: "Buy Bot Public Launch",
         desc: "A polished, mobile-first public release — open to every trader on Robinhood Chain.",
         status: "upcoming",
