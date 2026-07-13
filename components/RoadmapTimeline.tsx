@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PRESALE_LINK } from "@/site.config";
 
 type Status = "done" | "active" | "upcoming";
 
@@ -40,8 +41,10 @@ const PHASES: Phase[] = [
       },
       {
         title: "GemPad Presale",
-        desc: "Our audited GemPad presale — opening soon. We'll announce the link when it goes live.",
-        status: "upcoming",
+        desc: "Our audited GemPad presale is LIVE — contribute ETH to lock in your $PRINT before launch.",
+        status: "active",
+        href: PRESALE_LINK,
+        hrefLabel: "Join the presale →",
       },
     ],
   },

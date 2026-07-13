@@ -161,10 +161,22 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <a className="announce-bar" href="/airdrop">
-        🖨️ Sign Up For FREE Pre-Launch Airdrop
-        <span className="announce-arrow">→</span>
-      </a>
+      {presaleActive ? (
+        <a
+          className="announce-bar"
+          href={presaleLink}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          🚀 The $PRINT Presale is LIVE on GemPad — Buy $PRINT now
+          <span className="announce-arrow">→</span>
+        </a>
+      ) : (
+        <a className="announce-bar" href="/airdrop">
+          🖨️ Sign Up For FREE Pre-Launch Airdrop
+          <span className="announce-arrow">→</span>
+        </a>
+      )}
       <SiteNav variant="home" />
 
       <header className="hero">
@@ -180,9 +192,20 @@ export default function Home() {
             automatically, forever. When we print, we print ETH.
           </p>
           <div className="hero-ctas">
-            <a className="btn btn-primary" href="/print">
-              Level up before $PRINT drops
-            </a>
+            {presaleActive ? (
+              <a
+                className="btn btn-primary"
+                href={presaleLink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Join the $PRINT Presale
+              </a>
+            ) : (
+              <a className="btn btn-primary" href="/print">
+                Level up before $PRINT drops
+              </a>
+            )}
             <a className="btn btn-ghost" href="#how-it-works">
               How it works
             </a>

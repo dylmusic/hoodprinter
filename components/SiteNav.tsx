@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import NavSocials from "@/components/NavSocials";
+import { PRESALE_ACTIVE, PRESALE_LINK } from "@/site.config";
 
 /**
  * Shared site navigation. `variant="home"` shows section anchors; every other
@@ -112,9 +113,20 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               {tools}
             </>
           )}
-          <a className="btn btn-primary" href="/print">
-            Level Up
-          </a>
+          {PRESALE_ACTIVE ? (
+            <a
+              className="btn btn-primary"
+              href={PRESALE_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Presale LIVE
+            </a>
+          ) : (
+            <a className="btn btn-primary" href="/print">
+              Level Up
+            </a>
+          )}
         </div>
         <button
           type="button"
@@ -159,9 +171,21 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             </span>
             <span className="nd-sub">Airdrop any token to thousands of wallets</span>
           </a>
-          <a className="btn btn-primary nav-mobile-cta" href="/print" onClick={close}>
-            Level Up
-          </a>
+          {PRESALE_ACTIVE ? (
+            <a
+              className="btn btn-primary nav-mobile-cta"
+              href={PRESALE_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={close}
+            >
+              Presale LIVE
+            </a>
+          ) : (
+            <a className="btn btn-primary nav-mobile-cta" href="/print" onClick={close}>
+              Level Up
+            </a>
+          )}
         </div>
       )}
     </nav>

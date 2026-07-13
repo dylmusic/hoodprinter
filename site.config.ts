@@ -8,10 +8,11 @@ export const PLACEHOLDER_BUY_LINK = "https://PLACEHOLDER_BUY_LINK";
 export const PLACEHOLDER_TELEGRAM = "https://t.me/HOODPrint";
 export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinterxyz";
 
-// Presale is paused (GemPad delayed) — CTAs point to the Buy Bot / "level up"
-// instead. Flip back to true when the presale is actually live to restore all
-// presale CTAs across the site.
-export const PRESALE_ACTIVE = false;
+// PRESALE IS LIVE. Every primary CTA (announce bar, hero button, nav "Level Up",
+// how-to-buy step 4, roadmap) points to the GemPad presale while this is true.
+// Flip back to false to restore the airdrop / "level up" (Buy Bot) CTAs across
+// the site — the Buy Bot contest keeps running either way (Tools dropdown).
+export const PRESALE_ACTIVE = true;
 export const PRESALE_LINK =
   "https://gempad.app/presale/0xc9D8f13a1293f43554F89dD07f9C6CC4730CD0c6?network=Robinhood_Chain";
 
