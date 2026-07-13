@@ -74,7 +74,7 @@ const jsonLd = {
           name: "How do I airdrop tokens on Robinhood Chain?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Use HOODPrinter Multisend: load the token's contract address, paste your list of recipient addresses (with optional per-wallet amounts), and press send. It batch-sends the airdrop wallet by wallet in confirmation waves — thousands of transfers clear in minutes at sub-cent gas.",
+            text: "Use HOODPrinter Multisend: load the token's contract address, paste your list of recipient addresses (with optional per-wallet amounts), and press send. It routes through the HOODPrinter Multisend contract, sending up to ~150 wallets per transaction, so thousands of transfers clear in minutes at sub-cent gas.",
           },
         },
         {
@@ -82,7 +82,7 @@ const jsonLd = {
           name: "What does the Robinhood Chain airdrop tool cost?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Multisend is free — you only pay network gas, which is sub-cent per transfer on Robinhood Chain. There are no contract approvals and no service fees.",
+            text: "Multisend is free — you only pay network gas, which is sub-cent per transfer on Robinhood Chain. The only extra step is a single one-time token approval the first time you send a given token. No service fees.",
           },
         },
         {
@@ -132,7 +132,15 @@ export default function MultisendPage() {
             addresses in one transaction per ~150 wallets, straight from a
             dedicated in-browser wallet whose private key never leaves your
             browser. No per-recipient popups — just one approval per token, then
-            send.
+            send. The contract is ownerless, permissionless, and{" "}
+            <a
+              href={`${siteConfig.chain.explorerUrl}/address/0x891172B6d7ad82774025C045f6eae517817a6269?tab=contract`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              source-verified on the Robinhood Chain explorer
+            </a>
+            .
           </p>
           <p>
             It&rsquo;s the <strong>airdrop tool for Robinhood Chain</strong>:
@@ -175,8 +183,9 @@ export default function MultisendPage() {
               <summary>What does the airdrop tool cost?</summary>
               <div className="faq-body">
                 Multisend is <strong>free</strong> — you only pay network gas,
-                which is sub-cent per transfer on Robinhood Chain. No contract
-                approvals, no service fees.
+                which is sub-cent per transfer on Robinhood Chain. The one extra
+                step is a single one-time token approval the first time you send
+                a given token. No service fees.
               </div>
             </details>
             <details className="faq-item">
