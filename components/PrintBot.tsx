@@ -43,6 +43,11 @@ const V3_FEE_TIERS = [10000, 3000, 500, 100];
 // only to warn when a buy is so small that fees eat a big share of it.
 const GAS_UNITS_ESTIMATE = 200000n;
 const GAS_WARN_PCT = 10; // warn when est. fees ≥ this % of the buy amount
+// Never spend the wallet below ~$1 of ETH — stop the bot before the last of the
+// balance goes to gas or a buy. Fallback ETH floor used only if the USD price
+// fetch failed (roughly $1 across a wide ETH-price range).
+const MIN_WALLET_USD = 1;
+const MIN_WALLET_ETH_FALLBACK = ethers.parseEther("0.0004");
 const ADDRESS_THIS = "0x0000000000000000000000000000000000000002"; // UR: keep in router
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -349,6 +354,10 @@ export default function PrintBot() {
   const [gasPriceWei, setGasPriceWei] = useState<bigint | null>(null);
   // live ETH/USD price so hourly costs can be shown in dollars
   const [ethUsd, setEthUsd] = useState<number | null>(null);
+  // Refs mirror the live ETH price + balance so the fast buy loop can enforce
+  // the $1 floor synchronously (reading state in a setTimeout closure goes stale).
+  const ethUsdRef = useRef<number | null>(null);
+  const ethBalWeiRef = useRef<bigint | null>(null);
 
   // "add token by CA" popup
   const [addOpen, setAddOpen] = useState(false);
@@ -584,6 +593,7 @@ export default function PrintBot() {
     try {
       const provider = readProvider();
       const eth = await provider.getBalance(burnerAddr);
+      ethBalWeiRef.current = eth;
       setEthBal(ethers.formatEther(eth));
       // $PRINT balance (always shown)
       try {
@@ -697,7 +707,10 @@ export default function PrintBot() {
         );
         const j = await res.json();
         const p = Number(j?.ethereum?.usd);
-        if (alive && Number.isFinite(p) && p > 0) setEthUsd(p);
+        if (alive && Number.isFinite(p) && p > 0) {
+          setEthUsd(p);
+          ethUsdRef.current = p;
+        }
       } catch {
         /* best-effort — USD line just stays hidden */
       }
@@ -1194,10 +1207,32 @@ export default function PrintBot() {
     }
   }
 
+  // The $1 floor in wei, at the live ETH price (or a safe fallback).
+  function floorWei(): bigint {
+    const p = ethUsdRef.current;
+    if (p && p > 0) {
+      return ethers.parseEther((MIN_WALLET_USD / p).toFixed(18));
+    }
+    return MIN_WALLET_ETH_FALLBACK;
+  }
+
   async function doBuy() {
     const wallet = signerRef.current;
     const provider = wallet?.provider;
     if (!wallet || !provider || nonceRef.current == null) return;
+
+    // $1 floor: stop before this buy + its gas would drop the wallet under ~$1.
+    // Checked synchronously against the polled balance (kept fresh each tick) so
+    // we never break the "reserve the nonce before any await" spam-mode rule.
+    const bal = ethBalWeiRef.current;
+    if (bal != null) {
+      const buyWei = ethers.parseEther(amount || "0");
+      const gasBuffer = GAS_UNITS_ESTIMATE * (gasPriceWei ?? 100000000n);
+      if (bal - buyWei - gasBuffer < floorWei()) {
+        handleFloorReached();
+        return;
+      }
+    }
 
     // Reserve this tx's nonce SYNCHRONOUSLY (before any await) so back-to-back
     // sends never grab the same one.
@@ -1280,6 +1315,19 @@ export default function PrintBot() {
     );
   }
 
+  function handleFloorReached() {
+    if (!runningRef.current) return;
+    stopLoop();
+    showAlert(
+      <>
+        Buying stopped to keep at least <strong>$1</strong> of ETH in your
+        wallet — so you never spend the last of it on gas or a buy. Deposit more
+        ETH to keep going; your progress and settings are saved.
+      </>,
+      "$1 safety floor reached"
+    );
+  }
+
   function scheduleNext() {
     if (!runningRef.current) return;
     const pct = parseFloat(randomize || "0");
@@ -1288,6 +1336,16 @@ export default function PrintBot() {
     addLog(`Next buy in ${secs.toFixed(2)}s`);
     setNextAt(Date.now() + secs * 1000);
     timerRef.current = setTimeout(async () => {
+      // Refresh the balance just before the floor check so a fast loop can't
+      // outrun the 10s poll and spend past the $1 floor.
+      const wallet = signerRef.current;
+      if (wallet?.provider) {
+        try {
+          ethBalWeiRef.current = await wallet.provider.getBalance(wallet.address);
+        } catch {
+          /* keep the last known balance — floor still checked against it */
+        }
+      }
       await doBuy();
       scheduleNext();
     }, secs * 1000);
@@ -1365,12 +1423,13 @@ export default function PrintBot() {
       return showAlert("Could not reach the RPC to start. Try again.");
     }
     const gasBuffer = GAS_UNITS_ESTIMATE * (gasPriceWei ?? 100000000n);
-    if (balWei <= buyWei + gasBuffer) {
+    if (balWei - buyWei - gasBuffer < floorWei()) {
       return showAlert(
         <>
           This wallet holds <strong>{fmtBal(ethers.formatEther(balWei))} ETH</strong>
           , which isn&apos;t enough for a <strong>{amount} ETH</strong> buy plus
-          gas. Deposit more ETH into the deposit address, then start.
+          gas while keeping the <strong>$1</strong> safety balance. Deposit more
+          ETH into the deposit address, then start.
         </>,
         "Not enough ETH"
       );
