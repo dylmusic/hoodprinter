@@ -119,6 +119,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               href={PRESALE_LINK}
               target="_blank"
               rel="noopener noreferrer"
+              data-fairlaunch
             >
               Fair Launch
             </a>
@@ -178,6 +179,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               target="_blank"
               rel="noopener noreferrer"
               onClick={close}
+              data-fairlaunch
             >
               Fair Launch
             </a>

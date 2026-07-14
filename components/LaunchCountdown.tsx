@@ -47,6 +47,7 @@ export default function LaunchCountdown() {
         href={PRESALE_LINK}
         target="_blank"
         rel="noopener noreferrer"
+        data-fairlaunch
       >
         <span className="cd-live-dot" aria-hidden="true" />
         Fair launch is LIVE on BasedBid — buy $PRINT now →

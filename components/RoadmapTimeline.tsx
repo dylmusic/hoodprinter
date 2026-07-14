@@ -262,6 +262,7 @@ export default function RoadmapTimeline() {
                       {...(m.href.startsWith("http")
                         ? { target: "_blank", rel: "noopener noreferrer" }
                         : {})}
+                      {...(m.href === PRESALE_LINK ? { "data-fairlaunch": true } : {})}
                     >
                       {m.hrefLabel}
                     </a>

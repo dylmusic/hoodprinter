@@ -168,6 +168,7 @@ export default function Home() {
           href={presaleLink}
           target="_blank"
           rel="noopener noreferrer"
+          data-fairlaunch
         >
           🖨️ $PRINT Fair Launch — Jul 15, 6PM UTC on BasedBid
           <span className="announce-arrow">→</span>
@@ -200,6 +201,7 @@ export default function Home() {
                 href={presaleLink}
                 target="_blank"
                 rel="noopener noreferrer"
+                data-fairlaunch
               >
                 Join the $PRINT Fair Launch
               </a>
@@ -410,6 +412,7 @@ export default function Home() {
                       href={presaleLink}
                       target="_blank"
                       rel="noopener noreferrer"
+                      data-fairlaunch
                     >
                       $PRINT fair launch on BasedBid
                     </a>
