@@ -84,10 +84,6 @@ export default function PrintPage() {
         </h1>
         <PlatformStatsNote />
         <p>Auto-buy any token on Robinhood Chain</p>
-        <p className="pb-tagline">
-          Hold <span className="green">$PRINT</span> to automatically buy any
-          token with your ETH rewards.
-        </p>
         <p className="pb-tagline pb-tagline-sub">
           The volume bot for Robinhood Chain — create automatic buy volume
           for any project.
@@ -103,6 +99,11 @@ export default function PrintPage() {
             verified HOODPrinter Buy Router
           </a>{" "}
           contract.
+        </p>
+        <p className="pb-tagline pb-tagline-sub">
+          <span className="pb-soon">Coming soon</span> — hold{" "}
+          <span className="green">$PRINT</span> to automatically buy any token
+          with your ETH rewards.
         </p>
       </div>
       <PrintBot />
