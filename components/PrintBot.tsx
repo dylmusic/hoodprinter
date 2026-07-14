@@ -143,6 +143,7 @@ const PINNED_TOKENS: RecentToken[] = [
 ];
 // Always-available default tokens, shown after any user-selected recents.
 const DEFAULT_RECENTS: RecentToken[] = [
+  { ca: "0x56A98Db16Cf501b686c14BA00a5DeC02E87083FA", sym: "ROBINFUN" },
   { ca: "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", sym: "ARROW" },
   { ca: "0x8e62f281f282686fca6dcb39288069a93fc23f1c", sym: "HOODRAT" },
   { ca: "0xd7321801caae694090694ff55a9323139f043b88", sym: "JUGGERNAUT" },
