@@ -18,7 +18,7 @@ export const PRESALE_ACTIVE = true;
 export const PRESALE_LINK =
   "https://www.based.bid/robinhood/token/0x6af5dB6f72E6030E71Ea9B45feD55CBD68A69b1d";
 // Fair launch start, UTC. The countdown timer counts down to this instant.
-export const FAIR_LAUNCH_AT = "2026-07-15T18:00:00Z";
+export const FAIR_LAUNCH_AT = "2026-07-15T17:00:00Z"; // 12:00 PM CDT (noon Central)
 
 // Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = GA script not
 // rendered. Create the property at analytics.google.com → Admin → Create
