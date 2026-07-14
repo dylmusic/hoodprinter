@@ -2,6 +2,7 @@ import Image from "next/image";
 import MoneyPrinter from "@/components/MoneyPrinter";
 import CopyAddress from "@/components/CopyAddress";
 import SiteNav from "@/components/SiteNav";
+import LaunchCountdown from "@/components/LaunchCountdown";
 import { siteConfig } from "@/site.config";
 
 const faqs = [
@@ -168,7 +169,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          🚀 The $PRINT Presale is LIVE on GemPad — Buy $PRINT now
+          🖨️ $PRINT Fair Launch — Jul 15, 6PM UTC on BasedBid
           <span className="announce-arrow">→</span>
         </a>
       ) : (
@@ -191,6 +192,7 @@ export default function Home() {
             feeds the machine, and the machine pays ETH to holders — nonstop,
             automatically, forever. When we print, we print ETH.
           </p>
+          {presaleActive && <LaunchCountdown />}
           <div className="hero-ctas">
             {presaleActive ? (
               <a
@@ -199,7 +201,7 @@ export default function Home() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Join the $PRINT Presale
+                Join the $PRINT Fair Launch
               </a>
             ) : (
               <a className="btn btn-primary" href="/print">
@@ -401,7 +403,7 @@ export default function Home() {
               <span className="step-num">4</span>
               {presaleActive ? (
                 <>
-                  <h3>Join the presale on Gempad</h3>
+                  <h3>Join the fair launch on BasedBid</h3>
                   <p>
                     Head to the{" "}
                     <a
@@ -409,11 +411,11 @@ export default function Home() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      official Gempad presale
+                      $PRINT fair launch on BasedBid
                     </a>
-                    , connect your wallet, and contribute ETH to lock in your
-                    $PRINT before launch. Tokens are claimable on Gempad at
-                    launch — then the printing starts.
+                    , connect your wallet, and buy in at the same price as
+                    everyone else — no early allocations. When the clock hits
+                    zero, the printing starts.
                   </p>
                 </>
               ) : (

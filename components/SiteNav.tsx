@@ -120,7 +120,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               target="_blank"
               rel="noopener noreferrer"
             >
-              Presale LIVE
+              Fair Launch
             </a>
           ) : (
             <a className="btn btn-primary" href="/print">
@@ -179,7 +179,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               rel="noopener noreferrer"
               onClick={close}
             >
-              Presale LIVE
+              Fair Launch
             </a>
           ) : (
             <a className="btn btn-primary nav-mobile-cta" href="/print" onClick={close}>
