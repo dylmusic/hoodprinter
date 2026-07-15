@@ -3,7 +3,7 @@
  * Swap the PLACEHOLDER_* values here at launch — nothing else needs to change.
  */
 
-export const PLACEHOLDER_CONTRACT_ADDRESS = "0x41E0bA8940C753d348c437d7E3D901956Cc94B85";
+export const PLACEHOLDER_CONTRACT_ADDRESS = "0x6af5dB6f72E6030E71Ea9B45feD55CBD68A69b1d";
 export const PLACEHOLDER_BUY_LINK = "https://PLACEHOLDER_BUY_LINK";
 export const PLACEHOLDER_TELEGRAM = "https://t.me/HOODPrint";
 export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinterxyz";

@@ -39,7 +39,8 @@ the browser endpoint). Node 20 needs `--experimental-websocket`. Pattern:
 - chainId **4663** (hex 0x1237), RPC `https://rpc.mainnet.chain.robinhood.com`,
   explorer `https://robinhoodchain.blockscout.com`.
 - $PRINT contract: `site.config.ts` → `PLACEHOLDER_CONTRACT_ADDRESS`
-  (`0x41E0bA8940C753d348c437d7E3D901956Cc94B85`). **$PRINT has a 5% transfer
+  (`0x6af5dB6f72E6030E71Ea9B45feD55CBD68A69b1d`, updated at fair launch
+  2026-07-15 — the old `0x41E0…4B85` deploy is dead). **$PRINT has a 5% transfer
   tax** → buys need **≥7% slippage** (enforced in the bot; see below).
 - Uniswap: V2 Router02 `0x89e5db8b5aa49aa85ac63f691524311aeb649eba`, V2 Factory
   `0x8bceaa40b9acdfaedf85adf4ff01f5ad6517937f`, V3 Factory
