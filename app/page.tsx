@@ -170,7 +170,7 @@ export default function Home() {
           rel="noopener noreferrer"
           data-fairlaunch
         >
-          🖨️ $PRINT Fair Launch — Jul 15, 6PM UTC on BasedBid
+          🖨️ $PRINT Fair Launch is LIVE on BasedBid — buy now
           <span className="announce-arrow">→</span>
         </a>
       ) : (
@@ -203,7 +203,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 data-fairlaunch
               >
-                Join the $PRINT Fair Launch
+                Buy $PRINT — Fair Launch LIVE
               </a>
             ) : (
               <a className="btn btn-primary" href="/print">
@@ -405,9 +405,9 @@ export default function Home() {
               <span className="step-num">4</span>
               {presaleActive ? (
                 <>
-                  <h3>Join the fair launch on BasedBid</h3>
+                  <h3>Buy in the fair launch on BasedBid</h3>
                   <p>
-                    Head to the{" "}
+                    The{" "}
                     <a
                       href={presaleLink}
                       target="_blank"
@@ -415,10 +415,10 @@ export default function Home() {
                       data-fairlaunch
                     >
                       $PRINT fair launch on BasedBid
-                    </a>
-                    , connect your wallet, and buy in at the same price as
-                    everyone else — no early allocations. When the clock hits
-                    zero, the printing starts.
+                    </a>{" "}
+                    is live right now — connect your wallet and buy in at the
+                    same price as everyone else, no early allocations. The
+                    printing has started.
                   </p>
                 </>
               ) : (

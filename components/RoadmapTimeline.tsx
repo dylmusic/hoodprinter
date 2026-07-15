@@ -41,10 +41,10 @@ const PHASES: Phase[] = [
       },
       {
         title: "Fair Launch on BasedBid",
-        desc: "$PRINT launches fair on the BasedBid launchpad — no early allocations, everyone buys in at the same price. Jul 15, 6PM UTC.",
+        desc: "$PRINT is launching fair on the BasedBid launchpad — LIVE NOW. No early allocations, everyone buys in at the same price.",
         status: "active",
         href: PRESALE_LINK,
-        hrefLabel: "Join the fair launch →",
+        hrefLabel: "Buy $PRINT on BasedBid →",
       },
     ],
   },

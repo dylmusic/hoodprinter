@@ -121,7 +121,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               rel="noopener noreferrer"
               data-fairlaunch
             >
-              Fair Launch
+              Fair Launch LIVE
             </a>
           ) : (
             <a className="btn btn-primary" href="/print">
@@ -181,7 +181,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               onClick={close}
               data-fairlaunch
             >
-              Fair Launch
+              Fair Launch LIVE
             </a>
           ) : (
             <a className="btn btn-primary nav-mobile-cta" href="/print" onClick={close}>
