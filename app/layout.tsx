@@ -6,6 +6,7 @@ import {
   GOOGLE_SITE_VERIFICATION,
 } from "@/site.config";
 import "./globals.css";
+import FairLaunchModal from "@/components/FairLaunchModal";
 
 const defaultTitle = `${siteConfig.name} (${siteConfig.symbol}) — ${siteConfig.tagline}`;
 
@@ -81,6 +82,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
+        <FairLaunchModal />
         {GA_MEASUREMENT_ID && (
           <>
             <Script

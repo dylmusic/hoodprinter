@@ -72,9 +72,10 @@ export default function FairLaunchModal() {
           One quick step first
         </h3>
         <p className="flm-body">
-          Join our Telegram before you buy — that&rsquo;s where we post the{" "}
-          <strong>official contract &amp; launch links</strong>, so you don&rsquo;t
-          miss the drop or get caught by a fake.
+          $PRINT is still <strong>pre-bond on based.bid</strong> — buy now to
+          get in before the bond fills and we go live on the DEX. Join our
+          Telegram for launch updates and the{" "}
+          <strong>official contract &amp; links</strong>.
         </p>
         <a
           className="flm-btn flm-tg"
@@ -87,7 +88,7 @@ export default function FairLaunchModal() {
         <button type="button" className="flm-btn flm-go" onClick={proceed}>
           Continue to Fair Launch →
         </button>
-        <span className="flm-note">Fair launch · LIVE now</span>
+        <span className="flm-note">Pre-bond · buy before we hit the DEX</span>
       </div>
     </div>
   );
