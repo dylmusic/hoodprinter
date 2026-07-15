@@ -203,7 +203,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 data-fairlaunch
               >
-                Buy $PRINT — Fair Launch LIVE
+                Buy $PRINT
               </a>
             ) : (
               <a className="btn btn-primary" href="/print">

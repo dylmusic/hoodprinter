@@ -50,7 +50,7 @@ export default function LaunchCountdown() {
         data-fairlaunch
       >
         <span className="cd-live-dot" aria-hidden="true" />
-        Fair launch is LIVE on BasedBid — buy $PRINT now →
+        Fair Launch Live Now
       </a>
     );
   }
