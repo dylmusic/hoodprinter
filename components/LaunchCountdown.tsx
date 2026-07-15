@@ -73,7 +73,7 @@ export default function LaunchCountdown() {
           </div>
         ))}
       </div>
-      <span className="cd-note">{launchLabel(target)} · on the BasedBid launchpad</span>
+      <span className="cd-note">{launchLabel(target)}</span>
     </div>
   );
 }

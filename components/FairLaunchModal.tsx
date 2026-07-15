@@ -87,7 +87,7 @@ export default function FairLaunchModal() {
         <button type="button" className="flm-btn flm-go" onClick={proceed}>
           Continue to Fair Launch →
         </button>
-        <span className="flm-note">Fair launch on BasedBid · Jul 15, 6PM UTC</span>
+        <span className="flm-note">Fair launch · LIVE now</span>
       </div>
     </div>
   );

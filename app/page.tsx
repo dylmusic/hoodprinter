@@ -170,7 +170,7 @@ export default function Home() {
           rel="noopener noreferrer"
           data-fairlaunch
         >
-          🖨️ $PRINT Fair Launch is LIVE on BasedBid — buy now
+          🖨️ $PRINT Fair Launch is LIVE — buy now
           <span className="announce-arrow">→</span>
         </a>
       ) : (
@@ -405,7 +405,7 @@ export default function Home() {
               <span className="step-num">4</span>
               {presaleActive ? (
                 <>
-                  <h3>Buy in the fair launch on BasedBid</h3>
+                  <h3>Buy in the fair launch</h3>
                   <p>
                     The{" "}
                     <a
@@ -414,7 +414,7 @@ export default function Home() {
                       rel="noopener noreferrer"
                       data-fairlaunch
                     >
-                      $PRINT fair launch on BasedBid
+                      $PRINT fair launch
                     </a>{" "}
                     is live right now — connect your wallet and buy in at the
                     same price as everyone else, no early allocations. The
