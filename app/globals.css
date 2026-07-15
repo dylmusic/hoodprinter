@@ -4087,6 +4087,7 @@ footer {
 }
 .cd-live {
   display: inline-flex;
+  flex-direction: row; /* .cd sets column; keep the dot inline with the text */
   align-items: center;
   gap: 10px;
   padding: 14px 22px;
