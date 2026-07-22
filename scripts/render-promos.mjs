@@ -1,8 +1,9 @@
 /**
- * Renders 10 square (1080x1080) social promo graphics into public/brand/promo/.
+ * Renders 15 square (1080x1080) social promo graphics into public/brand/promo/.
  * Same visual language as the site: dark green, #00c805 accent, capped
  * printer icon — plus glow bloom, gradient type, ETH-bill confetti.
- * Promos 1–5 tell the core $PRINT story; 6–10 are the Buy Bot pack.
+ * Promos 1–5 tell the core $PRINT story; 6–10 are the Buy Bot pack;
+ * 11–15 are the RWA Pools pack.
  *
  * Run: node scripts/render-promos.mjs   (needs node >= 18.17 for sharp)
  */
@@ -425,6 +426,158 @@ await render(
   ${neon(716, 120, `<tspan fill="url(#greenGrad)">is live.</tspan>`, -3)}
   ${urlPill(772, "hoodprinter.xyz/print", 620)}
   <text x="${W / 2}" y="912" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="30" fill="${GOLD}">Every buy counts toward the $PRINT airdrop.</text>
+  ${footer(H - 52)}
+  `,
+  { size: 300, left: W / 2 - 150, top: 120 }
+);
+
+/* ---------------------------------------------------------------- *
+ *  RWA Pools pack (promos 11–15)                                    *
+ * ---------------------------------------------------------------- */
+
+// accent colors, matching lib/rwaPools.ts + the live /rwa pool cards
+const RWA_COLORS = {
+  NVDA: GREEN,
+  TSLA: "#ff4d4d",
+  SPCX: "#4ac3ff",
+  AAPL: "#c9cdd3",
+  MSFT: "#4ae0c8",
+};
+
+/** small ticker card: colored ring + letter, symbol, "$PRINT pair" subtext */
+function rwaCard(x, y, w, h, symbol) {
+  const color = RWA_COLORS[symbol];
+  return `
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="${CARD}" stroke="${color}" stroke-width="2" opacity="0.95"/>
+    <circle cx="${x + 50}" cy="${y + h / 2}" r="24" fill="none" stroke="${color}" stroke-width="2.5"/>
+    <text x="${x + 50}" y="${y + h / 2 + 9}" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="24" fill="${color}">${symbol[0]}</text>
+    <text x="${x + 100}" y="${y + h / 2 - 6}" font-family="${FONT}" font-weight="800" font-size="42" fill="${WHITE}">${symbol}</text>
+    <text x="${x + 100}" y="${y + h / 2 + 32}" font-family="${FONT}" font-weight="500" font-size="21" fill="${MUTED}">$PRINT pair</text>
+  `;
+}
+
+// 11 — RWA hero
+await render(
+  "promo-11-rwa-hero.png",
+  `
+  ${confetti()}
+  <ellipse cx="${W / 2}" cy="240" rx="240" ry="200" fill="${GREEN}" opacity="0.16" filter="url(#bigGlow)"/>
+  ${betaBadge(W / 2 + 300, 150)}
+  ${neon(590, 112, `<tspan fill="${WHITE}">Real assets.</tspan>`, -3)}
+  ${neon(716, 112, `<tspan fill="url(#greenGrad)">Real ETH.</tspan>`, -3)}
+  <rect x="${W / 2 - 320}" y="784" width="640" height="66" rx="33" fill="#0c120e" stroke="${GREEN}" stroke-width="2" opacity="0.9"/>
+  <text x="${W / 2}" y="827" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="27" fill="${GREEN}">$PRINT/RWA Pools · hoodprinter.xyz/rwa</text>
+  ${footer(H - 62)}
+  `,
+  { size: 310, left: W / 2 - 155, top: 96 }
+);
+
+// 12 — how RWA Pools work: three steps, stacked (mirrors promo-2)
+const rwaSteps = [
+  { y: 480, n: "1", t: "5% tax", s: "on every $PRINT trade" },
+  { y: 660, n: "2", t: "ETH reflections", s: "get deployed as liquidity" },
+  { y: 840, n: "3", t: "RWA Pools grow", s: "holders earn real ETH" },
+];
+await render(
+  "promo-12-how-it-works.png",
+  `
+  ${confetti(false, [
+    [220, 300, 1, 0.7],
+    [880, 340, 0.8, 0.6],
+    [870, 640, 0.9, 0.6],
+  ])}
+  ${wordmark(120)}
+  ${neon(244, 78, `<tspan fill="${WHITE}">From tax to</tspan>`, -2)}
+  ${neon(338, 78, `<tspan fill="url(#greenGrad)">real assets.</tspan>`, -2)}
+  <line x1="215" y1="536" x2="215" y2="784" stroke="${GREEN}" stroke-width="4" opacity="0.35"/>
+  ${rwaSteps
+    .map(
+      (st) => `
+    <circle cx="215" cy="${st.y}" r="56" fill="#063d15" stroke="${GREEN}" stroke-width="3"/>
+    <text x="215" y="${st.y + 19}" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="52" fill="${GREEN}">${st.n}</text>
+    <text x="320" y="${st.y + 4}" font-family="${FONT}" font-weight="800" font-size="48" fill="${WHITE}">${st.t}</text>
+    <text x="322" y="${st.y + 52}" font-family="${FONT}" font-weight="500" font-size="29" fill="${MUTED}">${st.s}</text>
+  `
+    )
+    .join("")}
+  <text x="${W / 2}" y="966" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="30" fill="${GREEN}">The printer prints off real-world assets.</text>
+  ${footer(H - 52)}
+  `
+);
+
+// 13 — five real assets, ticker showcase (3-over-2 grid)
+await render(
+  "promo-13-tickers.png",
+  `
+  ${confetti(false, [
+    [200, 260, 1, 0.7],
+    [885, 195, 0.8, 0.6],
+    [860, 990, 0.9, 0.55],
+  ])}
+  ${wordmark(112)}
+  ${neon(238, 84, `<tspan fill="${WHITE}">Five real assets.</tspan>`, -2)}
+  ${neon(332, 84, `<tspan fill="url(#greenGrad)">One printer.</tspan>`, -2)}
+  ${rwaCard(60, 420, 300, 170, "NVDA")}
+  ${rwaCard(390, 420, 300, 170, "TSLA")}
+  ${rwaCard(720, 420, 300, 170, "SPCX")}
+  ${rwaCard(225, 620, 300, 170, "AAPL")}
+  ${rwaCard(555, 620, 300, 170, "MSFT")}
+  <text x="${W / 2}" y="884" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="30" fill="${MUTED}">$PRINT/RWA Pools — beta dashboard live</text>
+  <text x="${W / 2}" y="928" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="29" fill="${GREEN}">hoodprinter.xyz/rwa</text>
+  ${footer(H - 52)}
+  `
+);
+
+// 14 — the RWA flywheel: reflections grow real assets (mirrors promo-9)
+const rwaNodes = [
+  { x: 84, big: "$PRINT", sub: "5% tax collected" },
+  { x: 404, big: "ETH", sub: "reflections roll in" },
+  { x: 724, big: "POOLS", sub: "RWA liquidity grows" },
+];
+await render(
+  "promo-14-flywheel.png",
+  `
+  ${confetti(false, [
+    [210, 270, 1, 0.7],
+    [880, 310, 0.8, 0.6],
+    [850, 900, 0.9, 0.55],
+  ])}
+  ${wordmark(112)}
+  ${neon(250, 88, `<tspan fill="${WHITE}">Reflections that</tspan>`, -2)}
+  ${neon(350, 88, `<tspan fill="url(#greenGrad)">grow real assets.</tspan>`, -2)}
+  ${rwaNodes
+    .map(
+      (n) => `
+    <rect x="${n.x}" y="${nodeY}" width="${nodeW}" height="${nodeH}" rx="26" fill="${CARD}" stroke="${GREEN}" stroke-width="2" opacity="0.95"/>
+    <text x="${n.x + nodeW / 2}" y="${nodeY + 72}" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="48" fill="url(#greenGrad)">${n.big}</text>
+    <text x="${n.x + nodeW / 2}" y="${nodeY + 114}" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="22" fill="${MUTED}">${n.sub}</text>
+  `
+    )
+    .join("")}
+  ${arrow(rwaNodes[0].x + nodeW + 8, nodeY + nodeH / 2, 32)}
+  ${arrow(rwaNodes[1].x + nodeW + 8, nodeY + nodeH / 2, 32)}
+  <path d="M${rwaNodes[2].x + nodeW / 2},${nodeY + nodeH + 26}
+           C ${rwaNodes[2].x + nodeW / 2},${nodeY + nodeH + 110} ${rwaNodes[0].x + nodeW / 2},${nodeY + nodeH + 110} ${rwaNodes[0].x + nodeW / 2},${nodeY + nodeH + 34}"
+        fill="none" stroke="${GOLD}" stroke-width="4" stroke-dasharray="2 12" stroke-linecap="round"/>
+  <path d="M${rwaNodes[0].x + nodeW / 2 - 12},${nodeY + nodeH + 52} L${rwaNodes[0].x + nodeW / 2},${nodeY + nodeH + 30} L${rwaNodes[0].x + nodeW / 2 + 12},${nodeY + nodeH + 52}"
+        fill="none" stroke="${GOLD}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="${W / 2}" y="${nodeY + nodeH + 150}" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="${GOLD}" letter-spacing="3">AND REPEAT</text>
+  <text x="${W / 2}" y="850" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="31" fill="${WHITE}">Hold $PRINT. The 5% tax pays you ETH.</text>
+  <text x="${W / 2}" y="896" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="31" fill="${WHITE}">The ETH grows the RWA pools. Brrr.</text>
+  ${footer(H - 52)}
+  `
+);
+
+// 15 — beta CTA: the dashboard is live, every number is real (mirrors promo-10)
+await render(
+  "promo-15-beta.png",
+  `
+  ${confetti(true)}
+  ${betaBadge(W / 2, 470, 1.15)}
+  ${neon(590, 112, `<tspan fill="${WHITE}">RWA Pools</tspan>`, -3)}
+  ${neon(716, 112, `<tspan fill="url(#greenGrad)">dashboard live.</tspan>`, -3)}
+  ${urlPill(772, "hoodprinter.xyz/rwa", 620)}
+  <text x="${W / 2}" y="912" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="29" fill="${GOLD}">Every number is real — currently zero. Watch it fill.</text>
   ${footer(H - 52)}
   `,
   { size: 300, left: W / 2 - 150, top: 120 }

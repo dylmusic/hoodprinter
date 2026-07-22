@@ -38,6 +38,19 @@ const SECTIONS: AssetSection[] = [
     ],
   },
   {
+    id: "rwa",
+    title: "The RWA Pools pack",
+    sub: "The real-world-asset angle: five real Stock Tokens, the flywheel, and the beta dashboard.",
+    five: true,
+    items: [
+      { src: "/brand/promo/promo-11-rwa-hero.png", name: "Real assets. Real ETH.", dims: "1080×1080", fmt: "PNG", tag: "BETA" },
+      { src: "/brand/promo/promo-12-how-it-works.png", name: "From tax to real assets", dims: "1080×1080", fmt: "PNG" },
+      { src: "/brand/promo/promo-13-tickers.png", name: "Five real assets. One printer.", dims: "1080×1080", fmt: "PNG" },
+      { src: "/brand/promo/promo-14-flywheel.png", name: "Reflections that grow real assets", dims: "1080×1080", fmt: "PNG" },
+      { src: "/brand/promo/promo-15-beta.png", name: "RWA Pools dashboard live", dims: "1080×1080", fmt: "PNG" },
+    ],
+  },
+  {
     id: "buybot",
     title: "The Buy Bot pack",
     sub: "The utility angle: one-click auto-buys, spam mode, ranks, and the $PRINT flywheel.",
@@ -65,6 +78,7 @@ const SECTIONS: AssetSection[] = [
     sub: "The preview cards behind every hoodprinter.xyz link — handy for articles and embeds.",
     items: [
       { src: "/brand/og.png", name: "Home", dims: "1200×630", fmt: "PNG", wide: true },
+      { src: "/brand/og-rwa.png", name: "RWA Pools", dims: "1200×630", fmt: "PNG", wide: true },
       { src: "/brand/og-print.png", name: "Buy Bot", dims: "1200×630", fmt: "PNG", wide: true },
       { src: "/brand/og-airdrop.png", name: "Airdrop", dims: "1200×630", fmt: "PNG", wide: true },
       { src: "/brand/og-roadmap.png", name: "Roadmap", dims: "1200×630", fmt: "PNG", wide: true },
