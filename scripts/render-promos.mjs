@@ -577,7 +577,7 @@ await render(
   ${neon(590, 112, `<tspan fill="${WHITE}">RWA Pools</tspan>`, -3)}
   ${neon(716, 112, `<tspan fill="url(#greenGrad)">dashboard live.</tspan>`, -3)}
   ${urlPill(772, "hoodprinter.xyz/rwa", 620)}
-  <text x="${W / 2}" y="912" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="29" fill="${GOLD}">Every number is real — currently zero. Watch it fill.</text>
+  <text x="${W / 2}" y="912" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="29" fill="${GOLD}">Tracking TVL and ETH rewards from day one.</text>
   ${footer(H - 52)}
   `,
   { size: 300, left: W / 2 - 150, top: 120 }
