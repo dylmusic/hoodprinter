@@ -300,6 +300,14 @@ a {
   text-shadow: 0 0 40px var(--green-glow);
 }
 
+.hero-rwa-link {
+  transition: text-shadow 0.15s ease, opacity 0.15s ease;
+}
+.hero-rwa-link:hover {
+  text-shadow: 0 0 52px var(--green-glow);
+  opacity: 0.9;
+}
+
 .hero-sub {
   max-width: 620px;
   margin: 0 auto 34px;

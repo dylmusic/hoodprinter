@@ -34,7 +34,7 @@ export const siteConfig = {
   symbol: "$PRINT",
   tagline: "Backed by RWAs. Paid in ETH.",
   description:
-    "HOODPrinter ($PRINT) lives on Robinhood Chain, accumulates real-world assets, and prints ETH to holders. Buy, hold, and the printer pays you — no staking, no claiming, now backed by $PRINT/RWA pools.",
+    "HOODPrinter ($PRINT) lives on Robinhood Chain, accumulates real-world assets, and prints ETH to holders. Buy, hold, and the printer pays you — no staking, no claiming, backed by $PRINT/RWA pools.",
   // Canonical host is www — the apex 308-redirects to it, so every absolute
   // URL we emit (canonicals, sitemap, OG, JSON-LD) must be the www form.
   url: "https://www.hoodprinter.xyz",

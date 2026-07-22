@@ -83,7 +83,7 @@ const TWEETS: { label: string; text: string }[] = [
   },
   {
     label: "RWA Pools",
-    text: "$PRINT just went RWA-native.\n\nRWA Pools pair $PRINT against real Robinhood Chain Stock Tokens — NVDA, TSLA, SPCX, AAPL, MSFT. Treasury ETH grows the pools instead of sitting idle.\n\nBeta dashboard live: hoodprinter.xyz/rwa",
+    text: "$PRINT pairs against real Robinhood Chain Stock Tokens — NVDA, TSLA, SPCX, AAPL, MSFT. Treasury ETH grows the RWA pools instead of sitting idle.\n\nBeta dashboard live: hoodprinter.xyz/rwa",
   },
   {
     label: "Buy Bot",

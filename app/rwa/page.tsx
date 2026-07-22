@@ -126,7 +126,7 @@ export default function RwaPage() {
 
         <section className="rwa-about">
           <details className="faq-item rwa-why-details">
-            <summary>Why $PRINT is going RWA-native</summary>
+            <summary>$PRINT&rsquo;s RWA thesis</summary>
             <div className="faq-body">
               <p>
                 <a
@@ -146,9 +146,9 @@ export default function RwaPage() {
                 tokenized-asset liquidity.
               </p>
               <p>
-                HOODPrinter is closing that gap. $PRINT already taxes every buy/sell 5% and pays
-                that ETH straight to holders — RWA Pools take the same reflections and put them
-                to work as <strong>$PRINT/RWA liquidity</strong> instead of sitting idle.
+                RWA Pools are $PRINT&rsquo;s answer to that gap. $PRINT taxes every buy/sell 5%
+                and pays that ETH straight to holders — RWA Pools put the same reflections to
+                work as <strong>$PRINT/RWA liquidity</strong> instead of sitting idle.
                 Depositing $PRINT alongside a Stock Token earns a share of trading fees{" "}
                 <em>and</em> a cut of the reflection flow, so the ETH holders earn is increasingly
                 backed by real-world-asset trading, not just $PRINT speculation.

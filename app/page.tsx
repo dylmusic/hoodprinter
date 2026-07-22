@@ -210,7 +210,11 @@ export default function Home() {
             <br />
             Get paid <span className="green">ETH</span>.
             <br />
-            Backed by <span className="green">RWAs</span>.
+            Backed by{" "}
+            <a href="/rwa" className="green hero-rwa-link">
+              RWAs
+            </a>
+            .
           </h1>
           <p className="hero-sub">
             HOODPrinter is a protocol designed to accumulate RWAs and pay out
