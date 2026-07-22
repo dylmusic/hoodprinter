@@ -217,9 +217,9 @@ export default function Home() {
             .
           </h1>
           <p className="hero-sub">
-            HOODPrinter is a protocol designed to accumulate RWAs and pay out
-            ETH rewards based on real-world assets. Every $PRINT buy adds to
-            the RWA pools — and pays out holders in ETH.
+            HOODPrinter pays 5% ETH rewards backed by real-world assets.
+            Every $PRINT buy adds to the RWA pools — and pays out holders
+            in ETH.
           </p>
           {presaleActive && <LaunchCountdown />}
           <div className="hero-ctas">
