@@ -255,12 +255,12 @@ export default function Home() {
       <section id="how-it-works">
         <div className="container">
           <p className="section-kicker">How It Works</p>
-          <h2 className="section-title">Three steps. Zero effort.</h2>
+          <h2 className="section-title">Four steps. Zero effort.</h2>
           <p className="section-sub">
             No staking. No claiming. No farming. The printer does the work —
             ETH lands in your wallet just for holding.
           </p>
-          <div className="grid-3">
+          <div className="grid-4">
             <div className="card">
               <span className="step-num">1</span>
               <h3>Buy $PRINT</h3>
@@ -286,6 +286,18 @@ export default function Home() {
                 The printer converts the tax to <strong>ETH</strong> and
                 distributes it to every holder, proportional to their bag —
                 straight to your wallet. Brrr.
+              </p>
+            </div>
+            <div className="card">
+              <span className="step-num">4</span>
+              <h3>
+                Treasury buys RWAs <span className="nav-beta">BETA</span>
+              </h3>
+              <p>
+                Treasury earnings buy real Robinhood Chain{" "}
+                <strong>Stock Tokens</strong> and add them to the $PRINT/RWA
+                pools, so future payouts are increasingly backed by
+                real-world assets. <a href="/rwa">See RWA Pools →</a>
               </p>
             </div>
           </div>

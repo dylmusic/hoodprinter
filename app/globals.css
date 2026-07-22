@@ -538,9 +538,24 @@ section:nth-of-type(even) {
   gap: 20px;
 }
 
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
 @media (max-width: 860px) {
   .grid-3,
   .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .grid-4 {
     grid-template-columns: 1fr;
   }
 }
