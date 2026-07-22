@@ -105,7 +105,9 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
           {variant === "home" ? (
             <>
               <a href="#how-it-works">How It Works</a>
-              <a href="#tokenomics">Tokenomics</a>
+              <a href="/rwa">
+                RWA Pools <span className="nav-beta">BETA</span>
+              </a>
               <a href="/roadmap">Roadmap</a>
               <a href="/airdrop">Airdrop</a>
               {tools}
@@ -153,7 +155,9 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
           {variant === "home" ? (
             <>
               <a href="#how-it-works" onClick={close}>How It Works</a>
-              <a href="#tokenomics" onClick={close}>Tokenomics</a>
+              <a href="/rwa" onClick={close}>
+                RWA Pools <span className="nav-beta">BETA</span>
+              </a>
               <a href="/roadmap" onClick={close}>Roadmap</a>
               <a href="/airdrop" onClick={close}>Airdrop</a>
               <a href="#faq" onClick={close}>FAQ</a>
