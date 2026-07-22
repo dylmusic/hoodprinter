@@ -95,7 +95,7 @@ await renderComposite({
     <text x="600" y="390" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="80" letter-spacing="-2">
       <tspan fill="#ffffff">THE</tspan><tspan fill="#00c805" dx="22">MASTER PLAN</tspan>
     </text>
-    <text x="600" y="460" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="32" fill="#8fa898">Presale → LP locked → DAO → <tspan fill="#f5c518" font-weight="800">$1,000,000 printed</tspan></text>
+    <text x="600" y="460" text-anchor="middle" font-family="${FONT}" font-weight="600" font-size="32" fill="#8fa898">Fair launch → LP locked → DAO → <tspan fill="#f5c518" font-weight="800">$1,000,000 printed</tspan></text>
     <text x="600" y="530" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#00c805">hoodprinter.xyz/roadmap</text>
   `,
   out: path.join(brand, "og-roadmap.png"),
@@ -179,6 +179,48 @@ await renderComposite({
     .png()
     .toFile(path.join(brand, "og-multisend.png"));
   console.log("wrote public/brand/og-multisend.png");
+}
+
+// --- OG image 1200x630 for /rwa (bespoke, product-card style like /print) ---
+{
+  const chip = (x, w, label, color) => `
+    <rect x="${x}" y="452" width="${w}" height="62" rx="31" fill="${color}" opacity="0.1"/>
+    <rect x="${x}" y="452" width="${w}" height="62" rx="31" fill="none" stroke="${color}" stroke-width="2" opacity="0.55"/>
+    <text x="${x + w / 2}" y="491" text-anchor="middle" font-family="${FONT}" font-weight="700" font-size="26" fill="#ffffff">${label}</text>
+  `;
+  const bg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">
+      ${backdrop(1200, 630)}
+      <text x="212" y="116" font-family="${FONT}" font-weight="800" font-size="44" letter-spacing="-1">
+        <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan>
+      </text>
+      <text x="214" y="150" font-family="${FONT}" font-weight="700" font-size="17" fill="#8fa898" letter-spacing="4">ROBINHOOD CHAIN RWA POOLS</text>
+      <!-- BETA badge, top-right -->
+      <rect x="1002" y="66" width="128" height="46" rx="23" fill="#f5c518" opacity="0.12"/>
+      <rect x="1002" y="66" width="128" height="46" rx="23" fill="none" stroke="#f5c518" stroke-width="2" opacity="0.65"/>
+      <text x="1066" y="97" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="24" fill="#f5c518" letter-spacing="3">BETA</text>
+      <!-- headline -->
+      <text x="70" y="322" font-family="${FONT}" font-weight="800" font-size="104" letter-spacing="-3">
+        <tspan fill="#ffffff">RWA</tspan><tspan fill="#00c805" dx="24">Pools</tspan>
+      </text>
+      <!-- subhead -->
+      <text x="74" y="388" font-family="${FONT}" font-weight="700" font-size="35" fill="#f5c518">5% ETH rewards backed by real Stock Tokens.</text>
+      <!-- ticker chips, colors matching the live pool cards -->
+      ${chip(70, 150, "NVDA", "#00c805")}
+      ${chip(236, 150, "TSLA", "#ff4d4d")}
+      ${chip(402, 150, "SPCX", "#4ac3ff")}
+      ${chip(568, 150, "AAPL", "#c9cdd3")}
+      ${chip(734, 150, "MSFT", "#4ae0c8")}
+      <!-- url -->
+      <text x="74" y="586" font-family="${FONT}" font-weight="700" font-size="28" fill="#00c805">hoodprinter.xyz/rwa</text>
+    </svg>`
+  );
+  const icon = await iconPng(120);
+  await sharp(bg)
+    .composite([{ input: icon, left: 70, top: 52 }])
+    .png()
+    .toFile(path.join(brand, "og-rwa.png"));
+  console.log("wrote public/brand/og-rwa.png");
 }
 
 // --- OG image 1200x630 for /media (the media kit) ---

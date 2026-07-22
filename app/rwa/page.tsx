@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/brand/og.png?v=4",
+        url: "/brand/og-rwa.png?v=1",
         width: 1200,
         height: 630,
         alt: "HOODPrinter RWA Pools — $PRINT paired with Robinhood Chain Stock Tokens",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     creator: "@HOODPrinterxyz",
     title,
     description,
-    images: ["/brand/og.png?v=4"],
+    images: ["/brand/og-rwa.png?v=1"],
   },
 };
 
