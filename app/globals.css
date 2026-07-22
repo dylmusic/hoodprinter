@@ -217,6 +217,10 @@ a {
   font-weight: 700;
   font-size: 0.95rem;
   transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .btn-primary {
@@ -4208,4 +4212,185 @@ footer {
 @keyframes flm-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- RWA Pools (/rwa) ---------- */
+.rwa-page {
+  max-width: 980px;
+}
+
+.rwa-beta-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #f5c518;
+  border: 1px solid rgba(245, 197, 24, 0.5);
+  border-radius: 4px;
+  padding: 2px 6px;
+  vertical-align: middle;
+}
+
+.rwa-overview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.rwa-ov-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 14px;
+  text-align: center;
+}
+
+.rwa-ov-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rwa-ov-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--paper);
+}
+
+.rwa-ov-value em {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.rwa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.rwa-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rwa-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rwa-pair {
+  font-weight: 800;
+  font-size: 1.02rem;
+  color: var(--text);
+}
+
+.rwa-slash {
+  color: var(--muted);
+}
+
+.rwa-soon-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.rwa-card-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 12px;
+}
+
+.rwa-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.rwa-stat-row span {
+  color: var(--muted);
+}
+
+.rwa-stat-row strong {
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.rwa-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.rwa-btn {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+}
+
+.rwa-token-link {
+  display: block;
+  margin-top: 12px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+}
+.rwa-token-link:hover {
+  color: var(--green);
+}
+
+.rwa-about {
+  max-width: 720px;
+  margin: 26px auto 0;
+  padding: 0 16px 90px;
+  color: var(--muted);
+}
+.rwa-about h2 {
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.rwa-about p {
+  font-size: 0.92rem;
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+.rwa-about strong {
+  color: var(--text);
+}
+.rwa-about a {
+  color: var(--green);
+}
+
+@media (max-width: 720px) {
+  .rwa-overview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .rwa-grid {
+    grid-template-columns: 1fr;
+  }
 }

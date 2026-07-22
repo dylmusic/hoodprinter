@@ -76,6 +76,12 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             </span>
             <span className="nd-sub">Airdrop any token to thousands of wallets</span>
           </a>
+          <a href="/rwa" role="menuitem">
+            <span className="nd-title">
+              RWA Pools <span className="nav-beta">BETA</span>
+            </span>
+            <span className="nd-sub">$PRINT paired with tokenized stocks</span>
+          </a>
         </div>
       )}
     </div>
@@ -171,6 +177,12 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               Multisend <span className="nav-new">NEW</span>
             </span>
             <span className="nd-sub">Airdrop any token to thousands of wallets</span>
+          </a>
+          <a className="nav-mobile-tool" href="/rwa" onClick={close}>
+            <span className="nd-title">
+              RWA Pools <span className="nav-beta">BETA</span>
+            </span>
+            <span className="nd-sub">$PRINT paired with tokenized stocks</span>
           </a>
           {PRESALE_ACTIVE ? (
             <a
