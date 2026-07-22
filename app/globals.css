@@ -216,6 +216,7 @@ a {
   border-radius: 999px;
   font-weight: 700;
   font-size: 0.95rem;
+  text-align: center;
   transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
   background: transparent;
   border: none;
