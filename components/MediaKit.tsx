@@ -82,6 +82,10 @@ const TWEETS: { label: string; text: string }[] = [
     text: "New rule for the new chain: get paid to hold.\n\n$PRINT prints ETH to holders on every single trade — 4% of every buy and sell goes straight back to wallets.\n\nThe printer never sleeps. hoodprinter.xyz",
   },
   {
+    label: "RWA Pools",
+    text: "$PRINT just went RWA-native.\n\nRWA Pools pair $PRINT against real Robinhood Chain Stock Tokens — NVDA, TSLA, SPCX, AAPL, MSFT. Treasury ETH grows the pools instead of sitting idle.\n\nBeta dashboard live: hoodprinter.xyz/rwa",
+  },
+  {
     label: "Buy Bot",
     text: "There's a buy bot on Robinhood Chain now.\n\nAny token. One click. Nonstop.\n\nIt's in beta, it runs from your browser, and every buy levels you up before the $PRINT airdrop.\n\nhoodprinter.xyz/print",
   },

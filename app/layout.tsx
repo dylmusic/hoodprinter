@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/brand/og.png?v=3",
+        url: "/brand/og.png?v=4",
         width: 1200,
         height: 630,
         alt: `${siteConfig.name} — ${siteConfig.tagline}`,
@@ -73,7 +73,7 @@ export const metadata: Metadata = {
     creator: "@HOODPrinterxyz",
     title: defaultTitle,
     description: siteConfig.description,
-    images: ["/brand/og.png?v=3"],
+    images: ["/brand/og.png?v=4"],
   },
 };
 

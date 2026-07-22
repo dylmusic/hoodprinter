@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/brand/og.png",
+        url: "/brand/og.png?v=4",
         width: 1200,
         height: 630,
         alt: "HOODPrinter RWA Pools — $PRINT paired with Robinhood Chain Stock Tokens",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     creator: "@HOODPrinterxyz",
     title,
     description,
-    images: ["/brand/og.png"],
+    images: ["/brand/og.png?v=4"],
   },
 };
 
@@ -125,42 +125,47 @@ export default function RwaPage() {
         <RwaPools />
 
         <section className="rwa-about">
-          <h2>Why $PRINT is going RWA-native</h2>
-          <p>
-            <a
-              href="https://docs.robinhood.com/chain/stock-tokens/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Robinhood Chain
-            </a>{" "}
-            launched July 1, 2026 as an Ethereum L2 purpose-built for tokenized real-world assets
-            — Stock Tokens like <strong>NVDA</strong>, <strong>TSLA</strong>,{" "}
-            <strong>SPCX</strong>, <strong>AAPL</strong>, and <strong>MSFT</strong> are standard
-            ERC-20s issued by Robinhood Assets (Jersey) Limited, priced live on-chain via
-            Chainlink, and built to be composed into DeFi. The catch: most of the chain&rsquo;s
-            activity so far is memecoins, not the RWAs it was built for — reported TVL sits
-            around $300M+ but only a small slice of that is actual tokenized-asset liquidity.
-          </p>
-          <p>
-            HOODPrinter is closing that gap. $PRINT already taxes every buy/sell 5% and pays that
-            ETH straight to holders — RWA Pools take the same reflections and put them to work as{" "}
-            <strong>$PRINT/RWA liquidity</strong> instead of sitting idle. Depositing $PRINT
-            alongside a Stock Token earns a share of trading fees <em>and</em> a cut of the
-            reflection flow, so the ETH holders earn is increasingly backed by real-world-asset
-            trading, not just $PRINT speculation.
-          </p>
-          <p>
-            This page is the beta dashboard: the pool roster, live TVL, and ETH-distributed
-            counters are wired up and ready — they read <strong>zero</strong> because no pool has
-            been deployed yet. Each Stock Token address above is Robinhood&rsquo;s real,
-            on-chain-verified contract, linked straight to the{" "}
-            <a href={siteConfig.chain.explorerUrl} target="_blank" rel="noopener noreferrer">
-              Robinhood Chain explorer
-            </a>{" "}
-            so you can check it yourself. When the first pool goes live, this dashboard is where
-            you&rsquo;ll watch it fill.
-          </p>
+          <details className="faq-item rwa-why-details">
+            <summary>Why $PRINT is going RWA-native</summary>
+            <div className="faq-body">
+              <p>
+                <a
+                  href="https://docs.robinhood.com/chain/stock-tokens/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Robinhood Chain
+                </a>{" "}
+                launched July 1, 2026 as an Ethereum L2 purpose-built for tokenized real-world
+                assets — Stock Tokens like <strong>NVDA</strong>, <strong>TSLA</strong>,{" "}
+                <strong>SPCX</strong>, <strong>AAPL</strong>, and <strong>MSFT</strong> are
+                standard ERC-20s issued by Robinhood Assets (Jersey) Limited, priced live
+                on-chain via Chainlink, and built to be composed into DeFi. The catch: most of
+                the chain&rsquo;s activity so far is memecoins, not the RWAs it was built for —
+                reported TVL sits around $300M+ but only a small slice of that is actual
+                tokenized-asset liquidity.
+              </p>
+              <p>
+                HOODPrinter is closing that gap. $PRINT already taxes every buy/sell 5% and pays
+                that ETH straight to holders — RWA Pools take the same reflections and put them
+                to work as <strong>$PRINT/RWA liquidity</strong> instead of sitting idle.
+                Depositing $PRINT alongside a Stock Token earns a share of trading fees{" "}
+                <em>and</em> a cut of the reflection flow, so the ETH holders earn is increasingly
+                backed by real-world-asset trading, not just $PRINT speculation.
+              </p>
+              <p>
+                This page is the beta dashboard: the pool roster, live TVL, and ETH-distributed
+                counters are wired up and ready — they read <strong>zero</strong> because no pool
+                has been deployed yet. Each Stock Token address above is Robinhood&rsquo;s real,
+                on-chain-verified contract, linked straight to the{" "}
+                <a href={siteConfig.chain.explorerUrl} target="_blank" rel="noopener noreferrer">
+                  Robinhood Chain explorer
+                </a>{" "}
+                so you can check it yourself. When the first pool goes live, this dashboard is
+                where you&rsquo;ll watch it fill.
+              </p>
+            </div>
+          </details>
 
           <h2>RWA Pools, answered</h2>
           <div className="faq-list">

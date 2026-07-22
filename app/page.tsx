@@ -290,14 +290,11 @@ export default function Home() {
             </div>
             <div className="card">
               <span className="step-num">4</span>
-              <h3>
-                Treasury buys RWAs <span className="nav-beta">BETA</span>
-              </h3>
+              <h3>Treasury buys RWAs</h3>
               <p>
-                Treasury earnings buy real Robinhood Chain{" "}
-                <strong>Stock Tokens</strong> and add them to the $PRINT/RWA
-                pools, so future payouts are increasingly backed by
-                real-world assets. <a href="/rwa">See RWA Pools →</a>
+                Treasury earnings buy real <strong>Stock Tokens</strong> and
+                grow the $PRINT/RWA pools — payouts trace back to real-world
+                assets.
               </p>
             </div>
           </div>

@@ -63,7 +63,7 @@ await renderComposite({
       <tspan fill="#ffffff">HOOD</tspan><tspan fill="#00c805">Printer</tspan>
     </text>
     <text x="600" y="500" text-anchor="middle" font-family="${FONT}" font-weight="800" font-size="44" fill="#00c805" letter-spacing="6">$PRINT</text>
-    <text x="600" y="560" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="30" fill="#8fa898">The printer that pays you in ETH — on Robinhood Chain.</text>
+    <text x="600" y="560" text-anchor="middle" font-family="${FONT}" font-weight="500" font-size="30" fill="#8fa898">Backed by RWAs. Paid in ETH. On Robinhood Chain.</text>
   `,
   out: path.join(brand, "og.png"),
 });
