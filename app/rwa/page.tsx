@@ -4,7 +4,7 @@ import SiteNav from "@/components/SiteNav";
 import { RWA_POOLS } from "@/lib/rwaPools";
 import { siteConfig } from "@/site.config";
 
-const title = "RWA Pools BETA — $PRINT x Robinhood Chain Stock Tokens";
+const title = "RWA Pools — $PRINT x Robinhood Chain Stock Tokens";
 const description =
   "HOODPrinter's RWA Pools turn $PRINT's ETH reflections into $PRINT/Stock-Token liquidity on Robinhood Chain — NVDA, TSLA, SPCX, AAPL, and MSFT. Real-world-asset trading fees flow back to holders as ETH. Beta dashboard, pools not yet live.";
 
