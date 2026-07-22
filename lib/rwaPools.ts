@@ -20,6 +20,7 @@ export type RwaPool = {
   tvlPrint: number;
   ethDistributed: number;
   apr: number | null;
+  accent: string;
 };
 
 export const RWA_POOLS: RwaPool[] = [
@@ -31,6 +32,7 @@ export const RWA_POOLS: RwaPool[] = [
     tvlPrint: 0,
     ethDistributed: 0,
     apr: null,
+    accent: "#00c805",
   },
   {
     symbol: "TSLA",
@@ -40,6 +42,7 @@ export const RWA_POOLS: RwaPool[] = [
     tvlPrint: 0,
     ethDistributed: 0,
     apr: null,
+    accent: "#ff4d4d",
   },
   {
     symbol: "SPCX",
@@ -49,6 +52,7 @@ export const RWA_POOLS: RwaPool[] = [
     tvlPrint: 0,
     ethDistributed: 0,
     apr: null,
+    accent: "#4ac3ff",
   },
   {
     symbol: "AAPL",
@@ -58,6 +62,7 @@ export const RWA_POOLS: RwaPool[] = [
     tvlPrint: 0,
     ethDistributed: 0,
     apr: null,
+    accent: "#c9cdd3",
   },
   {
     symbol: "MSFT",
@@ -67,6 +72,7 @@ export const RWA_POOLS: RwaPool[] = [
     tvlPrint: 0,
     ethDistributed: 0,
     apr: null,
+    accent: "#4ae0c8",
   },
 ];
 

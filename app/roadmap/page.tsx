@@ -5,7 +5,7 @@ import { siteConfig } from "@/site.config";
 
 const roadmapTitle = "Roadmap — The HOODPrinter Master Plan";
 const roadmapDescription =
-  "The $PRINT master plan: the Buy Bot, the first deployed & verified multisend contract on Robinhood Chain, LP locked, DexScreener, CoinGecko/CMC, a DAO, and $1,000,000 of ETH printed to holders.";
+  "The $PRINT master plan: the Buy Bot, the first deployed & verified multisend contract on Robinhood Chain, RWA Pools pairing $PRINT against real Stock Tokens, LP locked, DexScreener, CoinGecko/CMC, a DAO, and $1,000,000 of ETH printed to holders.";
 
 export const metadata: Metadata = {
   title: "Roadmap — The Master Plan",
@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     "$PRINT roadmap",
     "PRINT token roadmap",
     "Robinhood Chain projects",
+    "Robinhood Chain RWA pools",
     "first Robinhood Chain multisend contract",
     "Robinhood Chain disperse contract",
   ],

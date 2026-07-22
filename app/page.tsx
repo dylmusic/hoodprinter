@@ -29,6 +29,20 @@ const faqs = [
     ),
   },
   {
+    q: "What are RWA Pools?",
+    a: (
+      <>
+        RWA Pools pair $PRINT against real Robinhood Chain{" "}
+        <strong>Stock Tokens</strong> — NVDA, TSLA, SPCX, AAPL, and MSFT to
+        start. $PRINT&rsquo;s ETH reflections get deployed as $PRINT/RWA
+        liquidity instead of sitting idle, so the ETH holders earn is
+        increasingly tied to real-world-asset trading. It&rsquo;s a beta
+        dashboard today — every stat is real, currently zero — live at{" "}
+        <a href="/rwa">hoodprinter.xyz/rwa</a>.
+      </>
+    ),
+  },
+  {
     q: "What does the Buy Bot have to do with $PRINT?",
     a: (
       <>
@@ -134,6 +148,14 @@ const jsonLd = {
         },
         {
           "@type": "Question",
+          name: "What are RWA Pools?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "RWA Pools pair $PRINT against real Robinhood Chain Stock Tokens (NVDA, TSLA, SPCX, AAPL, MSFT). $PRINT's ETH reflections get deployed as $PRINT/RWA liquidity instead of sitting idle, so ETH rewards are increasingly tied to real-world-asset trading. Beta dashboard live at hoodprinter.xyz/rwa.",
+          },
+        },
+        {
+          "@type": "Question",
           name: "What does the Buy Bot have to do with $PRINT?",
           acceptedAnswer: {
             "@type": "Answer",
@@ -187,11 +209,13 @@ export default function Home() {
             Hold <span className="green">$PRINT</span>.
             <br />
             Get paid <span className="green">ETH</span>.
+            <br />
+            Backed by <span className="green">RWAs</span>.
           </h1>
           <p className="hero-sub">
-            HOODPrinter is the money printer of Robinhood Chain. Every trade
-            feeds the machine, and the machine pays ETH to holders — nonstop,
-            automatically, forever. When we print, we print ETH.
+            HOODPrinter is a protocol designed to accumulate RWAs and pay out
+            ETH rewards based on real-world assets. Every $PRINT buy adds to
+            the RWA pools — and pays out holders in ETH.
           </p>
           {presaleActive && <LaunchCountdown />}
           <div className="hero-ctas">
@@ -212,6 +236,9 @@ export default function Home() {
             )}
             <a className="btn btn-ghost" href="#how-it-works">
               How it works
+            </a>
+            <a className="btn btn-ghost" href="/rwa">
+              RWA Pools <span className="nav-beta">BETA</span>
             </a>
           </div>
 
@@ -309,6 +336,12 @@ export default function Home() {
                 1% — liquidity &amp; printer maintenance
               </span>
             </div>
+            <p className="tax-split-note">
+              The ETH share is where RWA Pools come in — instead of sitting
+              idle, printed ETH gets deployed into $PRINT/RWA liquidity, so
+              payouts increasingly trace back to real-world-asset trading.{" "}
+              <a href="/rwa">See RWA Pools BETA →</a>
+            </p>
           </div>
         </div>
       </section>
@@ -352,6 +385,54 @@ export default function Home() {
           <div className="hero-ctas" style={{ marginTop: 28, justifyContent: "center" }}>
             <a className="btn btn-primary" href="/print">
               Try the Buy Bot
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section id="rwa-pools">
+        <div className="container">
+          <p className="section-kicker">RWA Pools</p>
+          <h2 className="section-title">Backed by real-world assets.</h2>
+          <p className="section-sub">
+            Robinhood Chain was built for tokenized stocks. RWA Pools are how
+            $PRINT actually uses that — pairing $PRINT against real Robinhood
+            Chain Stock Tokens instead of leaving reflections idle.
+          </p>
+          <div className="grid-3">
+            <div className="card">
+              <h3>
+                $PRINT/RWA Pools <span className="nav-beta">BETA</span>
+              </h3>
+              <p>
+                Five pools to start: <strong>NVDA, TSLA, SPCX, AAPL, MSFT</strong>.
+                $PRINT&rsquo;s ETH reflections get deployed as liquidity
+                against each one, so holders earn ETH tied to real-world-asset
+                trading, not just $PRINT volume.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Real Robinhood Chain assets</h3>
+              <p>
+                Every RWA token paired is a genuine, on-chain-verified
+                Robinhood Chain Stock Token — an ERC-20 issued by Robinhood
+                Assets (Jersey) Limited with a live Chainlink price feed. No
+                synthetic wrappers, no IOUs.
+              </p>
+            </div>
+            <div className="card">
+              <h3>Beta dashboard, live now</h3>
+              <p>
+                Track total ETH distributed, per-pool TVL, and your position
+                in real time. Every number is real — currently zero, since no
+                pool has been seeded yet. Deposit and withdraw unlock at
+                launch.
+              </p>
+            </div>
+          </div>
+          <div className="hero-ctas" style={{ marginTop: 28, justifyContent: "center" }}>
+            <a className="btn btn-primary" href="/rwa">
+              Explore RWA Pools
             </a>
           </div>
         </div>

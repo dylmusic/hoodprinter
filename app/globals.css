@@ -667,6 +667,20 @@ section:nth-of-type(even) {
   margin-right: 7px;
 }
 
+.tax-split-note {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.tax-split-note a {
+  color: var(--green);
+  font-weight: 700;
+}
+
 /* ---------- network table ---------- */
 .net-table {
   width: 100%;
@@ -4217,6 +4231,60 @@ footer {
 /* ---------- RWA Pools (/rwa) ---------- */
 .rwa-page {
   max-width: 980px;
+  padding-top: 22px;
+  position: relative;
+}
+.rwa-page .pb-head {
+  margin-bottom: 16px;
+}
+.rwa-page .pb-logo-link {
+  width: 36px;
+  margin-bottom: 6px;
+}
+.rwa-page .pb-logo {
+  width: 36px;
+  height: 36px;
+}
+.rwa-page .pb-head h1 {
+  background: linear-gradient(180deg, var(--paper), var(--green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.rwa-page .pb-head .green {
+  -webkit-text-fill-color: var(--green);
+}
+.rwa-page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  height: 420px;
+  background:
+    radial-gradient(60% 100% at 50% 0%, rgba(0, 200, 5, 0.14), transparent 70%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 200, 5, 0.05) 0px,
+      rgba(0, 200, 5, 0.05) 1px,
+      transparent 1px,
+      transparent 28px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 200, 5, 0.05) 0px,
+      rgba(0, 200, 5, 0.05) 1px,
+      transparent 1px,
+      transparent 28px
+    );
+  mask-image: linear-gradient(180deg, #000 0%, transparent 90%);
+  pointer-events: none;
+  z-index: 0;
+}
+.rwa-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .rwa-beta-tag {
@@ -4230,6 +4298,59 @@ footer {
   vertical-align: middle;
 }
 
+/* ticker tape */
+.rwa-ticker {
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--card-hover), var(--bg-elev));
+  margin: 0 -20px 22px;
+  box-shadow: 0 0 20px rgba(0, 200, 5, 0.08) inset;
+}
+.rwa-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: rwa-scroll 26s linear infinite;
+}
+.rwa-ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 22px;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  border-right: 1px solid var(--border);
+}
+.rwa-ticker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+.rwa-ticker-sym {
+  color: var(--paper);
+  font-weight: 700;
+}
+.rwa-ticker-pair {
+  color: var(--muted);
+}
+.rwa-ticker-status {
+  color: var(--green);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+}
+@keyframes rwa-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-33.333%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rwa-ticker-track { animation: none; }
+}
+
 .rwa-overview {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -4238,14 +4359,41 @@ footer {
 }
 
 .rwa-ov-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: var(--card);
+  gap: 7px;
+  background: linear-gradient(180deg, var(--card-hover) 0%, var(--card) 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px 14px;
   text-align: center;
+  overflow: hidden;
+}
+.rwa-ov-tile::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: 0.7;
+}
+
+.rwa-ov-live {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--green);
+}
+.rwa-ov-live .pb-live-dot {
+  width: 6px;
+  height: 6px;
 }
 
 .rwa-ov-label {
@@ -4256,15 +4404,18 @@ footer {
 }
 
 .rwa-ov-value {
-  font-size: 1.15rem;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 1.2rem;
   font-weight: 800;
   color: var(--paper);
+  text-shadow: 0 0 18px rgba(0, 200, 5, 0.35);
 }
 
 .rwa-ov-value em {
   font-style: normal;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted);
+  text-shadow: none;
 }
 
 .rwa-grid {
@@ -4275,13 +4426,53 @@ footer {
 }
 
 .rwa-card {
-  background: var(--card);
+  --rwa-accent: var(--green);
+  position: relative;
+  background: linear-gradient(160deg, var(--card-hover) 0%, var(--card) 55%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.rwa-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--rwa-accent);
+  box-shadow: 0 0 14px var(--rwa-accent);
+}
+.rwa-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--rwa-accent);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--rwa-accent) inset;
+}
+
+.rwa-card-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--rwa-accent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.rwa-corner-tl {
+  top: 8px;
+  left: 8px;
+  border-right: none;
+  border-bottom: none;
+}
+.rwa-corner-br {
+  bottom: 8px;
+  right: 8px;
+  border-left: none;
+  border-top: none;
 }
 
 .rwa-card-head {
@@ -4292,9 +4483,26 @@ footer {
 }
 
 .rwa-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 800;
   font-size: 1.02rem;
   color: var(--text);
+}
+
+.rwa-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--rwa-accent) 22%, transparent);
+  border: 1px solid var(--rwa-accent);
+  color: var(--rwa-accent);
+  font-size: 0.7rem;
+  font-weight: 800;
 }
 
 .rwa-slash {
@@ -4302,11 +4510,12 @@ footer {
 }
 
 .rwa-soon-badge {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  border: 1px solid var(--border);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rwa-accent);
+  border: 1px solid var(--rwa-accent);
   border-radius: 20px;
   padding: 3px 9px;
   white-space: nowrap;
@@ -4332,6 +4541,7 @@ footer {
 }
 
 .rwa-stat-row strong {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   color: var(--paper);
   font-weight: 700;
 }
@@ -4351,12 +4561,13 @@ footer {
 .rwa-token-link {
   display: block;
   margin-top: 12px;
-  font-size: 0.72rem;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  font-size: 0.7rem;
   color: var(--muted);
   text-align: center;
 }
 .rwa-token-link:hover {
-  color: var(--green);
+  color: var(--rwa-accent);
 }
 
 .rwa-about {
@@ -4392,5 +4603,8 @@ footer {
 @media (max-width: 480px) {
   .rwa-grid {
     grid-template-columns: 1fr;
+  }
+  .rwa-ticker {
+    margin: 0 -14px 18px;
   }
 }

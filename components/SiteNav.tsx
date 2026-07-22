@@ -64,6 +64,12 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
       </button>
       {toolsOpen && (
         <div className="nav-drop" role="menu">
+          <a href="/rwa" role="menuitem">
+            <span className="nd-title">
+              RWA Pools <span className="nav-beta">BETA</span>
+            </span>
+            <span className="nd-sub">$PRINT paired with tokenized stocks</span>
+          </a>
           <a href="/print" role="menuitem">
             <span className="nd-title">
               Buy Bot <span className="nav-beta">BETA</span>
@@ -75,12 +81,6 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               Multisend <span className="nav-new">NEW</span>
             </span>
             <span className="nd-sub">Airdrop any token to thousands of wallets</span>
-          </a>
-          <a href="/rwa" role="menuitem">
-            <span className="nd-title">
-              RWA Pools <span className="nav-beta">BETA</span>
-            </span>
-            <span className="nd-sub">$PRINT paired with tokenized stocks</span>
           </a>
         </div>
       )}
@@ -166,6 +166,12 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             </>
           )}
           <div className="nav-mobile-label">Tools</div>
+          <a className="nav-mobile-tool" href="/rwa" onClick={close}>
+            <span className="nd-title">
+              RWA Pools <span className="nav-beta">BETA</span>
+            </span>
+            <span className="nd-sub">$PRINT paired with tokenized stocks</span>
+          </a>
           <a className="nav-mobile-tool" href="/print" onClick={close}>
             <span className="nd-title">
               Buy Bot <span className="nav-beta">BETA</span>
@@ -177,12 +183,6 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
               Multisend <span className="nav-new">NEW</span>
             </span>
             <span className="nd-sub">Airdrop any token to thousands of wallets</span>
-          </a>
-          <a className="nav-mobile-tool" href="/rwa" onClick={close}>
-            <span className="nd-title">
-              RWA Pools <span className="nav-beta">BETA</span>
-            </span>
-            <span className="nd-sub">$PRINT paired with tokenized stocks</span>
           </a>
           {PRESALE_ACTIVE ? (
             <a

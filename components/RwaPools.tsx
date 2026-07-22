@@ -7,6 +7,24 @@ import { siteConfig } from "@/site.config";
 const fmtEth = (n: number) => n.toFixed(4);
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+function TickerTape() {
+  const strip = [...RWA_POOLS, ...RWA_POOLS, ...RWA_POOLS];
+  return (
+    <div className="rwa-ticker" aria-hidden="true">
+      <div className="rwa-ticker-track">
+        {strip.map((p, i) => (
+          <span className="rwa-ticker-item" key={`${p.symbol}-${i}`}>
+            <span className="rwa-ticker-dot" style={{ background: p.accent }} />
+            <span className="rwa-ticker-sym">{p.symbol}</span>
+            <span className="rwa-ticker-pair">/PRINT</span>
+            <span className="rwa-ticker-status">PRE-LAUNCH</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function RwaPools() {
   const [modal, setModal] = useState<{ symbol: string; action: "Deposit" | "Withdraw" } | null>(
     null
@@ -14,22 +32,36 @@ export default function RwaPools() {
 
   return (
     <>
+      <TickerTape />
+
       <section className="rwa-overview">
         <div className="rwa-ov-tile">
+          <span className="rwa-ov-live">
+            <span className="pb-live-dot" /> LIVE
+          </span>
           <span className="rwa-ov-label">ETH Rewards Distributed</span>
-          <span className="rwa-ov-value">{fmtEth(RWA_OVERVIEW.ethDistributed)} ETH</span>
+          <span className="rwa-ov-value">{fmtEth(RWA_OVERVIEW.ethDistributed)}<em> ETH</em></span>
         </div>
         <div className="rwa-ov-tile">
+          <span className="rwa-ov-live">
+            <span className="pb-live-dot" /> LIVE
+          </span>
           <span className="rwa-ov-label">Total Value Locked</span>
-          <span className="rwa-ov-value">{fmtEth(RWA_OVERVIEW.totalValueLockedEth)} ETH</span>
+          <span className="rwa-ov-value">{fmtEth(RWA_OVERVIEW.totalValueLockedEth)}<em> ETH</em></span>
         </div>
         <div className="rwa-ov-tile">
+          <span className="rwa-ov-live">
+            <span className="pb-live-dot" /> LIVE
+          </span>
           <span className="rwa-ov-label">Pools Live</span>
           <span className="rwa-ov-value">
-            {RWA_OVERVIEW.poolsLive} <em>/ {RWA_OVERVIEW.poolsPlanned}</em>
+            {RWA_OVERVIEW.poolsLive}<em> / {RWA_OVERVIEW.poolsPlanned}</em>
           </span>
         </div>
         <div className="rwa-ov-tile">
+          <span className="rwa-ov-live">
+            <span className="pb-live-dot" /> LIVE
+          </span>
           <span className="rwa-ov-label">RWA Assets Tracked</span>
           <span className="rwa-ov-value">{RWA_POOLS.length}</span>
         </div>
@@ -37,9 +69,16 @@ export default function RwaPools() {
 
       <div className="rwa-grid">
         {RWA_POOLS.map((pool) => (
-          <div className="rwa-card" key={pool.symbol}>
+          <div
+            className="rwa-card"
+            key={pool.symbol}
+            style={{ ["--rwa-accent" as string]: pool.accent }}
+          >
+            <span className="rwa-card-corner rwa-corner-tl" />
+            <span className="rwa-card-corner rwa-corner-br" />
             <div className="rwa-card-head">
               <span className="rwa-pair">
+                <span className="rwa-chip">{pool.symbol.slice(0, 1)}</span>
                 $PRINT<span className="rwa-slash">/</span>
                 {pool.symbol}
               </span>

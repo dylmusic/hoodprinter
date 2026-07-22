@@ -120,6 +120,34 @@ const PHASES: Phase[] = [
   },
   {
     num: "04",
+    name: "RWA Pools",
+    items: [
+      {
+        title: "RWA Pools Beta Dashboard",
+        desc: "A live dashboard previewing $PRINT paired against real Robinhood Chain Stock Tokens — NVDA, TSLA, SPCX, AAPL, MSFT. Every stat is real; currently zero since no pool exists yet.",
+        status: "active",
+        href: "/rwa",
+        hrefLabel: "Explore RWA Pools →",
+      },
+      {
+        title: "First $PRINT/RWA Pool Seeded",
+        desc: "The first on-chain $PRINT/RWA liquidity pool goes live, turning the dashboard from a preview into a real, depositable pool.",
+        status: "upcoming",
+      },
+      {
+        title: "Reflections Routed to RWA Pools",
+        desc: "$PRINT's printed ETH reflections begin flowing into $PRINT/RWA liquidity automatically, instead of sitting idle — payouts start tracing back to real-world-asset trading.",
+        status: "upcoming",
+      },
+      {
+        title: "Full RWA Pool Suite",
+        desc: "More Robinhood Chain Stock Tokens added as pools mature and liquidity deepens.",
+        status: "upcoming",
+      },
+    ],
+  },
+  {
+    num: "05",
     name: "Launch",
     items: [
       {
@@ -145,7 +173,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "05",
+    num: "06",
     name: "Expansion",
     items: [
       {
@@ -166,7 +194,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "06",
+    num: "07",
     name: "Ascension",
     items: [
       {
