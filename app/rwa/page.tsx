@@ -115,11 +115,8 @@ export default function RwaPage() {
           <h1>
             RWA <span className="green">Pools</span> <span className="rwa-beta-tag">BETA</span>
           </h1>
-          <p>$PRINT paired with Robinhood Chain&rsquo;s tokenized stocks</p>
-          <p className="pb-tagline">
-            ETH reflections, deployed into $PRINT/RWA liquidity — the printer prints off
-            real-world assets.
-          </p>
+          <p>$PRINT paired with tokenized stocks</p>
+          <p className="pb-tagline">The printer prints off real-world assets.</p>
         </div>
 
         <RwaPools />
