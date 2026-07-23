@@ -498,12 +498,12 @@ export default function Home() {
                 <>
                   <h3>Buy $PRINT</h3>
                   <p>
-                    Head to the{" "}
+                    Use the{" "}
                     <a href={presaleLink} target="_blank" rel="noopener noreferrer">
-                      based.bid trading pool
-                    </a>
-                    , connect your wallet, and swap ETH for $PRINT — it&rsquo;s
-                    live and trading now.
+                      live buy link
+                    </a>{" "}
+                    to bridge in and swap for $PRINT in one step — no need to
+                    do steps 1–3 separately.
                   </p>
                 </>
               ) : (

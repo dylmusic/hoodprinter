@@ -9,14 +9,17 @@ export const PLACEHOLDER_TELEGRAM = "https://t.me/HOODPrint";
 export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinterxyz";
 
 // $PRINT is live and trading. Every primary CTA (announce bar, hero button,
-// nav CTA, how-to-buy step 4, roadmap) points to the live based.bid trading
-// pool while this is true. Flip back to false to restore the airdrop /
-// "level up" (Buy Bot) CTAs across the site — the Buy Bot contest keeps
-// running either way (Tools dropdown).
+// nav CTA, how-to-buy step 4, roadmap) points to the live buy link while
+// this is true. Flip back to false to restore the airdrop / "level up"
+// (Buy Bot) CTAs across the site — the Buy Bot contest keeps running
+// either way (Tools dropdown).
 export const PRESALE_ACTIVE = true;
-// $PRINT's live trading pool on based.bid (Robinhood Chain).
+// Relay bridge+buy: lets anyone land on $PRINT straight from another chain
+// in one step (bridges into Robinhood Chain and buys $PRINT), not just
+// people who already have ETH there. Better default than sending everyone
+// to the based.bid pool page directly.
 export const PRESALE_LINK =
-  "https://trade.based.bid/robinhood/pool/0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075";
+  "https://relay.link/bridge/robinhood?toCurrency=0x6af5db6f72e6030e71ea9b45fed55cbd68a69b1d&fromChainId=4663";
 
 // Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = GA script not
 // rendered. Create the property at analytics.google.com → Admin → Create
