@@ -117,7 +117,7 @@ export default function RwaPage() {
           </h1>
           <p>$PRINT paired with Robinhood Chain&rsquo;s tokenized stocks</p>
           <p className="pb-tagline">
-            ETH reflections, deployed into $PRINT/RWA liquidity — the printer starts printing off
+            ETH reflections, deployed into $PRINT/RWA liquidity — the printer prints off
             real-world assets.
           </p>
         </div>
