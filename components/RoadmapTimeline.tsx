@@ -41,8 +41,8 @@ const PHASES: Phase[] = [
       },
       {
         title: "Fair Launch",
-        desc: "$PRINT is launching fair — LIVE NOW. No early allocations, everyone buys in at the same price.",
-        status: "active",
+        desc: "$PRINT launched fair — no early allocations, everyone bought in at the same price. Live and trading now.",
+        status: "done",
         href: PRESALE_LINK,
         hrefLabel: "Buy $PRINT →",
       },
@@ -290,7 +290,6 @@ export default function RoadmapTimeline() {
                       {...(m.href.startsWith("http")
                         ? { target: "_blank", rel: "noopener noreferrer" }
                         : {})}
-                      {...(m.href === PRESALE_LINK ? { "data-fairlaunch": true } : {})}
                     >
                       {m.hrefLabel}
                     </a>

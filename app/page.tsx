@@ -2,7 +2,6 @@ import Image from "next/image";
 import MoneyPrinter from "@/components/MoneyPrinter";
 import CopyAddress from "@/components/CopyAddress";
 import SiteNav from "@/components/SiteNav";
-import LaunchCountdown from "@/components/LaunchCountdown";
 import { siteConfig } from "@/site.config";
 
 const faqs = [
@@ -190,9 +189,8 @@ export default function Home() {
           href={presaleLink}
           target="_blank"
           rel="noopener noreferrer"
-          data-fairlaunch
         >
-          🖨️ $PRINT Fair Launch is LIVE — buy now
+          🖨️ $PRINT is live on Robinhood Chain — buy now
           <span className="announce-arrow">→</span>
         </a>
       ) : (
@@ -221,16 +219,15 @@ export default function Home() {
             Every $PRINT buy adds to the RWA pools — and pays out holders
             in ETH.
           </p>
-          {presaleActive && <LaunchCountdown />}
+          {presaleActive && (
+            <a className="cd cd-live" href={presaleLink} target="_blank" rel="noopener noreferrer">
+              <span className="cd-live-dot" aria-hidden="true" />
+              Buy Now
+            </a>
+          )}
           <div className="hero-ctas">
             {presaleActive ? (
-              <a
-                className="btn btn-primary"
-                href={presaleLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-fairlaunch
-              >
+              <a className="btn btn-primary" href={presaleLink} target="_blank" rel="noopener noreferrer">
                 Buy $PRINT
               </a>
             ) : (
@@ -499,20 +496,14 @@ export default function Home() {
               <span className="step-num">4</span>
               {presaleActive ? (
                 <>
-                  <h3>Buy in the fair launch</h3>
+                  <h3>Buy $PRINT</h3>
                   <p>
-                    The{" "}
-                    <a
-                      href={presaleLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      data-fairlaunch
-                    >
-                      $PRINT fair launch
-                    </a>{" "}
-                    is live right now — connect your wallet and buy in at the
-                    same price as everyone else, no early allocations. The
-                    printing has started.
+                    Head to the{" "}
+                    <a href={presaleLink} target="_blank" rel="noopener noreferrer">
+                      based.bid trading pool
+                    </a>
+                    , connect your wallet, and swap ETH for $PRINT — it&rsquo;s
+                    live and trading now.
                   </p>
                 </>
               ) : (

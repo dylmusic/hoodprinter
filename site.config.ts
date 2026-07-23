@@ -8,17 +8,15 @@ export const PLACEHOLDER_BUY_LINK = "https://PLACEHOLDER_BUY_LINK";
 export const PLACEHOLDER_TELEGRAM = "https://t.me/HOODPrint";
 export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinterxyz";
 
-// FAIR LAUNCH is on. Every primary CTA (announce bar, hero button, nav CTA,
-// how-to-buy step 4, roadmap) points to the BasedBid fair launch while this is
-// true, and the on-site countdown ticks down to FAIR_LAUNCH_AT. Flip back to
-// false to restore the airdrop / "level up" (Buy Bot) CTAs across the site —
-// the Buy Bot contest keeps running either way (Tools dropdown).
+// $PRINT is live and trading. Every primary CTA (announce bar, hero button,
+// nav CTA, how-to-buy step 4, roadmap) points to the live based.bid trading
+// pool while this is true. Flip back to false to restore the airdrop /
+// "level up" (Buy Bot) CTAs across the site — the Buy Bot contest keeps
+// running either way (Tools dropdown).
 export const PRESALE_ACTIVE = true;
-// $PRINT launches fair on the BasedBid launchpad (Robinhood Chain).
+// $PRINT's live trading pool on based.bid (Robinhood Chain).
 export const PRESALE_LINK =
-  "https://www.based.bid/robinhood/token/0x6af5dB6f72E6030E71Ea9B45feD55CBD68A69b1d";
-// Fair launch start, UTC. The countdown timer counts down to this instant.
-export const FAIR_LAUNCH_AT = "2026-07-15T17:00:00Z"; // 12:00 PM CDT (noon Central)
+  "https://trade.based.bid/robinhood/pool/0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075";
 
 // Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = GA script not
 // rendered. Create the property at analytics.google.com → Admin → Create

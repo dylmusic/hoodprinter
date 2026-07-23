@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { RWA_POOLS, RWA_OVERVIEW } from "@/lib/rwaPools";
-import { siteConfig, PRESALE_ACTIVE, PRESALE_LINK } from "@/site.config";
+import { siteConfig } from "@/site.config";
 
 const fmtEth = (n: number) => n.toFixed(4);
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -104,45 +104,20 @@ export default function RwaPools() {
             </div>
 
             <div className="rwa-card-actions">
-              {PRESALE_ACTIVE ? (
-                <>
-                  <a
-                    className="btn btn-primary rwa-btn"
-                    href={PRESALE_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-fairlaunch
-                  >
-                    Deposit
-                  </a>
-                  <a
-                    className="btn btn-ghost rwa-btn"
-                    href={PRESALE_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-fairlaunch
-                  >
-                    Withdraw
-                  </a>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-primary rwa-btn"
-                    onClick={() => setModal({ symbol: pool.symbol, action: "Deposit" })}
-                  >
-                    Deposit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost rwa-btn"
-                    onClick={() => setModal({ symbol: pool.symbol, action: "Withdraw" })}
-                  >
-                    Withdraw
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                className="btn btn-primary rwa-btn"
+                onClick={() => setModal({ symbol: pool.symbol, action: "Deposit" })}
+              >
+                Deposit
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost rwa-btn"
+                onClick={() => setModal({ symbol: pool.symbol, action: "Withdraw" })}
+              >
+                Withdraw
+              </button>
             </div>
 
             <a

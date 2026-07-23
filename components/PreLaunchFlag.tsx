@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 /**
- * Orange pre-launch flag at the top of the Buy Bot: click → branded popup
- * (reuses the pb-modal system's styles) showing the rank ladder and the
- * "bot gas fees = your airdrop value" framing.
+ * Orange flag at the top of the Buy Bot: click → branded popup (reuses the
+ * pb-modal system's styles) showing the rank ladder and the "bot gas fees =
+ * your airdrop value" framing.
  */
 
 const RANKS = [
@@ -22,8 +22,7 @@ export default function PreLaunchFlag() {
   return (
     <>
       <button type="button" className="plf-flag" onClick={() => setOpen(true)}>
-        🚀 Level up during pre-launch — early bot users rank up for the $PRINT
-        airdrop
+        🚀 Level up for the $PRINT airdrop — early bot users rank up
         <span className="plf-arrow">→</span>
       </button>
 
@@ -36,7 +35,7 @@ export default function PreLaunchFlag() {
         >
           <div className="pb-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pb-modal-icon">🖨️</div>
-            <h3 className="pb-modal-title">Level up before $PRINT drops</h3>
+            <h3 className="pb-modal-title">Level up for the airdrop</h3>
             <div className="pb-modal-body">
               <p className="plf-lede">
                 Early bot users rank up now and prepare for the airdrop.
