@@ -6,9 +6,13 @@ import { siteConfig } from "@/site.config";
 /**
  * Branded interstitial for the fair-launch CTAs. Mounted once globally
  * (root layout); it delegates clicks on any `[data-fairlaunch]` link, stops
- * the jump to BasedBid, and first nudges people into the Telegram so they get
- * the official links and don't miss / fake the drop. "Continue to Fair Launch"
- * opens the real launch URL (captured from the link that was clicked).
+ * the jump to BasedBid, and nudges people into the Telegram first so they get
+ * official updates and don't miss anything. "View on based.bid" opens the
+ * real launch URL (captured from the link that was clicked).
+ *
+ * The based.bid sale itself sold out — this now communicates bonding status
+ * rather than inviting a buy. Update this copy again once bonded / live on
+ * the DEX.
  *
  * No-JS / crawlers still get a normal link to the launch — the href is intact.
  */
@@ -67,14 +71,14 @@ export default function FairLaunchModal() {
         >
           ✕
         </button>
-        <div className="flm-emoji" aria-hidden="true">🖨️</div>
+        <div className="flm-emoji" aria-hidden="true">✅</div>
         <h3 className="flm-title" id="flm-title">
-          One quick step first
+          Fair launch complete
         </h3>
         <p className="flm-body">
-          $PRINT is still <strong>pre-bond on based.bid</strong> — buy now to
-          get in before the bond fills and we go live on the DEX. Join our
-          Telegram for launch updates and the{" "}
+          The based.bid fair launch is <strong>sold out</strong> — thank you
+          for printing with us. $PRINT is bonding now; once that&rsquo;s done,
+          trading opens on the DEX. Join our Telegram for the latest and the{" "}
           <strong>official contract &amp; links</strong>.
         </p>
         <a
@@ -86,9 +90,9 @@ export default function FairLaunchModal() {
           <span aria-hidden="true">✈️</span> Join the Telegram
         </a>
         <button type="button" className="flm-btn flm-go" onClick={proceed}>
-          Continue to Fair Launch →
+          View on based.bid →
         </button>
-        <span className="flm-note">Pre-bond · buy before we hit the DEX</span>
+        <span className="flm-note">Bonding in progress · the printer starts soon</span>
       </div>
     </div>
   );
