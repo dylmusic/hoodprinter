@@ -39,14 +39,14 @@ export default function RwaPools() {
           <span className="rwa-ov-live">
             <span className="pb-live-dot" /> LIVE
           </span>
-          <span className="rwa-ov-label">ETH Rewards Distributed</span>
+          <span className="rwa-ov-label">ETH Rewards</span>
           <span className="rwa-ov-value">{fmtEth(RWA_OVERVIEW.ethDistributed)}<em> ETH</em></span>
         </div>
         <div className="rwa-ov-tile">
           <span className="rwa-ov-live">
             <span className="pb-live-dot" /> LIVE
           </span>
-          <span className="rwa-ov-label">Total Value Locked</span>
+          <span className="rwa-ov-label">TVL</span>
           <span className="rwa-ov-value">{fmtEth(RWA_OVERVIEW.totalValueLockedEth)}<em> ETH</em></span>
         </div>
         <div className="rwa-ov-tile">
@@ -62,7 +62,7 @@ export default function RwaPools() {
           <span className="rwa-ov-live">
             <span className="pb-live-dot" /> LIVE
           </span>
-          <span className="rwa-ov-label">RWA Assets Tracked</span>
+          <span className="rwa-ov-label">RWA Assets</span>
           <span className="rwa-ov-value">{RWA_POOLS.length}</span>
         </div>
       </section>

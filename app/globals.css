@@ -4620,17 +4620,93 @@ footer {
   color: var(--green);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 560px) {
   .rwa-overview {
-    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .rwa-ov-tile {
+    padding: 10px 6px;
+    gap: 4px;
+    border-radius: 12px;
+  }
+  .rwa-ov-live {
+    font-size: 0.5rem;
+    gap: 3px;
+  }
+  .rwa-ov-live .pb-live-dot {
+    width: 5px;
+    height: 5px;
+  }
+  .rwa-ov-label {
+    font-size: 0.56rem;
+    line-height: 1.25;
+    letter-spacing: 0.02em;
+  }
+  .rwa-ov-value {
+    font-size: 0.8rem;
+  }
+  .rwa-ov-value em {
+    font-size: 0.6rem;
   }
 }
 
 @media (max-width: 480px) {
-  .rwa-grid {
-    grid-template-columns: 1fr;
-  }
   .rwa-ticker {
     margin: 0 -14px 18px;
+  }
+  .rwa-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .rwa-card {
+    padding: 12px 10px;
+    gap: 0;
+  }
+  .rwa-card-corner {
+    display: none;
+  }
+  .rwa-card-head {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .rwa-pair {
+    font-size: 0.82rem;
+    gap: 5px;
+  }
+  .rwa-chip {
+    width: 17px;
+    height: 17px;
+    font-size: 0.56rem;
+  }
+  .rwa-soon-badge {
+    font-size: 0.46rem;
+  }
+  .rwa-card-sub {
+    font-size: 0.64rem;
+    margin-bottom: 8px;
+  }
+  .rwa-stat-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 6px 0;
+  }
+  .rwa-stat-row span {
+    font-size: 0.62rem;
+  }
+  .rwa-stat-row strong {
+    font-size: 0.8rem;
+  }
+  .rwa-card-actions {
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .rwa-btn {
+    padding: 8px 10px;
+    font-size: 0.76rem;
+  }
+  .rwa-token-link {
+    display: none;
   }
 }
