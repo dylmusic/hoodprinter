@@ -4659,7 +4659,7 @@ footer {
     gap: 10px;
   }
   .rwa-card {
-    padding: 12px 10px;
+    padding: 10px 8px;
     gap: 0;
   }
   .rwa-card-corner {
@@ -4670,41 +4670,41 @@ footer {
     gap: 4px;
   }
   .rwa-pair {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     gap: 5px;
   }
   .rwa-chip {
-    width: 17px;
-    height: 17px;
-    font-size: 0.56rem;
+    width: 16px;
+    height: 16px;
+    font-size: 0.54rem;
   }
   .rwa-soon-badge {
-    font-size: 0.46rem;
+    font-size: 0.44rem;
   }
   .rwa-card-sub {
-    font-size: 0.64rem;
-    margin-bottom: 8px;
+    display: none;
   }
   .rwa-stat-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-    padding: 6px 0;
+    flex-direction: row;
+    align-items: baseline;
+    padding: 4px 0;
   }
   .rwa-stat-row span {
-    font-size: 0.62rem;
+    font-size: 0.6rem;
   }
   .rwa-stat-row strong {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
+  }
+  .rwa-stat-apr {
+    display: none;
   }
   .rwa-card-actions {
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 10px;
+    gap: 5px;
+    margin-top: 8px;
   }
   .rwa-btn {
-    padding: 8px 10px;
-    font-size: 0.76rem;
+    padding: 7px 4px;
+    font-size: 0.66rem;
   }
   .rwa-token-link {
     display: none;

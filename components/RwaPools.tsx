@@ -98,7 +98,7 @@ export default function RwaPools() {
               <span>ETH earned</span>
               <strong>{fmtEth(pool.ethDistributed)} ETH</strong>
             </div>
-            <div className="rwa-stat-row">
+            <div className="rwa-stat-row rwa-stat-apr">
               <span>APR</span>
               <strong>{pool.apr === null ? "—" : `${pool.apr}%`}</strong>
             </div>
