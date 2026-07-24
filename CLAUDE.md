@@ -292,6 +292,36 @@ and is background for if that ever happens, not the current live page.
   $PRINT pool exists against them) — they're just swappable like any other
   curated token; the $PRINT-always-routes-through-our-pool invariant still
   applies regardless of which of these is on the other side.
+- **Token icon sourcing (`lib/robinhoodTokens.ts`)**: real logos, not just
+  for RWA tokens — CASHCAT/ARROW/HOODRAT/JUGGERNAUT's hardcoded curated
+  entries now have real logos too, and `resolveCustomToken` (the paste-any-
+  address flow) fetches one live for ANY pasted address via
+  `fetchRelayTokenLogo()`. The mechanism: Relay's `/currencies/v2` API
+  supports a direct `{chainIds, address}` lookup (not just `term` search —
+  confirmed live, `term` doesn't match on a raw address string but
+  `address` does) and returns `metadata.logoURI` when it knows the token.
+  This is genuinely how MetaMask/other wallets solve "where do token icons
+  come from" — MetaMask maintains its own curated icon set (originally the
+  `MetaMask/contract-metadata` repo, now a CDN), most others pull from the
+  Trust Wallet assets repo (github.com/trustwallet/assets) or CoinGecko's
+  `/coins/{platform}/contract/{address}` endpoint — but neither of those
+  has meaningful Robinhood Chain coverage yet (too new a chain), and
+  CoinGecko needs a platform-id string for the chain that may not exist.
+  Relay already needs this same per-token metadata to power its own swap
+  widget across every chain it supports, us included, so reusing its
+  endpoint avoided standing up a second icon-source integration. **Broken
+  logos degrade gracefully**: one of the hardcoded URLs (JUGGERNAUT's,
+  pulled from a real API response) turned out to already 403 from
+  GeckoTerminal's CDN (confirmed via direct curl, not a code bug) — `img
+  onError` in `TokenIcon` (`components/TokenPickerModal.tsx`) catches this
+  and falls through to the generic fallback badge instead of a broken-
+  image glyph, so any future dead URL fails the same safe way.
+- **Generic fallback badge**: an original inline SVG (a simple leaf/sprout
+  mark, not a reproduction of Robinhood's own tokenized-stock icon or any
+  real project's logo) replaces the old two-letter-initials circle for any
+  token with no logo at all — Dylan liked how uniform the RWA tokens'
+  real logos looked and wanted every logo-less token to default to
+  something in that visual family instead of flat text initials.
 - **2-signature step UI**: `swap-waiting` — a spinning ring around the
   $PRINT logo (CSS `@keyframes swap-spin`, not an image GIF) with "Waiting
   for Confirmation 1/2" / "…2/2" title text and a small 2-dot progress row

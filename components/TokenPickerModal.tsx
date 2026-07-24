@@ -26,9 +26,15 @@ function shortAddr(a: string) {
 // inside the swap card's small token pill (18px) without separate markup.
 export function TokenIcon({ token, size = 28 }: { token: RhToken; size?: number }) {
   const style = { width: size, height: size };
-  if (token.logo) {
+  // Logo URLs are third-party (CoinGecko/GeckoTerminal, via Relay's
+  // /currencies/v2 lookup) — one of them (JUGGERNAUT's) turned out to
+  // already 403 despite being hardcoded from a real API response, so any
+  // broken image falls through to the generic badge below instead of
+  // showing a broken-image glyph.
+  const [broken, setBroken] = useState(false);
+  if (token.logo && !broken) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img className="tp-row-icon" style={style} src={token.logo} alt="" />;
+    return <img className="tp-row-icon" style={style} src={token.logo} alt="" onError={() => setBroken(true)} />;
   }
   if (token.isNative) {
     return (
@@ -42,9 +48,21 @@ export function TokenIcon({ token, size = 28 }: { token: RhToken; size?: number 
       </span>
     );
   }
+  // Generic "no logo found" badge — an original mark (not a reproduction of
+  // any real project's logo), in the same green-circle language as every
+  // other badge on this page, used instead of plain text initials since
+  // Dylan liked how the RWA tokens' real (Relay-sourced) logos looked
+  // uniform and wanted every logo-less token to default to something in
+  // that style rather than a flat "AB" initials circle.
   return (
     <span className="tp-row-icon tp-row-icon-fallback" style={style}>
-      {token.symbol.slice(0, 2).toUpperCase()}
+      <svg width="62%" height="62%" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 3c3 2.5 5 5.5 5 8.5A5 5 0 0 1 7 11.5C7 8.5 9 5.5 12 3z"
+          fill="currentColor"
+        />
+        <path d="M12 21v-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
     </span>
   );
 }
@@ -154,7 +172,7 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
 
             <div className="tp-results">
               {customLoading && <div className="tp-empty">Looking up token…</div>}
-              {customToken && (
+              {customToken && !results.some((r) => r.address.toLowerCase() === customToken.address.toLowerCase()) && (
                 <button
                   type="button"
                   className="tp-row"

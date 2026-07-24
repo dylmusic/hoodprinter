@@ -61,12 +61,39 @@ export const USDG_TOKEN: RhToken = {
 // since it's the whole point of this page.
 export const PINNED_TOKENS: RhToken[] = [PRINT_TOKEN, ETH_TOKEN, WETH_TOKEN, USDG_TOKEN];
 
-// Same addresses PrintBot/MultiSender curate elsewhere in the app.
+// Same addresses PrintBot/MultiSender curate elsewhere in the app. Logos
+// pulled via Relay's /currencies/v2 address lookup (see resolveCustomToken
+// below — the same live source, just fetched once and hardcoded here since
+// these 4 are static/curated rather than user-pasted).
 const OTHER_CURATED: RhToken[] = [
-  { address: "0x020bfC650A365f8BB26819deAAbF3E21291018b4", symbol: "CASHCAT", name: "CashCat", decimals: 18 },
-  { address: "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", symbol: "ARROW", name: "Arrow", decimals: 18 },
-  { address: "0x8e62f281f282686fca6dcb39288069a93fc23f1c", symbol: "HOODRAT", name: "HoodRat", decimals: 18 },
-  { address: "0xd7321801caae694090694ff55a9323139f043b88", symbol: "JUGGERNAUT", name: "Juggernaut", decimals: 18 },
+  {
+    address: "0x020bfC650A365f8BB26819deAAbF3E21291018b4",
+    symbol: "CASHCAT",
+    name: "CashCat",
+    decimals: 18,
+    logo: "https://coin-images.coingecko.com/coins/images/102174280/large/cashcat-logo.jpg?1782922765",
+  },
+  {
+    address: "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03",
+    symbol: "ARROW",
+    name: "Arrow",
+    decimals: 18,
+    logo: "https://assets.geckoterminal.com/43zbrz8v0ejqxxstwmt88xt8kkt1",
+  },
+  {
+    address: "0x8e62f281f282686fca6dcb39288069a93fc23f1c",
+    symbol: "HOODRAT",
+    name: "HoodRat",
+    decimals: 18,
+    logo: "https://coin-images.coingecko.com/coins/images/102174350/large/hoodrat_400x400.jpg?1783361154",
+  },
+  {
+    address: "0xd7321801caae694090694ff55a9323139f043b88",
+    symbol: "JUGGERNAUT",
+    name: "Juggernaut",
+    decimals: 18,
+    logo: "https://assets.geckoterminal.com/85cjg6du87ljb72yga9i14m42cb2",
+  },
 ];
 
 // Logos for the 5 RWA_POOLS tokens, pulled from the same Relay
@@ -137,9 +164,43 @@ const erc20MetaIface = new ethers.Interface([
 ]);
 
 /**
+ * Live logo lookup for a pasted address, via Relay's own /currencies/v2 API
+ * scoped to Robinhood Chain — the same source already used to hardcode
+ * WETH/USDG/RWA/curated-token logos above, just called live here instead.
+ * This is genuinely how a lot of wallets/DEX UIs solve "where do token
+ * icons come from" for tokens they don't maintain their own list for:
+ * MetaMask's own token-icon set is a maintained repo (originally
+ * MetaMask/contract-metadata, now a CDN) for a curated set of chains/
+ * tokens, same idea as the Trust Wallet assets repo (github.com/
+ * trustwallet/assets) most other wallets/aggregators pull from — but
+ * neither of those has meaningful Robinhood Chain coverage yet (it's a
+ * very new chain). Relay's endpoint does, because Relay already needs
+ * per-token metadata (symbol/decimals/logo) to power its own swap widget
+ * across every chain it supports, us included — reusing it here avoids
+ * a second, separate token-icon API integration (e.g. CoinGecko's
+ * `/coins/{platform}/contract/{address}`, which needs a CoinGecko
+ * "platform id" for the chain that may not even exist for one this new).
+ * Anything Relay doesn't recognize falls back to no logo — the picker
+ * renders a generic badge in that case (components/TokenPickerModal.tsx).
+ */
+async function fetchRelayTokenLogo(address: string): Promise<string | undefined> {
+  try {
+    const res = await fetch("https://api.relay.link/currencies/v2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chainIds: [siteConfig.chain.chainId], address }),
+    });
+    const results = await res.json();
+    return results?.[0]?.metadata?.logoURI || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Resolves a pasted contract address that isn't in the curated list, by
  * reading symbol/name/decimals directly on-chain — mirrors the "add by CA"
- * pattern already used in PrintBot.tsx.
+ * pattern already used in PrintBot.tsx — plus a live logo lookup via Relay.
  */
 export async function resolveCustomToken(address: string): Promise<RhToken | null> {
   if (!ethers.isAddress(address)) return null;
@@ -148,8 +209,13 @@ export async function resolveCustomToken(address: string): Promise<RhToken | nul
   try {
     const provider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
     const token = new ethers.Contract(address, erc20MetaIface, provider);
-    const [symbol, name, decimals] = await Promise.all([token.symbol(), token.name(), token.decimals()]);
-    return { address, symbol, name, decimals: Number(decimals) };
+    const [symbol, name, decimals, logo] = await Promise.all([
+      token.symbol(),
+      token.name(),
+      token.decimals(),
+      fetchRelayTokenLogo(address),
+    ]);
+    return { address, symbol, name, decimals: Number(decimals), logo };
   } catch {
     return null;
   }
