@@ -56,6 +56,16 @@ a {
   font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 480px) {
+  .announce-bar {
+    font-size: 0.78rem;
+    padding: 9px 10px;
+  }
 }
 
 .presale-bar:hover,
@@ -4086,6 +4096,12 @@ footer {
   gap: 10px;
   margin: 4px auto 26px;
 }
+.hero-buy-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
 .cd-live {
   display: inline-flex;
   flex-direction: row; /* .cd sets column; keep the dot inline with the text */
@@ -4101,6 +4117,28 @@ footer {
 }
 .cd-live:hover {
   filter: brightness(1.06);
+}
+.cd-chart {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(0, 200, 5, 0.5);
+  color: var(--green);
+  font-weight: 800;
+  font-size: 1rem;
+}
+.cd-chart:hover {
+  background: rgba(0, 200, 5, 0.1);
+}
+@media (max-width: 480px) {
+  .cd-live,
+  .cd-chart {
+    padding: 12px 18px;
+    font-size: 0.9rem;
+  }
 }
 .cd-live-dot {
   width: 10px;

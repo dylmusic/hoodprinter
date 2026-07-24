@@ -190,7 +190,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          🖨️ $PRINT is live on Robinhood Chain — buy now
+          🖨️ $PRINT is live — buy now
           <span className="announce-arrow">→</span>
         </a>
       ) : (
@@ -220,10 +220,20 @@ export default function Home() {
             in ETH.
           </p>
           {presaleActive && (
-            <a className="cd cd-live" href={presaleLink} target="_blank" rel="noopener noreferrer">
-              <span className="cd-live-dot" aria-hidden="true" />
-              Buy Now
-            </a>
+            <div className="cd hero-buy-row">
+              <a className="cd-live" href={presaleLink} target="_blank" rel="noopener noreferrer">
+                <span className="cd-live-dot" aria-hidden="true" />
+                Buy Now
+              </a>
+              <a
+                className="cd-chart"
+                href="https://dexscreener.com/robinhood/0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                📈 Chart
+              </a>
+            </div>
           )}
           <div className="hero-ctas">
             {presaleActive ? (
