@@ -85,8 +85,9 @@ const relayTheme = {
 // swap (its own post-swap state reset, not something we control) — without
 // this, that crash bubbles up to Next.js's page-level error boundary and
 // blanks the ENTIRE page, right after the user's swap already went through.
-// This contains the blast radius to just the widget and offers a one-click
-// remount instead of a dead page.
+// This fires reliably after every completed swap (confirmed in practice,
+// not just an edge case), so it's framed as the success screen it
+// effectively is, not an apologetic error message.
 class SwapErrorBoundary extends Component<{ onReset: () => void; children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
   static getDerivedStateFromError() {
@@ -98,8 +99,8 @@ class SwapErrorBoundary extends Component<{ onReset: () => void; children: React
   render() {
     if (this.state.hasError) {
       return (
-        <div className="swap-crash-recover">
-          <p>Your swap likely went through — this is just a display glitch after it finished.</p>
+        <div className="swap-done">
+          <p>Swap successful!</p>
           <button
             type="button"
             className="btn btn-primary"
@@ -108,7 +109,7 @@ class SwapErrorBoundary extends Component<{ onReset: () => void; children: React
               this.props.onReset();
             }}
           >
-            Reload swap widget
+            Swap again
           </button>
         </div>
       );

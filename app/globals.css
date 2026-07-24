@@ -4701,6 +4701,15 @@ footer {
   background: #101b14 !important;
 }
 
+/* The currently-selected chain button in that same sidebar uses a
+   different fixed light-gray utility class (gray6, not gray3) — same root
+   cause, separate override. Green tint doubles as a clear "selected"
+   indicator against the gray3 background above. */
+.relay-bg_gray6,
+.hover\:relay-bg_gray6:hover {
+  background: rgba(0, 200, 5, 0.22) !important;
+}
+
 .swap-loading {
   padding: 40px 20px;
   text-align: center;
@@ -4709,15 +4718,16 @@ footer {
   border: 1px solid var(--border);
 }
 
-.swap-crash-recover {
+.swap-done {
   padding: 32px 20px;
   text-align: center;
-  color: var(--muted);
-  background: var(--card);
-  border: 1px solid var(--border);
+  color: var(--text);
+  background: rgba(0, 200, 5, 0.08);
+  border: 1px solid rgba(0, 200, 5, 0.3);
 }
-.swap-crash-recover p {
+.swap-done p {
   margin-bottom: 14px;
+  font-weight: 700;
 }
 
 .swap-cta {
