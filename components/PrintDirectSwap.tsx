@@ -46,6 +46,27 @@ const CHAIN = {
 const fmt = (n: number, max = 6) =>
   n === 0 ? "0" : n < 0.000001 ? n.toExponential(2) : n.toLocaleString(undefined, { maximumFractionDigits: max });
 
+// Wallet/viem errors, Relay SDK errors, and our own thrown Errors all shape
+// their message differently — try every field we've actually seen used
+// before falling back to a raw dump, so a failure is diagnosable from the
+// UI alone instead of just showing "Swap failed." with no detail.
+function describeError(e: any): string {
+  const msg =
+    e?.shortMessage ||
+    e?.reason ||
+    e?.errors?.[0]?.message ||
+    e?.error?.message ||
+    e?.data?.message ||
+    e?.response?.data?.message ||
+    e?.message;
+  if (msg && typeof msg === "string") return msg;
+  try {
+    return JSON.stringify(e)?.slice(0, 300) || "Swap failed.";
+  } catch {
+    return "Swap failed.";
+  }
+}
+
 // Same wallet-connect stack as the Relay widget (wagmi + RainbowKit) so
 // MetaMask/WalletConnect/etc. all work correctly here too.
 const robinhoodChain: Chain = {
@@ -346,6 +367,7 @@ function InnerDirectSwap() {
     setTxHash(null);
     setReceivedAmt(null);
     setLegProgress(null);
+    let legContext: string | null = null; // prefixed onto the error below if a 2-leg route fails mid-flight
     try {
       if (plan === "print-buy") {
         if (!rate) return;
@@ -408,6 +430,7 @@ function InnerDirectSwap() {
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: ok ? `~${fmt(expectedOut)}` : null });
       } else if (plan === "relay-only") {
         setStep("Confirm in wallet…");
+        legContext = `${fromToken.symbol} → ${toToken.symbol} (via Relay)`;
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
         const quote = await getRelayLegQuote({
           chainId: CHAIN.id,
@@ -439,6 +462,7 @@ function InnerDirectSwap() {
       } else if (plan === "relay-to-print") {
         // Leg 1/2 — fromToken -> ETH on Robinhood Chain via Relay. Fee-free:
         // our 0.85% is taken once, on leg 2 below.
+        legContext = `Step 1/2 (${fromToken.symbol} → ETH via Relay)`;
         setLegProgress({ part: 1, total: 2, label: `Confirm ${fromToken.symbol} → ETH` });
         const preBalance = await readProvider.getBalance(address);
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
@@ -462,6 +486,7 @@ function InnerDirectSwap() {
 
         // Leg 2/2 — ETH -> $PRINT via our own designated pool. Our fee is
         // taken here (see buildBuySwapTx's internal splitFee call).
+        legContext = "Step 2/2 (ETH → $PRINT)";
         setLegProgress({ part: 2, total: 2, label: "Confirm ETH → $PRINT" });
         const expectedOut = Number(ethers.formatEther(leg2InputWei)) * (1 - 0.0085) * rate * (1 - POOL_TAX_PCT / 100);
         const minOut = expectedOut * (1 - slippage / 100);
@@ -499,6 +524,7 @@ function InnerDirectSwap() {
         }
 
         // Leg 1/2 — $PRINT -> ETH via our own pool. Fee taken here (once).
+        legContext = "Step 1/2 ($PRINT → ETH)";
         setLegProgress({ part: 1, total: 2, label: "Confirm $PRINT → ETH" });
         const { swapWei } = splitFee(totalPrintWei);
         const expectedEthOut = (Number(ethers.formatUnits(swapWei, 18)) / rate) * (1 - POOL_TAX_PCT / 100);
@@ -521,6 +547,7 @@ function InnerDirectSwap() {
         }
 
         // Leg 2/2 — ETH -> toToken via Relay. Fee-free (already taken above).
+        legContext = `Step 2/2 (ETH → ${toToken.symbol} via Relay)`;
         setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
         const quote2 = await getRelayLegQuote({
           chainId: CHAIN.id,
@@ -556,7 +583,9 @@ function InnerDirectSwap() {
       setLegProgress(null);
       refreshPrice(); // a PRINT-pool leg just moved the price — don't show a stale estimate
     } catch (e: any) {
-      setError(e?.shortMessage || e?.reason || e?.message || "Swap failed.");
+      console.error("Swap failed", legContext, e);
+      const detail = describeError(e);
+      setError(legContext ? `${legContext} failed: ${detail}` : detail);
       setStep(null);
       setLegProgress(null);
     } finally {
@@ -708,10 +737,20 @@ function InnerDirectSwap() {
         ) : (
           <>
             {swapping && legProgress && (
-              <div className="swap-steps">
-                <span className={`swap-step-dot${legProgress.part >= 1 ? " active" : ""}`}>1</span>
-                <span className={`swap-step-line${legProgress.part >= 2 ? " active" : ""}`} />
-                <span className={`swap-step-dot${legProgress.part >= 2 ? " active" : ""}`}>2</span>
+              <div className="swap-waiting">
+                <span className="swap-waiting-ring">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.png" alt="" className="swap-waiting-logo" />
+                </span>
+                <p className="swap-waiting-title">
+                  Waiting for Confirmation {legProgress.part}/{legProgress.total}
+                </p>
+                <p className="swap-waiting-sub">{legProgress.label}</p>
+                <div className="swap-waiting-dots">
+                  <span className={`swap-step-dot${legProgress.part >= 1 ? " active" : ""}`} />
+                  <span className={`swap-step-line${legProgress.part >= 2 ? " active" : ""}`} />
+                  <span className={`swap-step-dot${legProgress.part >= 2 ? " active" : ""}`} />
+                </div>
               </div>
             )}
             <button
@@ -722,7 +761,7 @@ function InnerDirectSwap() {
             >
               {swapping
                 ? legProgress
-                  ? `Sign in wallet ${legProgress.part}/${legProgress.total} — ${legProgress.label}`
+                  ? "Confirm in wallet…"
                   : step || "Swapping…"
                 : plan === "invalid"
                   ? "Choose two different tokens"

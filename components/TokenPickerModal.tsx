@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CURATED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
+import { CURATED_TOKENS, PINNED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
 
 // Styled after Relay's own "Select Token" modal (search box + result list,
 // icon/symbol/name/truncated-address rows) so switching between this and
@@ -112,6 +112,28 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
             />
+
+            <div className="tp-pinned-row">
+              {PINNED_TOKENS.map((t) => {
+                const disabled = exclude?.toLowerCase() === t.address.toLowerCase();
+                return (
+                  <button
+                    key={t.address}
+                    type="button"
+                    className="tp-pinned-pill"
+                    disabled={disabled}
+                    onClick={() => {
+                      if (disabled) return;
+                      onSelect(t);
+                      onClose();
+                    }}
+                  >
+                    <TokenIcon token={t} size={20} />
+                    {t.symbol}
+                  </button>
+                );
+              })}
+            </div>
 
             <div className="tp-results">
               {customLoading && <div className="tp-empty">Looking up token…</div>}

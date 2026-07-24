@@ -233,6 +233,42 @@ and is background for if that ever happens, not the current live page.
   that ETH amount through the same pool-rate/tax math as print-buy;
   `print-to-relay` computes the ETH leg 1 output locally then previews
   Relay's leg 2 (ETH→toToken) for the final number.
+- **Pinned tokens** (`PINNED_TOKENS` in `lib/robinhoodTokens.ts`) — a quick-
+  select pill row at the top of the picker, mirroring Relay's own modal
+  (ETH/WETH/USDG pinned pills, screenshots Dylan supplied). WETH
+  (`0x0Bd7…AD73`, matches the address already in the on-chain section) and
+  USDG (`0x5FC5360D0400a0Fd4f2AF552Add042d716f1D168`, 6 decimals, "Global
+  Dollar") were pulled from Relay's own `/currencies/v2` API for chainId
+  4663 rather than guessed — same source SwapEmbed already used for its
+  chain list, just queried directly this once to get real checksummed
+  addresses instead of hand-typing them (a hand-typed guess previously
+  crashed the page with a bad-checksum error on load — always source
+  addresses from a verified API or on-chain read, never type them from a
+  truncated UI screenshot).
+- **2-signature step UI**: `swap-waiting` — a spinning ring around the
+  $PRINT logo (CSS `@keyframes swap-spin`, not an image GIF) with "Waiting
+  for Confirmation 1/2" / "…2/2" title text and a small 2-dot progress row
+  underneath, replacing an earlier plain dot-stepper that Dylan felt wasn't
+  sleek enough. Only rendered for the two-leg plans (`legProgress` state);
+  single-leg plans keep the existing plain button-text behavior.
+- **Slippage pill sizing**: the custom/editable pill (defaults to 15%) must
+  visually match the fixed 7%/10% pills — the `<input>` inside it was
+  originally a fixed 22px which made the whole pill noticeably wider than
+  its siblings even though the padding was identical; narrowed to `1.4em`
+  (fits 2 digits) so all three pills read as the same size.
+- **Error diagnostics**: a real end-to-end CASHCAT→$PRINT attempt failed in
+  production with just "Swap failed." — the generic fallback text, meaning
+  the thrown error's shape didn't match any of the fields being checked.
+  `describeError()` now tries every error-message shape actually seen
+  across ethers/viem/Relay SDK errors before falling back to a raw
+  `JSON.stringify`, the full raw error is `console.error`'d for follow-up
+  debugging, and a `legContext` string (e.g. "Step 1/2 (CASHCAT → ETH via
+  Relay)") is prefixed onto the message for 2-leg routes so a failure says
+  which leg it was in. Root cause of that specific failure is still
+  unconfirmed — couldn't be reproduced without a funded/connected wallet in
+  this environment (same verification gap noted below for the swap tx
+  encodings); next failure should surface an actual diagnosable message
+  instead of the opaque one Dylan saw.
 
 - **Price source**: read directly on-chain via Uniswap's `StateView` lens
   contract (`0xF3334192D15450CdD385c8B70e03f9A6bD9E673b`, verified live —

@@ -36,6 +36,31 @@ export const PRINT_TOKEN: RhToken = {
   logo: "/logo.png",
 };
 
+// Verified against Relay's own /currencies/v2 API for chainId 4663 — same
+// WETH address already documented in CLAUDE.md's on-chain section, and the
+// "verified" USDG entry (Global Dollar) matching the address Relay's own
+// "Select Token" modal shows pinned at the top ("Global Dollar 0x5f...d168").
+export const WETH_TOKEN: RhToken = {
+  address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  symbol: "WETH",
+  name: "WETH",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/102174283/large/weth-robinhood.jpeg?1782924507",
+};
+
+export const USDG_TOKEN: RhToken = {
+  address: "0x5FC5360D0400a0Fd4f2AF552Add042d716f1D168",
+  symbol: "USDG",
+  name: "Global Dollar",
+  decimals: 6,
+  logo: "https://assets.coingecko.com/coins/images/51281/standard/GDN_USDG_Token_200x200.png",
+};
+
+// Pinned quick-select row at the top of the picker — mirrors Relay's own
+// "Select Token" modal (ETH/WETH/USDG pinned pills), with $PRINT added
+// since it's the whole point of this page.
+export const PINNED_TOKENS: RhToken[] = [PRINT_TOKEN, ETH_TOKEN, WETH_TOKEN, USDG_TOKEN];
+
 // Same addresses PrintBot/MultiSender curate elsewhere in the app.
 const OTHER_CURATED: RhToken[] = [
   { address: "0x020bfC650A365f8BB26819deAAbF3E21291018b4", symbol: "CASHCAT", name: "CashCat", decimals: 18 },
@@ -51,7 +76,14 @@ const RWA_TOKENS: RhToken[] = RWA_POOLS.map((p) => ({
   decimals: 18,
 }));
 
-export const CURATED_TOKENS: RhToken[] = [ETH_TOKEN, PRINT_TOKEN, ...OTHER_CURATED, ...RWA_TOKENS];
+export const CURATED_TOKENS: RhToken[] = [
+  ETH_TOKEN,
+  PRINT_TOKEN,
+  WETH_TOKEN,
+  USDG_TOKEN,
+  ...OTHER_CURATED,
+  ...RWA_TOKENS,
+];
 
 const erc20MetaIface = new ethers.Interface([
   "function symbol() view returns (string)",
