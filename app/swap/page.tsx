@@ -3,24 +3,24 @@ import PrintDirectSwap from "@/components/PrintDirectSwap";
 import SiteNav from "@/components/SiteNav";
 import { siteConfig } from "@/site.config";
 
-// RELAY WIDGET TEMPORARILY HIDDEN (2026-07-24) — Relay's routing for $PRINT
-// is picking the wrong on-chain pool. There are 3 ETH/PRINT Uniswap V4
-// pools on Robinhood Chain (confirmed via PoolManager Initialize events);
-// only 0xf19f1556...27075 has our tax hook + real liquidity, the other two
-// are hookless decoy pools with near-zero depth. Relay was quoting off a
-// decoy (~1.29M PRINT/ETH vs the real pool's ~83M+ per DexScreener) and
-// its API has no way to pin a specific pool (`includedSwapSources` only
-// filters by DEX name, which doesn't distinguish between the 3 pools —
-// confirmed empirically, including a "no routes found" result when tried).
-// So for now this page uses components/PrintDirectSwap.tsx — a basic,
-// ETH->$PRINT-only swap hand-built against the KNOWN-correct pool via the
-// Universal Router's V4Router path (see lib/printDirectSwap.ts for the
-// full pool-key details and encoding). components/SwapEmbed.tsx (the full
-// Relay-embedded any-token/any-chain widget) is untouched and still here —
-// swap PrintDirectSwap back out for it once Relay's routing is fixed.
+// Our own router (components/PrintDirectSwap.tsx) — any Robinhood Chain
+// token to any other. Built because Relay's routing for $PRINT was picking
+// the wrong on-chain pool: there are 3 ETH/PRINT Uniswap V4 pools on
+// Robinhood Chain (confirmed via PoolManager Initialize events), only
+// 0xf19f1556...27075 has our tax hook + real liquidity, the other two are
+// hookless decoy pools with near-zero depth, and Relay's API has no way to
+// pin a specific pool (`includedSwapSources` only filters by DEX name,
+// which doesn't distinguish between the 3 pools — confirmed empirically).
+// So any leg touching $PRINT always goes through our own known-correct
+// pool via the Universal Router's V4Router path (lib/printDirectSwap.ts);
+// everything else (an ordinary token that isn't $PRINT) is routed through
+// Relay's headless SDK (lib/relayLeg.ts), same-chain only for now — see
+// CLAUDE.md "Swap" for the full architecture and the multichain follow-up.
+// components/SwapEmbed.tsx (the old full-widget version) is untouched and
+// still here, unused, in case Relay ever adds pool-level pinning.
 export const metadata: Metadata = {
   title: "Swap — HOODPrinter",
-  description: `Swap ETH for ${siteConfig.symbol} on Robinhood Chain, routed directly through the real pool.`,
+  description: `Swap any Robinhood Chain token for ${siteConfig.symbol}, routed safely through the real pool.`,
   alternates: { canonical: "/swap" },
 };
 
@@ -38,8 +38,8 @@ export default function SwapPage() {
             Swap <span className="green">$PRINT</span>{" "}
             <span className="rwa-beta-tag">BETA</span>
           </h1>
-          <p>ETH ⇄ $PRINT on Robinhood Chain</p>
-          <p className="swap-subnote">⚠️ Multi-Chain Relay Coming Soon</p>
+          <p>Any Robinhood Chain asset ⇄ $PRINT</p>
+          <p className="swap-subnote">⚠️ Multi-Chain Coming Soon</p>
         </div>
 
         <PrintDirectSwap />

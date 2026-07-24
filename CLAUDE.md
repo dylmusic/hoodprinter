@@ -176,18 +176,63 @@ DEX name ("uniswap" covers all three pools identically), and forcing
 `includedSwapSources: ["uniswap"]` returned `NO_SWAP_ROUTES_FOUND` outright
 (same-chain quotes here don't even go through that filter).
 
-**Fix: `/swap` now uses `components/PrintDirectSwap.tsx`** — hand-builds
-Universal Router V4Router transactions against the KNOWN-correct pool
-(`lib/printDirectSwap.ts` has the full `PoolKey` — fee is Uniswap's
-`DYNAMIC_FEE_FLAG` 0x800000 since the hook sets the real fee/tax at swap
-time, tickSpacing 200). Supports **both directions** (buy ETH→PRINT, sell
-PRINT→ETH), flip via the divider button (a two-arrow loop icon) or by
-clicking either token pill. `components/SwapEmbed.tsx` (the full
-Relay-embedded any-token/any-chain widget) is untouched, just not rendered
-on `/swap` right now — swap it back in once Relay fixes their pool
-selection for this token. Everything from "Architecture — embeds Relay's
-own SwapWidget" below describes SwapEmbed and is accurate for when it's
-re-enabled, not for the current live page.
+**Fix: `/swap` now uses `components/PrintDirectSwap.tsx`, our own router.**
+Not just an ETH↔PRINT-only patch anymore (2026-07-24 initial fix) — as of
+2026-07-24 (later same day) it routes **any Robinhood Chain token to any
+other**, styled after Relay's own "Select Token" picker (screenshots Dylan
+supplied matched almost exactly — chain sidebar + search + result rows).
+The rule that keeps this safe: **any leg touching $PRINT always goes
+through our own hardcoded pool, never Relay, no matter what the other side
+of the swap is.** Everything else is Relay's job. `components/SwapEmbed.tsx`
+(the full pre-incident widget) is untouched, just unused — swap it back in
+whole-hog only if Relay ever ships pool-level pinning. Everything from
+"Architecture — embeds Relay's own SwapWidget" below describes SwapEmbed
+and is background for if that ever happens, not the current live page.
+
+**Router (`lib/robinhoodTokens.ts`, `lib/relayLeg.ts`,
+`components/TokenPickerModal.tsx`, `components/PrintDirectSwap.tsx`
+`planRoute()`)** — given `fromToken`/`toToken`, picks one of five plans:
+  - `print-buy` (ETH→PRINT) / `print-sell` (PRINT→ETH): the original
+    single-signature flow, unchanged.
+  - `relay-only`: neither side is $PRINT — one Relay-routed leg (Relay's
+    own headless SDK, `getQuote`/`execute` from `@reservoir0x/relay-sdk`,
+    same package the old widget used, just called directly instead of
+    through `SwapWidget` — this is Relay's own documented "headless"
+    integration path, not a hand-rolled REST client). Our 0.85% fee rides
+    this leg via `getQuote`'s `options.appFees` since there's no PRINT leg
+    to take it on instead.
+  - `relay-to-print` (any other token → PRINT) / `print-to-relay` (PRINT →
+    any other token): **always exactly two signatures, never charged a fee
+    twice.** Leg 1 gets the swap to/from plain ETH on Robinhood Chain via
+    Relay, fee-free. Leg 2 is our own ETH↔PRINT pool tx, where the 0.85%
+    fee is taken once (same `PAY_PORTION` mechanism as print-buy/print-sell
+    below). The amount fed into leg 2 is measured from the wallet's own ETH
+    balance delta across leg 1 (`getBalance` before/after, which nets out
+    leg 1's own gas automatically) rather than trusted from Relay's quote —
+    a worse-than-quoted fill on leg 1 can't leave leg 2 trying to spend ETH
+    that never arrived. Matches Dylan's explicit spec: *"only require 2
+    signatures when necessary… show them a Sign in wallet 1/2 and then 2/2
+    so its easy to see the process visually"* — the `swap-steps` two-dot
+    indicator only renders for these two plans, never for the single-
+    signature ones, and the button label reads "Sign in wallet 1/2 —
+    Confirm X → ETH" / "…2/2 — Confirm ETH → Y".
+  - `invalid`: same token both sides — submit button disables itself
+    instead of building anything.
+- **Token list (`lib/robinhoodTokens.ts`)**: curated (ETH, $PRINT, the same
+  CASHCAT/ARROW/HOODRAT/JUGGERNAUT addresses PrintBot/MultiSender already
+  curate, the 5 RWA stock tokens from `lib/rwaPools.ts`) plus a paste-any-
+  address fallback (`resolveCustomToken`, reads `symbol()`/`name()`/
+  `decimals()` on-chain — same "add by CA" pattern as PrintBot). No chain
+  sidebar functionality yet (Robinhood Chain is the only real row, "More
+  chains coming soon" note) — phase 1 is same-chain only, Dylan's own
+  suggestion ("maybe its easier to start with robinhood chain only, same
+  chain swaps... before integrating the multichain").
+- **Live preview for Relay-touching plans**: debounced (500ms) `getQuote`
+  call as the user types, separate from the always-on PRINT/ETH pool-rate
+  poller. `relay-to-print` previews leg 1 only (fromToken→ETH) then runs
+  that ETH amount through the same pool-rate/tax math as print-buy;
+  `print-to-relay` computes the ETH leg 1 output locally then previews
+  Relay's leg 2 (ETH→toToken) for the final number.
 
 - **Price source**: read directly on-chain via Uniswap's `StateView` lens
   contract (`0xF3334192D15450CdD385c8B70e03f9A6bD9E673b`, verified live —
@@ -255,11 +300,12 @@ re-enabled, not for the current live page.
   `localStorage` under `hoodprint_swap_txs` (separate key from the Buy
   Bot's own `hoodprint_txs` feed) — same restore/save pattern as
   `components/PrintBot.tsx`.
-- Subnote ("⚠️ Multi-Chain Relay Coming Soon") and the token-pill hover
-  tooltip ("⚠️ Multi-Chain Relay Under Construction") both got a warning
-  icon — Dylan wanted it to read as an active warning, not just a status
-  label; the subnote dropped an all-caps treatment for the same reason
-  ("looks weird... feel like an under construction warning").
+- Subnote is now **"⚠️ Multi-Chain Coming Soon"** (was "⚠️ Multi-Chain Relay
+  Coming Soon" / warning-icon, non-all-caps styling predates the router
+  rebuild and both are kept). The token-pill hover tooltip ("⚠️ Multi-Chain
+  Relay Under Construction") was **removed** — the pill is now a real
+  picker button (opens `TokenPickerModal`), not a disabled-feature warning,
+  now that same-chain token switching actually works.
 
 `components/SwapEmbed.tsx`. Shipped live 2026-07-24: in SiteNav (home variant
 — replaced "How It Works"), in the sitemap, indexable, BETA badge on the page
