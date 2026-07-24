@@ -249,6 +249,24 @@ and is background for if that ever happens, not the current live page.
     instead of building anything.
   - All four two-leg plans (`curated-to-print`/`print-to-curated` included)
     share the same `swap-waiting` step UI — see "2-signature step UI" below.
+  - **Gas reserve between legs is estimated, not a flat guess, whenever
+    leg 2 is our own tx** (`curated-to-print`/`print-to-curated`, and
+    `relay-to-print`'s leg 2 which is also always ours) — `estimateEthGasReserve()`
+    calls `estimateGas` + `getFeeData` against a probe build of the actual
+    leg-2 tx (minOut=0, never sent) using the real amount leg 1 delivered,
+    with a 30% buffer, falling back to the old flat "~$1 of ETH" heuristic
+    only if estimation itself fails. Built after a live CASHCAT→$PRINT
+    attempt: leg 1 genuinely succeeded, but the flat reserve turned out to
+    be roughly the SAME size as the entire (small test-amount) trade,
+    leaving nothing for leg 2 and throwing "didn't receive enough ETH" —
+    not a routing bug, just an imprecise reserve. Verified live: real gas
+    cost for a buy-direction leg 2 was ~0.000154 ETH (with buffer) against
+    a ~0.00025 ETH trade — the old flat reserve alone was ~0.00027 ETH,
+    i.e. bigger than the entire trade, so *any* small trade was doomed
+    regardless of routing correctness. `print-to-relay`'s leg 2 is the one
+    exception left on the flat heuristic — it's Relay's own tx, not ours,
+    so its exact gas isn't estimable ahead of a quote (which itself needs
+    this same amount as input — circular).
 - **Token list (`lib/robinhoodTokens.ts`)**: curated (ETH, $PRINT, the same
   CASHCAT/ARROW/HOODRAT/JUGGERNAUT addresses PrintBot/MultiSender already
   curate, the 5 RWA stock tokens from `lib/rwaPools.ts`) plus a paste-any-

@@ -106,6 +106,28 @@ const rainbowTheme = darkTheme({
 
 const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
 
+// A real CASHCAT->PRINT attempt failed at exactly this step: leg 1
+// genuinely succeeded, but a flat "~$1 of ETH" reserve held back for leg
+// 2's gas turned out to be roughly the same size as the ENTIRE trade (a
+// small test amount), leaving nothing to actually spend on leg 2 — not a
+// routing bug, but a needlessly imprecise reserve. This estimates leg 2's
+// real gas cost against the actual amount received, so only genuinely-
+// too-small trades get blocked, not moderate ones. Falls back to the old
+// flat heuristic only if estimation itself fails (e.g. an RPC hiccup).
+async function estimateEthGasReserve(
+  tx: { to: string; data: string; value: bigint },
+  from: string,
+  ethUsd: number | null
+): Promise<bigint> {
+  try {
+    const [gasUnits, feeData] = await Promise.all([readProvider.estimateGas({ ...tx, from }), readProvider.getFeeData()]);
+    const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.parseUnits("1", "gwei");
+    return (gasUnits * gasPrice * 130n) / 100n; // 30% buffer for gas price drift between estimate and send
+  } catch {
+    return ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
+  }
+}
+
 const FlipIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M17 2l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -536,11 +558,18 @@ function InnerDirectSwap() {
         updateTx(hash1, { status: "ok" });
 
         const postBalance = await readProvider.getBalance(address);
-        const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
+        if (receivedWei <= 0n || !rate) {
+          throw new Error(`Didn't receive any ETH from ${fromToken.symbol} — the swap may not have gone through.`);
+        }
+        // Probe leg 2's real gas cost using the full received amount (minOut=0 — estimation only, never sent).
+        const probeMinOutWei = 0n;
+        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, probeMinOutWei), address, ethUsd);
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
-        if (leg2InputWei <= 0n || !rate) {
-          throw new Error(`Didn't receive enough ETH from ${fromToken.symbol} to continue to $PRINT.`);
+        if (leg2InputWei <= 0n) {
+          throw new Error(
+            `Received ${ethers.formatEther(receivedWei)} ETH from ${fromToken.symbol} — not enough left over to also cover gas for the $PRINT swap. Try a larger amount.`
+          );
         }
 
         // Leg 2/2 — ETH -> $PRINT via our own designated pool. Our fee is
@@ -584,11 +613,17 @@ function InnerDirectSwap() {
         await executeRelayLeg(quote1, walletClient, (label) => setLegProgress({ part: 1, total: 2, label }));
 
         const postBalance = await readProvider.getBalance(address);
-        const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
+        if (receivedWei <= 0n || !rate) {
+          throw new Error(`Didn't receive any ETH from ${fromToken.symbol} — the swap may not have gone through.`);
+        }
+        // Probe leg 2's real gas cost (leg 2 is our own tx, so this is estimable even though leg 1 was Relay's).
+        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, 0n), address, ethUsd);
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
-        if (leg2InputWei <= 0n || !rate) {
-          throw new Error(`Didn't receive enough ETH from ${fromToken.symbol} to continue to $PRINT.`);
+        if (leg2InputWei <= 0n) {
+          throw new Error(
+            `Received ${ethers.formatEther(receivedWei)} ETH from ${fromToken.symbol} — not enough left over to also cover gas for the $PRINT swap. Try a larger amount.`
+          );
         }
 
         // Leg 2/2 — ETH -> $PRINT via our own designated pool. Our fee is
@@ -645,12 +680,18 @@ function InnerDirectSwap() {
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
 
+        // Leg 2 here is Relay's own tx, not ours — its exact gas cost isn't
+        // estimable ahead of a quote (which itself needs this amount), so
+        // this reserve stays a flat heuristic rather than the dynamic
+        // estimate used where leg 2 is our own transaction.
         const postBalance = await readProvider.getBalance(address);
         const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
         if (leg2InputWei <= 0n) {
-          throw new Error(`$PRINT → ETH landed, but there wasn't enough left to continue to ${toToken.symbol}.`);
+          throw new Error(
+            `$PRINT → ETH landed (${ethers.formatEther(receivedWei)} ETH), but not enough was left over to also cover gas for the ${toToken.symbol} swap. Try a larger amount.`
+          );
         }
 
         // Leg 2/2 — ETH -> toToken via Relay. Fee-free (already taken above).
@@ -719,11 +760,18 @@ function InnerDirectSwap() {
         updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
 
         const postBalance = await readProvider.getBalance(address);
-        const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
+        if (receivedWei <= 0n) {
+          throw new Error("$PRINT → ETH didn't land — the swap may not have gone through.");
+        }
+        // Probe leg 2's real gas cost using the full received amount (minOut=0 — estimation only, never sent).
+        const probeLeg2 = buildV2EthToTokenTx(toToken.address, address, receivedWei, 0n);
+        const gasReserveWei = await estimateEthGasReserve(probeLeg2, address, ethUsd);
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
         if (leg2InputWei <= 0n) {
-          throw new Error(`$PRINT → ETH landed, but there wasn't enough left to continue to ${toToken.symbol}.`);
+          throw new Error(
+            `$PRINT → ETH landed (${ethers.formatEther(receivedWei)} ETH), but not enough was left over to also cover gas for the ${toToken.symbol} swap. Try a larger amount.`
+          );
         }
 
         // Leg 2/2 — ETH -> toToken via OUR OWN Universal Router call
