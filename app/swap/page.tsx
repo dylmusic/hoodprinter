@@ -40,37 +40,12 @@ export default function SwapPage() {
 
         <SwapEmbed />
 
-        <section className="swap-about">
-          <div className="faq-list">
-            <details className="faq-item">
-              <summary>Why not just swap on Uniswap directly?</summary>
-              <div className="faq-body">
-                $PRINT&rsquo;s liquidity sits in a Uniswap V4 pool with a hook
-                that enforces the 5% trade tax, so a plain swap UI
-                miscalculates the output and the transaction reverts or shorts
-                you. This page embeds{" "}
-                <a href="https://relay.link" target="_blank" rel="noopener noreferrer">
-                  Relay&rsquo;s
-                </a>{" "}
-                own swap widget, which actually supports Robinhood Chain and
-                accounts for the tax — and it lets you bridge in from any of
-                Relay&rsquo;s 85+ supported chains and land directly in
-                $PRINT in one step, not just swap ETH that&rsquo;s already on
-                Robinhood Chain.
-              </div>
-            </details>
-            <details className="faq-item">
-              <summary>Is this safe?</summary>
-              <div className="faq-body">
-                Your wallet signs every transaction — nothing is custodial and
-                no private key ever touches this site. Quotes come straight
-                from Relay&rsquo;s public API. This page is unlisted while we
-                finish testing it; if a swap doesn&rsquo;t look right,
-                don&rsquo;t sign it.
-              </div>
-            </details>
-          </div>
-        </section>
+        <p className="swap-powered-by">
+          Powered by{" "}
+          <a href="https://relay.link" target="_blank" rel="noopener noreferrer">
+            relay.link
+          </a>
+        </p>
       </main>
     </>
   );

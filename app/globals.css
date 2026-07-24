@@ -4730,7 +4730,14 @@ footer {
   text-decoration: underline;
 }
 
-.swap-about {
+.swap-powered-by {
   max-width: 520px;
   margin: 22px auto 90px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.swap-powered-by a {
+  color: var(--green);
+  font-weight: 700;
 }

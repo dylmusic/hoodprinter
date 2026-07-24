@@ -67,6 +67,7 @@ const relayTheme = {
     borderRadius: "16px",
     border: "1px solid #1d2b22",
     card: { background: "#0c120e", borderRadius: "16px", border: "1px solid #1d2b22" },
+    selector: { background: "#142219", hover: { background: "#1a2c20" } },
   },
   modal: { background: "#101b14", border: "1px solid #1d2b22", borderRadius: "16px" },
 };
