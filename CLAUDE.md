@@ -191,16 +191,22 @@ in one step), not just same-chain ETH swaps.
   remote-config endpoint (falls back to local defaults). Injected/browser
   wallets work fully either way; only WC-based wallets in the modal need the
   real ID.
-- **Chain list**: wagmi's own `chains`/`transports` config is built
-  dynamically from Relay's live `/chains` API (`lib/relayChains.ts`,
-  `fetchRelayEvmChains()`) — not hand-maintained, so new chains Relay adds
-  show up automatically. Separately, `RelayKitProvider`'s `options.chains` is
-  scoped to a **curated subset** (`CURATED_CHAIN_IDS` in SwapEmbed.tsx —
-  majors + Robinhood Chain) rather than Relay's full 85-chain default.
-  Without this, Robinhood Chain got buried under generic global-trending
-  tokens (OpenAI, random BNB tokens) with no "Robinhood Chain" label visible
-  anywhere, which read as the widget defaulting to mainnet ETH instead of
-  Robinhood Chain's ETH — a real, confirmed bug (fixed by curating).
+- **Chain list**: wagmi's `chains`/`transports` config AND `RelayKitProvider`'s
+  `options.chains` are both built dynamically from Relay's live `/chains` API
+  (`lib/relayChains.ts`, `fetchRelayEvmChains()`) — every EVM chain Relay
+  supports, not hand-maintained or curated down. An earlier version scoped
+  `options.chains` to a curated ~15-chain subset because leaving it fully
+  unset caused a real bug — Robinhood Chain got buried under generic global-
+  trending tokens with no "Robinhood Chain" label anywhere, reading as the
+  widget defaulting to mainnet ETH instead of Robinhood Chain's ETH.
+  Curating to a small explicit list fixed the labeling, but also
+  (unintentionally) restricted the whole page to only those ~15 chains —
+  Dylan wants full any-token/any-chain functionality (see Default pair
+  below), so it's now the FULL fetched list instead of a subset. The
+  labeling fix turned out to depend on Robinhood Chain being *explicitly
+  included* in a non-empty `options.chains` array, not on the array being
+  *small* — passing the full list (which still includes 4663) keeps the
+  labeling correct while restoring full breadth.
 - **Fee**: 0.85% on every swap via Relay's native `appFees` mechanism, set in
   `RelayKitProvider options.appFees`, credited to `RELAY_FEE_RECIPIENT`
   (site.config.ts) — accrues off-chain as a USDC balance, claimable via
@@ -209,12 +215,13 @@ in one step), not just same-chain ETH swaps.
   **unused dead config** — it was needed for the deleted server-proxy
   architecture (`/api/relay/quote`, now removed), the embedded-widget
   architecture calls Relay directly client-side and doesn't need it.
-- **Default pair**: ETH → $PRINT on Robinhood Chain (matches
-  `relay.link/bridge/robinhood?toCurrency=...&fromChainId=4663`),
-  `lockToToken={true}` so destination always stays $PRINT, origin
-  chain/token deliberately NOT locked (that's the whole cross-chain point).
-  `defaultAmount="0.01"` is required — omitting it crashes the widget on
-  mount (`Value.InvalidDecimalNumberError` parsing an empty string).
+- **Default pair, not a locked pair**: ETH → $PRINT on Robinhood Chain
+  (matches `relay.link/bridge/robinhood?toCurrency=...&fromChainId=4663`)
+  is just the pre-filled default on load — neither `fromToken` nor `toToken`
+  is locked (`lockToToken` was removed on purpose; Dylan: "let them swap any
+  token for any token on our page using the full relay functionality").
+  `defaultAmount="0.01"` is still required — omitting it crashes the widget
+  on mount (`Value.InvalidDecimalNumberError` parsing an empty string).
 - **Theming gotchas (Relay uses Panda CSS, not all of it is theme-able via
   their typed `theme` prop)**: the "Select Token" modal's chain-list sidebar
   uses a hardcoded `.relay-bg_gray3` utility class that stays light gray
