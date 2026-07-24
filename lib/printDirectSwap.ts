@@ -50,12 +50,37 @@ export const SLIPPAGE_OPTIONS = [7, 10, 15];
 // skims `bips` of the router's current token balance to a recipient before
 // the swap command runs, atomically, in the same signature. This is how
 // aggregator frontends normally take a cut without a separate fee tx.
-const COMMANDS = "0x0610";
+const BUY_COMMANDS = "0x0610";
+// Sell adds PERMIT2_TRANSFER_FROM (0x02) first: pulls the full PRINT amount
+// into the router's own balance, THEN PAY_PORTION skims our fee from that
+// balance, THEN V4_SWAP settles using what the router already holds.
+// This order matters — V4Router's settlement (_pay/payOrPermit2Transfer)
+// only pulls fresh from the user via Permit2 if the router *doesn't*
+// already hold the funds; since we pull everything up front, the swap's
+// SETTLE_ALL uses the router's existing (fee-adjusted) balance instead of
+// pulling from the user a second time. TAKE_ALL still pays the ETH output
+// straight to the caller, same as buy — no separate sweep step needed.
+const SELL_COMMANDS = "0x020610";
 const ACTIONS = "0x060c0f"; // SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL
 
 const abiCoder = ethers.AbiCoder.defaultAbiCoder();
 const routerIface = new ethers.Interface([
   "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
+]);
+
+// Canonical Permit2 (same address on every EVM chain via CREATE2) — verified
+// deployed on Robinhood Chain (real bytecode at this address, not empty).
+export const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+
+export const erc20Iface = new ethers.Interface([
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function balanceOf(address) view returns (uint256)",
+]);
+
+export const permit2Iface = new ethers.Interface([
+  "function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)",
+  "function approve(address token, address spender, uint160 amount, uint48 expiration)",
 ]);
 
 // Verified live on Robinhood Chain's Blockscout (contract search for
@@ -119,12 +144,12 @@ export function parseReceivedPrint(receipt: ethers.TransactionReceipt, recipient
 
 /**
  * Builds the single { to, data, value } transaction that both takes our
- * 0.85% fee (via PAY_PORTION, atomically) and swaps the remainder for
+ * 0.85% fee (via PAY_PORTION, atomically) and swaps the remainder ETH ->
  * PRINT — one signature, no separate fee transaction. `totalWei` is the
  * FULL amount the user typed (fee + swap combined); `minAmountOutWei`
  * should already be computed against the post-fee swap amount.
  */
-export function buildDirectSwapTx(totalWei: bigint, minAmountOutWei: bigint) {
+export function buildBuySwapTx(totalWei: bigint, minAmountOutWei: bigint) {
   const { swapWei } = splitFee(totalWei);
 
   const payPortionInput = abiCoder.encode(
@@ -149,9 +174,89 @@ export function buildDirectSwapTx(totalWei: bigint, minAmountOutWei: bigint) {
 
   const swapInput = abiCoder.encode(["bytes", "bytes[]"], [ACTIONS, [swapParams, settleParams, takeParams]]);
   const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
-  const data = routerIface.encodeFunctionData("execute", [COMMANDS, [payPortionInput, swapInput], deadline]);
+  const data = routerIface.encodeFunctionData("execute", [BUY_COMMANDS, [payPortionInput, swapInput], deadline]);
 
   return { to: UNIVERSAL_ROUTER, data, value: totalWei };
+}
+
+/**
+ * Builds the single { to, data, value } transaction for PRINT -> ETH,
+ * assuming Permit2 allowances are already in place (see
+ * needsErc20Approval/needsPermit2Approval + the two approve helpers below —
+ * the component checks these and prompts approvals before calling this).
+ * `totalPrintWei` is the full PRINT amount the user typed; pulls it into
+ * the router via PERMIT2_TRANSFER_FROM, skims 0.85% via PAY_PORTION, swaps
+ * the remainder, and TAKE_ALL pays the ETH output straight to the caller.
+ */
+export function buildSellSwapTx(totalPrintWei: bigint, minAmountOutWei: bigint) {
+  const { swapWei } = splitFee(totalPrintWei);
+
+  const transferFromInput = abiCoder.encode(
+    ["address", "address", "uint160"],
+    [siteConfig.contractAddress, UNIVERSAL_ROUTER, totalPrintWei]
+  );
+  const payPortionInput = abiCoder.encode(
+    ["address", "address", "uint256"],
+    [siteConfig.contractAddress, RELAY_FEE_RECIPIENT, APP_FEE_BPS]
+  );
+
+  const swapParams = abiCoder.encode(
+    ["tuple(tuple(address,address,uint24,int24,address),bool,uint128,uint128,bytes)"],
+    [
+      [
+        [PRINT_POOL_KEY.currency0, PRINT_POOL_KEY.currency1, PRINT_POOL_KEY.fee, PRINT_POOL_KEY.tickSpacing, PRINT_POOL_KEY.hooks],
+        false, // zeroForOne: currency1 (PRINT) -> currency0 (ETH)
+        swapWei,
+        minAmountOutWei,
+        "0x",
+      ],
+    ]
+  );
+  const settleParams = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency1, swapWei]); // SETTLE_ALL (PRINT)
+  const takeParams = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency0, minAmountOutWei]); // TAKE_ALL (ETH)
+
+  const swapInput = abiCoder.encode(["bytes", "bytes[]"], [ACTIONS, [swapParams, settleParams, takeParams]]);
+  const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
+  const data = routerIface.encodeFunctionData("execute", [
+    SELL_COMMANDS,
+    [transferFromInput, payPortionInput, swapInput],
+    deadline,
+  ]);
+
+  return { to: UNIVERSAL_ROUTER, data, value: 0n };
+}
+
+const MAX_UINT160 = (1n << 160n) - 1n;
+const FAR_FUTURE_EXPIRATION = 4102444800; // Jan 1 2100 — Permit2 allowances need an expiration, not just an amount
+
+/** True if PRINT hasn't approved Permit2 to move at least `amountWei` yet (standard ERC20 approve, one-time). */
+export async function needsErc20Approval(owner: string, amountWei: bigint): Promise<boolean> {
+  const token = new ethers.Contract(siteConfig.contractAddress, erc20Iface, readProvider);
+  const allowance: bigint = await token.allowance(owner, PERMIT2);
+  return allowance < amountWei;
+}
+
+/** True if Permit2's own stored allowance for (owner, PRINT, UNIVERSAL_ROUTER) is insufficient or expired. */
+export async function needsPermit2Approval(owner: string, amountWei: bigint): Promise<boolean> {
+  const permit2 = new ethers.Contract(PERMIT2, permit2Iface, readProvider);
+  const [amount, expiration] = await permit2.allowance(owner, siteConfig.contractAddress, UNIVERSAL_ROUTER);
+  const notExpired = Number(expiration) === 0 || Number(expiration) > Math.floor(Date.now() / 1000);
+  return amount < amountWei || !notExpired;
+}
+
+export function buildErc20ApproveTx() {
+  const data = erc20Iface.encodeFunctionData("approve", [PERMIT2, ethers.MaxUint256]);
+  return { to: siteConfig.contractAddress, data, value: 0n };
+}
+
+export function buildPermit2ApproveTx() {
+  const data = permit2Iface.encodeFunctionData("approve", [
+    siteConfig.contractAddress,
+    UNIVERSAL_ROUTER,
+    MAX_UINT160,
+    FAR_FUTURE_EXPIRATION,
+  ]);
+  return { to: PERMIT2, data, value: 0n };
 }
 
 /** Splits a total input amount into (platformFee, swapAmount) — fee taken off the top, 0.85%. */

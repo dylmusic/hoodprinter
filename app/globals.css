@@ -4915,6 +4915,13 @@ footer {
   border-radius: 10px;
   color: var(--green);
   font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.swap-divider:hover {
+  transform: rotate(180deg);
+  border-color: var(--green);
 }
 
 .swap-slippage-row {
