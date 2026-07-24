@@ -14,16 +14,11 @@ import { fetchRelayEvmChains } from "@/lib/relayChains";
 
 const RELAY_CHAIN_ID = 4663;
 const APP_FEE_BPS = "85";
-// Surfaced first in the widget's origin-chain picker — Robinhood Chain
-// itself plus the handful of chains most people actually hold ETH/stables on.
+// Surfaced first in the widget's origin/destination chain pickers —
+// Robinhood Chain itself plus the handful of chains most people actually
+// hold ETH/stables on. This is just an ordering hint; every chain Relay
+// supports is still fully selectable (see relayChains below).
 const POPULAR_CHAIN_IDS = [4663, 1, 8453, 42161, 10];
-// Relay's own token/chain search defaults to ALL 85+ chains it supports,
-// which buries Robinhood Chain (brand new, low volume) under generic
-// global-trending tokens with no relevance to buying $PRINT. Scoping
-// RelayKitProvider to this curated set of majors + Robinhood Chain keeps
-// the picker relevant without losing real cross-chain breadth — wagmi's
-// own chain list (for actual wallet signing) stays the full fetched set.
-const CURATED_CHAIN_IDS = [4663, 1, 8453, 42161, 10, 137, 56, 43114, 324, 59144, 534352, 81457, 34443, 5000, 7777777];
 
 const ETH_TOKEN: Token = {
   chainId: RELAY_CHAIN_ID,
@@ -148,7 +143,6 @@ function InnerSwap() {
           setToToken={setToToken}
           defaultAmount="0.01"
           defaultTradeType="EXACT_INPUT"
-          lockToToken={true}
           popularChainIds={POPULAR_CHAIN_IDS}
           onConnectWallet={() => openConnectModal?.()}
         />
@@ -202,11 +196,16 @@ export default function SwapEmbed() {
     });
   }, [chains]);
 
+  // Full breadth on purpose — this is a general any-token/any-chain swap
+  // page (defaulting to ETH -> $PRINT on Robinhood Chain, not locked to
+  // it), so RelayKitProvider gets every EVM chain Relay supports, built
+  // from the same live fetch wagmi's config uses. Chain 4663 was included
+  // in earlier chain-restriction testing that fixed Robinhood Chain
+  // labeling — since it's still in this full list, the labeling stays
+  // correct, we've just stopped excluding everything else.
   const relayChains = useMemo(() => {
     if (!chains) return undefined;
-    return chains
-      .filter((c) => CURATED_CHAIN_IDS.includes(c.id))
-      .map((c) => convertViemChainToRelayChain(c));
+    return chains.map((c) => convertViemChainToRelayChain(c));
   }, [chains]);
 
   if (!wagmiConfig) {
