@@ -26,6 +26,17 @@ import {
 } from "@/lib/printDirectSwap";
 import { ETH_TOKEN, PRINT_TOKEN, type RhToken } from "@/lib/robinhoodTokens";
 import { getRelayLegQuote, executeRelayLeg, quoteLastTxHash } from "@/lib/relayLeg";
+import {
+  isKnownV2Token,
+  quoteV2TokenToEth,
+  quoteV2EthToToken,
+  needsErc20ApprovalFor,
+  needsPermit2ApprovalFor,
+  buildErc20ApproveTxFor,
+  buildPermit2ApproveTxFor,
+  buildV2TokenToEthTx,
+  buildV2EthToTokenTx,
+} from "@/lib/curatedPoolSwap";
 import TokenPickerModal, { TokenIcon } from "@/components/TokenPickerModal";
 
 // Reserved out of "swap your full balance" so gas doesn't eat into the swap
@@ -130,16 +141,37 @@ type LegProgress = { part: 1 | 2; total: 2; label: string } | null;
  * - relay-only: neither side is $PRINT, one Relay-routed leg (its own
  *   internal approve+swap steps, if any, are Relay's, not ours) — our
  *   0.85% fee rides this leg since there's no PRINT leg to take it on.
- * - relay-to-print / print-to-relay: two signatures, always exactly two
- *   (never more) — leg 1 gets the swap to/from plain ETH on Robinhood
- *   Chain via Relay (fee-free — we don't double-charge), leg 2 is our own
- *   ETH<->PRINT pool tx (where the 0.85% fee is taken, once). The amount
- *   fed into leg 2 is measured from the wallet's own ETH balance delta
- *   across leg 1 (post-fee, post-leg-1-gas) rather than trusted from
- *   Relay's quote, so a worse-than-quoted leg 1 fill can't leave leg 2
- *   trying to spend ETH that never arrived.
+ * - curated-to-print / print-to-curated: for tokens we already know the
+ *   pool for (CASHCAT/ARROW/HOODRAT — lib/curatedPoolSwap.ts's
+ *   KNOWN_V2_TOKENS), self-routed through our own Universal Router calls
+ *   instead of Relay — NOT because Relay can't route them (it can), but
+ *   because self-routing is strictly better here: it's the same 2
+ *   signatures without Relay's extra hidden approve sub-step (a real
+ *   CASHCAT->PRINT attempt needed 3 confirmations, not the promised 2 —
+ *   Relay's own quote for an ERC20 origin splits into approve+swap before
+ *   our leg even starts), no cross-service dependency risk, and no reason
+ *   to pay Relay's 0.85% appFee on top of our own — that would be
+ *   double-charging one swap 1.7% total instead of 0.85%, which the fee
+ *   design explicitly avoids everywhere else. Same balance-delta technique
+ *   as relay-to-print/print-to-relay for measuring leg 2's real input.
+ * - relay-to-print / print-to-relay: the fallback for tokens whose pool we
+ *   DON'T control (RWA stock tokens, arbitrary pasted addresses) — two
+ *   signatures, leg 1 to/from plain ETH via Relay (fee-free — we don't
+ *   double-charge), leg 2 is our own ETH<->PRINT pool tx (0.85% fee taken
+ *   here, once). The amount fed into leg 2 is measured from the wallet's
+ *   own ETH balance delta across leg 1 (post-fee, post-leg-1-gas) rather
+ *   than trusted from Relay's quote, so a worse-than-quoted leg 1 fill
+ *   can't leave leg 2 trying to spend ETH that never arrived.
  */
-type PlanKind = "print-buy" | "print-sell" | "relay-only" | "relay-to-print" | "print-to-relay" | "invalid";
+type PlanKind =
+  | "print-buy"
+  | "print-sell"
+  | "relay-only"
+  | "curated-to-print"
+  | "print-to-curated"
+  | "relay-to-print"
+  | "print-to-relay"
+  | "invalid";
 
 function isPrintToken(t: RhToken) {
   return t.address.toLowerCase() === PRINT_TOKEN.address.toLowerCase();
@@ -153,8 +185,8 @@ function planRoute(from: RhToken, to: RhToken): PlanKind {
   const toPrint = isPrintToken(to);
   if (from.isNative && toPrint) return "print-buy";
   if (fromPrint && to.isNative) return "print-sell";
-  if (fromPrint) return "print-to-relay";
-  if (toPrint) return "relay-to-print";
+  if (fromPrint) return isKnownV2Token(to.address) ? "print-to-curated" : "print-to-relay";
+  if (toPrint) return isKnownV2Token(from.address) ? "curated-to-print" : "relay-to-print";
   return "relay-only";
 }
 
@@ -289,23 +321,37 @@ function InnerDirectSwap() {
 
   const amt = parseFloat(amount) || 0;
 
-  // Debounced Relay preview quote, only for the legs that actually go
-  // through Relay. relay-to-print previews leg 1 (fromToken -> ETH); the
-  // ETH estimate then flows through the same PRINT-pool math as print-buy
-  // to produce the panel's final number. print-to-relay previews leg 2
-  // (ETH -> toToken) using the ETH amount our own sell math would produce.
+  // Debounced preview quote for any plan that isn't the pure print-buy/
+  // print-sell path. relay-to-print/curated-to-print preview leg 1
+  // (fromToken -> ETH); the ETH estimate then flows through the same
+  // PRINT-pool math as print-buy to produce the panel's final number.
+  // print-to-relay/print-to-curated preview leg 2 (ETH -> toToken) using
+  // the ETH amount our own sell math would produce. Curated plans quote
+  // directly on-chain (lib/curatedPoolSwap.ts) and don't need a connected
+  // wallet to preview, unlike the Relay-backed plans.
   useEffect(() => {
     setRelayPreviewEth(null);
     setRelayPreviewOut(null);
     setRelayPreviewError(null);
-    if (!address || !amt || amt <= 0) return;
+    if (!amt || amt <= 0) return;
     if (plan === "print-buy" || plan === "print-sell" || plan === "invalid") return;
+    if (!address && plan !== "curated-to-print" && plan !== "print-to-curated") return;
 
     let cancelled = false;
     setRelayPreviewLoading(true);
     const timer = setTimeout(async () => {
       try {
-        if (plan === "relay-only") {
+        if (plan === "curated-to-print") {
+          const amountWei = ethers.parseUnits(amount, fromToken.decimals);
+          const ethOut = await quoteV2TokenToEth(fromToken.address, amountWei, 0); // unslipped estimate for display
+          if (!cancelled) setRelayPreviewEth(Number(ethers.formatEther(ethOut)));
+        } else if (plan === "print-to-curated" && rate) {
+          const { swapWei } = splitFee(ethers.parseUnits(amount, 18));
+          const ethOut = (Number(ethers.formatUnits(swapWei, 18)) / rate) * (1 - POOL_TAX_PCT / 100);
+          if (ethOut <= 0) return;
+          const tokenOut = await quoteV2EthToToken(toToken.address, ethers.parseEther(ethOut.toFixed(18)), 0);
+          if (!cancelled) setRelayPreviewOut(Number(ethers.formatUnits(tokenOut, toToken.decimals)));
+        } else if (plan === "relay-only" && address) {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
           const quote = await getRelayLegQuote({
             chainId: CHAIN.id,
@@ -317,7 +363,7 @@ function InnerDirectSwap() {
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
           if (!cancelled) setRelayPreviewOut(outFormatted ? Number(outFormatted) : null);
-        } else if (plan === "relay-to-print") {
+        } else if (plan === "relay-to-print" && address) {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
           const quote = await getRelayLegQuote({
             chainId: CHAIN.id,
@@ -329,7 +375,7 @@ function InnerDirectSwap() {
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
           if (!cancelled) setRelayPreviewEth(outFormatted ? Number(outFormatted) : null);
-        } else if (plan === "print-to-relay" && rate) {
+        } else if (plan === "print-to-relay" && rate && address) {
           const { swapWei } = splitFee(ethers.parseUnits(amount, 18));
           const ethOut = (Number(ethers.formatUnits(swapWei, 18)) / rate) * (1 - POOL_TAX_PCT / 100);
           if (ethOut <= 0) return;
@@ -459,6 +505,67 @@ function InnerDirectSwap() {
             t: new Date().toLocaleTimeString(),
           });
         }
+      } else if (plan === "curated-to-print") {
+        // Leg 1/2 — fromToken -> ETH via OUR OWN Universal Router call
+        // against fromToken's known V2 pool (lib/curatedPoolSwap.ts) — no
+        // Relay involved for this token at all. Conditional one-time
+        // Permit2 approvals, same pattern as PRINT's own sell flow.
+        const totalTokenWei = ethers.parseUnits(amount, fromToken.decimals);
+        if (await needsErc20ApprovalFor(fromToken.address, address, totalTokenWei)) {
+          setStep(`Approve ${fromToken.symbol}…`);
+          const approveTx = buildErc20ApproveTxFor(fromToken.address);
+          const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
+          await readProvider.waitForTransaction(h);
+        }
+        if (await needsPermit2ApprovalFor(fromToken.address, address, totalTokenWei)) {
+          setStep("Approve router…");
+          const permitTx = buildPermit2ApproveTxFor(fromToken.address);
+          const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
+          await readProvider.waitForTransaction(h);
+        }
+
+        legContext = `Step 1/2 (${fromToken.symbol} → ETH, our own pool)`;
+        setLegProgress({ part: 1, total: 2, label: `Confirm ${fromToken.symbol} → ETH` });
+        const preBalance = await readProvider.getBalance(address);
+        const minEthOutWei = await quoteV2TokenToEth(fromToken.address, totalTokenWei, slippage);
+        const leg1 = buildV2TokenToEthTx(fromToken.address, address, totalTokenWei, minEthOutWei);
+        const hash1 = await walletClient.sendTransaction({ to: leg1.to as `0x${string}`, data: leg1.data as `0x${string}`, value: leg1.value });
+        setTxHash(hash1);
+        addTx({ hash: hash1, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        await readProvider.waitForTransaction(hash1);
+        updateTx(hash1, { status: "ok" });
+
+        const postBalance = await readProvider.getBalance(address);
+        const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
+        const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
+        const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
+        if (leg2InputWei <= 0n || !rate) {
+          throw new Error(`Didn't receive enough ETH from ${fromToken.symbol} to continue to $PRINT.`);
+        }
+
+        // Leg 2/2 — ETH -> $PRINT via our own designated pool. Our fee is
+        // taken here (see buildBuySwapTx's internal splitFee call) — this
+        // is the ONLY fee taken across the whole swap.
+        legContext = "Step 2/2 (ETH → $PRINT)";
+        setLegProgress({ part: 2, total: 2, label: "Confirm ETH → $PRINT" });
+        const expectedOut = Number(ethers.formatEther(leg2InputWei)) * (1 - 0.0085) * rate * (1 - POOL_TAX_PCT / 100);
+        const minOut = expectedOut * (1 - slippage / 100);
+        const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
+        const { to, data, value } = buildBuySwapTx(leg2InputWei, minAmountOutWei);
+        const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        setTxHash(swapHash);
+        setLastSwapped({ amt: amount, sym: fromToken.symbol });
+        addTx({ hash: swapHash, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
+
+        setLegProgress(null);
+        setStep("Confirming on-chain…");
+        const receipt = await readProvider.waitForTransaction(swapHash);
+        const ok = receipt?.status === 1;
+        const received = ok ? parseReceivedPrint(receipt!, address) : null;
+        setReceivedAmt(received);
+        setReceivedIsExact(true);
+        setReceivedSym("PRINT");
+        updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
       } else if (plan === "relay-to-print") {
         // Leg 1/2 — fromToken -> ETH on Robinhood Chain via Relay. Fee-free:
         // our 0.85% is taken once, on leg 2 below.
@@ -578,6 +685,67 @@ function InnerDirectSwap() {
             t: new Date().toLocaleTimeString(),
           });
         }
+      } else if (plan === "print-to-curated") {
+        if (!rate) return;
+        const totalPrintWei = ethers.parseUnits(amount, 18);
+
+        if (await needsErc20Approval(address, totalPrintWei)) {
+          setStep("Approve PRINT…");
+          const approveTx = buildErc20ApproveTx();
+          const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
+          await readProvider.waitForTransaction(h);
+        }
+        if (await needsPermit2Approval(address, totalPrintWei)) {
+          setStep("Approve router…");
+          const permitTx = buildPermit2ApproveTx();
+          const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
+          await readProvider.waitForTransaction(h);
+        }
+
+        // Leg 1/2 — $PRINT -> ETH via our own pool. Fee taken here (once) —
+        // the ONLY fee taken across the whole swap.
+        legContext = "Step 1/2 ($PRINT → ETH)";
+        setLegProgress({ part: 1, total: 2, label: "Confirm $PRINT → ETH" });
+        const { swapWei } = splitFee(totalPrintWei);
+        const expectedEthOut = (Number(ethers.formatUnits(swapWei, 18)) / rate) * (1 - POOL_TAX_PCT / 100);
+        const minOut = expectedEthOut * (1 - slippage / 100);
+        const minAmountOutWei = ethers.parseEther(minOut.toFixed(18));
+        const preBalance = await readProvider.getBalance(address);
+        const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
+        const hash1 = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        setTxHash(hash1);
+        addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        await readProvider.waitForTransaction(hash1);
+        updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
+
+        const postBalance = await readProvider.getBalance(address);
+        const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
+        const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
+        const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
+        if (leg2InputWei <= 0n) {
+          throw new Error(`$PRINT → ETH landed, but there wasn't enough left to continue to ${toToken.symbol}.`);
+        }
+
+        // Leg 2/2 — ETH -> toToken via OUR OWN Universal Router call
+        // against toToken's known V2 pool. Fee-free (already taken above).
+        legContext = `Step 2/2 (ETH → ${toToken.symbol}, our own pool)`;
+        setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
+        const minTokenOutWei = await quoteV2EthToToken(toToken.address, leg2InputWei, slippage);
+        const leg2 = buildV2EthToTokenTx(toToken.address, address, leg2InputWei, minTokenOutWei);
+        const hash2 = await walletClient.sendTransaction({ to: leg2.to as `0x${string}`, data: leg2.data as `0x${string}`, value: leg2.value });
+        setTxHash(hash2);
+        setLastSwapped({ amt: amount, sym: "PRINT" });
+        addTx({ hash: hash2, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: toToken.symbol, status: "pending", t: new Date().toLocaleTimeString() });
+
+        setLegProgress(null);
+        setStep("Confirming on-chain…");
+        const receipt2 = await readProvider.waitForTransaction(hash2);
+        const ok2 = receipt2?.status === 1;
+        const receivedTokenEstimate = Number(ethers.formatUnits(minTokenOutWei, toToken.decimals));
+        setReceivedAmt(ok2 ? receivedTokenEstimate : null);
+        setReceivedIsExact(false);
+        setReceivedSym(toToken.symbol);
+        updateTx(hash2, { status: ok2 ? "ok" : "fail", toAmt: ok2 ? `~${fmt(receivedTokenEstimate)}` : null });
       }
       setStep(null);
       setLegProgress(null);
@@ -603,15 +771,22 @@ function InnerDirectSwap() {
     previewOut = (Number(ethers.formatUnits(swapWei, fromToken.decimals)) / rate) * (1 - POOL_TAX_PCT / 100);
   } else if (plan === "relay-only") {
     previewOut = relayPreviewOut;
+  } else if (plan === "curated-to-print" && relayPreviewEth !== null && rate) {
+    // leg 2 (buildBuySwapTx) skims the 0.85% fee off this ETH amount before
+    // swapping — same haircut as relay-to-print's preview, just fed by an
+    // on-chain V2 quote instead of a Relay quote.
+    previewOut = relayPreviewEth * (1 - 0.0085) * rate * (1 - POOL_TAX_PCT / 100);
   } else if (plan === "relay-to-print" && relayPreviewEth !== null && rate) {
     previewOut = relayPreviewEth * (1 - 0.0085) * rate * (1 - POOL_TAX_PCT / 100);
-  } else if (plan === "print-to-relay") {
+  } else if (plan === "print-to-relay" || plan === "print-to-curated") {
     previewOut = relayPreviewOut;
   }
 
   const fromBalance = fromBalanceData ? Number(ethers.formatUnits(fromBalanceData.value, fromBalanceData.decimals)) : null;
   const toBalance = toBalanceData ? Number(ethers.formatUnits(toBalanceData.value, toBalanceData.decimals)) : null;
-  const isTwoLeg = plan === "relay-to-print" || plan === "print-to-relay";
+  const isTwoLeg =
+    plan === "relay-to-print" || plan === "print-to-relay" || plan === "curated-to-print" || plan === "print-to-curated";
+  const isCuratedRoute = plan === "curated-to-print" || plan === "print-to-curated";
   const involvesPrint = isPrintToken(fromToken) || isPrintToken(toToken);
 
   return (
@@ -713,7 +888,8 @@ function InnerDirectSwap() {
         {isTwoLeg && (
           <p className="swap-route-note">
             Routed as {fromToken.symbol} → ETH → {toToken.symbol === "ETH" ? toToken.symbol : `$PRINT`}
-            {plan === "print-to-relay" ? ` → ${toToken.symbol}` : ""} · 2 wallet confirmations
+            {plan === "print-to-relay" || plan === "print-to-curated" ? ` → ${toToken.symbol}` : ""}
+            {isCuratedRoute ? " · our own pool · 2 wallet confirmations" : " · 2 wallet confirmations"}
           </p>
         )}
 

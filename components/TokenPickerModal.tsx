@@ -152,15 +152,6 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
               </button>
             </div>
 
-            {rwaFilter && (
-              <div className="tp-filter-note">
-                Showing tokenized stocks — our own /rwa pools first
-                <button type="button" className="tp-filter-clear" onClick={() => setRwaFilter(false)}>
-                  ✕ Clear
-                </button>
-              </div>
-            )}
-
             <div className="tp-results">
               {customLoading && <div className="tp-empty">Looking up token…</div>}
               {customToken && (

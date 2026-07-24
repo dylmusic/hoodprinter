@@ -189,9 +189,9 @@ whole-hog only if Relay ever ships pool-level pinning. Everything from
 "Architecture — embeds Relay's own SwapWidget" below describes SwapEmbed
 and is background for if that ever happens, not the current live page.
 
-**Router (`lib/robinhoodTokens.ts`, `lib/relayLeg.ts`,
+**Router (`lib/robinhoodTokens.ts`, `lib/relayLeg.ts`, `lib/curatedPoolSwap.ts`,
 `components/TokenPickerModal.tsx`, `components/PrintDirectSwap.tsx`
-`planRoute()`)** — given `fromToken`/`toToken`, picks one of five plans:
+`planRoute()`)** — given `fromToken`/`toToken`, picks one of six plans:
   - `print-buy` (ETH→PRINT) / `print-sell` (PRINT→ETH): the original
     single-signature flow, unchanged.
   - `relay-only`: neither side is $PRINT — one Relay-routed leg (Relay's
@@ -201,23 +201,54 @@ and is background for if that ever happens, not the current live page.
     integration path, not a hand-rolled REST client). Our 0.85% fee rides
     this leg via `getQuote`'s `options.appFees` since there's no PRINT leg
     to take it on instead.
+  - `curated-to-print` (CASHCAT/ARROW/HOODRAT → PRINT) / `print-to-curated`
+    (PRINT → same): **self-routed, no Relay at all** —
+    `lib/curatedPoolSwap.ts` builds the token↔ETH leg ourselves against
+    these tokens' known Uniswap V2 pools (same addresses/venue
+    `components/PrintBot.tsx`'s `detectRoute`/`buildV2Calldata` already
+    route through), reusing the exact non-standard offset-plus-trailing-
+    empty-bytes input layout this chain's Universal Router needs for every
+    path-bearing command (confirmed it applies to `V2_SWAP_EXACT_IN` in
+    the token→ETH direction too, not just the ETH→token direction PrintBot
+    already proved). Built after a real CASHCAT→PRINT attempt via
+    `relay-to-print` needed **3** confirmations instead of the promised 2
+    (Relay's own quote for an ERC20 origin silently splits into an approve
+    step + a swap step before our leg even starts) and then failed
+    outright on the chain-registration bug above. Dylan's framing when
+    asked whether to fix the Relay flow or replace it: *"Which ever method
+    ENSURES that the ETH hits our correct PRINT pool... wouldnt it be
+    better to make 0.85% off the relay pool anyway?"* — no: self-routing
+    still takes the same 0.85% exactly once (via `PAY_PORTION` on the leg
+    that touches $PRINT, identical to every other plan here), so also
+    charging Relay's `appFees` on the token↔ETH leg would be **double**-
+    charging one swap 1.7% total, not extra revenue. Deliberately still 2
+    signatures rather than 1 fully-atomic tx: the V2 leg's real output
+    isn't known exactly until it executes (only a guaranteed *minimum* via
+    slippage), and hardcoding an assumed amount into a chained V4_SWAP
+    step in the same tx risks *stranding* the difference in the router if
+    the real fill is better than quoted — a fund-loss bug class, not just
+    a revert. Two signatures with the real delivered amount read from a
+    balance delta between them (same technique as `relay-to-print`) has no
+    such risk, and removing Relay's own approve sub-step means it's a
+    clean, honest 2 — not the 3 the Relay-routed version silently needed.
+    JUGGERNAUT (V3) and everything without a known pool here still falls
+    back to `relay-to-print`/`print-to-relay` — no verified V3 quoter
+    contract on this chain to compute a safe minOut against yet.
   - `relay-to-print` (any other token → PRINT) / `print-to-relay` (PRINT →
-    any other token): **always exactly two signatures, never charged a fee
-    twice.** Leg 1 gets the swap to/from plain ETH on Robinhood Chain via
-    Relay, fee-free. Leg 2 is our own ETH↔PRINT pool tx, where the 0.85%
-    fee is taken once (same `PAY_PORTION` mechanism as print-buy/print-sell
-    below). The amount fed into leg 2 is measured from the wallet's own ETH
-    balance delta across leg 1 (`getBalance` before/after, which nets out
-    leg 1's own gas automatically) rather than trusted from Relay's quote —
-    a worse-than-quoted fill on leg 1 can't leave leg 2 trying to spend ETH
-    that never arrived. Matches Dylan's explicit spec: *"only require 2
-    signatures when necessary… show them a Sign in wallet 1/2 and then 2/2
-    so its easy to see the process visually"* — the `swap-steps` two-dot
-    indicator only renders for these two plans, never for the single-
-    signature ones, and the button label reads "Sign in wallet 1/2 —
-    Confirm X → ETH" / "…2/2 — Confirm ETH → Y".
+    any other token): the fallback for tokens whose pool we don't control.
+    **Always exactly two signatures, never charged a fee twice.** Leg 1
+    gets the swap to/from plain ETH on Robinhood Chain via Relay, fee-free.
+    Leg 2 is our own ETH↔PRINT pool tx, where the 0.85% fee is taken once
+    (same `PAY_PORTION` mechanism as print-buy/print-sell below). The
+    amount fed into leg 2 is measured from the wallet's own ETH balance
+    delta across leg 1 (`getBalance` before/after, which nets out leg 1's
+    own gas automatically) rather than trusted from Relay's quote — a
+    worse-than-quoted fill on leg 1 can't leave leg 2 trying to spend ETH
+    that never arrived.
   - `invalid`: same token both sides — submit button disables itself
     instead of building anything.
+  - All four two-leg plans (`curated-to-print`/`print-to-curated` included)
+    share the same `swap-waiting` step UI — see "2-signature step UI" below.
 - **Token list (`lib/robinhoodTokens.ts`)**: curated (ETH, $PRINT, the same
   CASHCAT/ARROW/HOODRAT/JUGGERNAUT addresses PrintBot/MultiSender already
   curate, the 5 RWA stock tokens from `lib/rwaPools.ts`) plus a paste-any-
@@ -247,10 +278,10 @@ and is background for if that ever happens, not the current live page.
   truncated UI screenshot).
 - **"RWAs (NEW)" pinned pill** (`ALL_RWA_TOKENS` in `lib/robinhoodTokens.ts`)
   — a category filter, not a direct token pick: toggles the results list to
-  the tokenized-stock roster instead of selecting a token, with a
-  `tp-filter-note` ("Showing tokenized stocks — our own /rwa pools first" +
-  Clear button) since that behavior isn't obvious from a pill alone. Order
-  is deliberate — the 5 pools `/rwa` actually tracks (`RWA_POOLS` from
+  the tokenized-stock roster instead of selecting a token (the pill itself
+  is the toggle — click again to clear; an earlier explanatory banner under
+  it was removed as unnecessary clutter). Order is deliberate — the 5 pools
+  `/rwa` actually tracks (`RWA_POOLS` from
   `lib/rwaPools.ts`) always come first, then ~17 more Robinhood-issued
   tokenized stocks (GME, AMZN, META, GOOGL, COIN, PLTR, AMD, INTC, MU,
   SNDK, MSTR, NFLX, RDDT, COST, USAR, SPY, SLV) as the "bunch" Dylan asked
