@@ -4666,12 +4666,14 @@ footer {
 
 /* ---------- Swap (/swap) ---------- */
 .swap-page {
-  max-width: 520px;
+  max-width: 600px;
   padding-top: 14px;
 }
 
 .swap-card {
   position: relative;
+  width: 100%;
+  margin: 0 auto;
   border-radius: var(--radius);
   overflow: hidden;
   padding: 15px 3px 3px;
