@@ -157,7 +157,39 @@ untouched during this rebrand — additive only.
 
 ---
 
-## Swap — `/swap` (Relay-embedded) — THE primary buy destination sitewide
+## Swap — `/swap` — THE primary buy destination sitewide
+
+**INCIDENT (2026-07-24): Relay's routing was hitting the wrong on-chain pool
+for $PRINT.** There are THREE ETH/PRINT Uniswap V4 pools on Robinhood Chain
+(PoolManager `0x8366a39CC670B4001A1121B8F6A443A643e40951`, confirmed by
+querying `Initialize` events filtered by currency0=native ETH,
+currency1=$PRINT) — only `0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075`
+has our tax hook (`0x9c274C45083cf90A92e1DFB5041F094c3A8D90Cc`) and real
+liquidity; the other two (`0x524c6cd6...`, `0xf83b6c1b...`) are hookless
+decoy pools with near-zero depth. Relay's quotes were landing on a decoy —
+confirmed empirically: quoted rate was ~1.29M PRINT/ETH vs the real pool's
+~83M+ per DexScreener (a ~65x gap), and the "impact" stayed flat at ~-98%
+regardless of trade size from $0.18 up, which is the signature of a wrong
+reference pool, not real slippage. **Relay's public API has no way to pin a
+specific pool** — `includedSwapSources`/`excludedSwapSources` only filter by
+DEX name ("uniswap" covers all three pools identically), and forcing
+`includedSwapSources: ["uniswap"]` returned `NO_SWAP_ROUTES_FOUND` outright
+(same-chain quotes here don't even go through that filter).
+**Fix: `/swap` now uses `components/PrintDirectSwap.tsx`** — a deliberately
+basic ETH-only-to-$PRINT-only swap that hand-builds a Universal Router
+V4Router transaction against the KNOWN-correct pool (`lib/printDirectSwap.ts`
+has the full `PoolKey` — fee is Uniswap's `DYNAMIC_FEE_FLAG` 0x800000 since
+the hook sets the real fee/tax at swap time, tickSpacing 200). Live price
+for the output preview and slippage protection comes from DexScreener's API
+(indexes this exact pool), not Relay. The 0.85% fee is now a plain ETH
+transfer to `RELAY_FEE_RECIPIENT` sent as its own transaction *before* the
+swap transaction (two signatures total) rather than Relay's `appFees`
+mechanism, since we're bypassing Relay entirely for this pair.
+**`components/SwapEmbed.tsx` (the full Relay-embedded any-token/any-chain
+widget) is untouched, just not rendered on `/swap` right now** — swap it
+back in once Relay fixes their pool selection for this token. Everything
+below this paragraph describes SwapEmbed and is accurate for when it's
+re-enabled, not for the current live page.
 
 `components/SwapEmbed.tsx`. Shipped live 2026-07-24: in SiteNav (home variant
 — replaced "How It Works"), in the sitemap, indexable, BETA badge on the page
