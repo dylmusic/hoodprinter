@@ -35,9 +35,17 @@ export const PRINT_POOL_KEY = {
 } as const;
 
 export const APP_FEE_BPS = 85n; // 0.85%, matches the Relay-embedded widget's fee
-export const MIN_SLIPPAGE_PCT = 15; // generous — $PRINT is thin and volatile
+// $PRINT's pool hook takes 5% on every swap (PRINT_MIN_SLIPPAGE convention
+// elsewhere in the codebase, e.g. PrintBot.tsx) — 7% default leaves headroom.
+export const DEFAULT_SLIPPAGE_PCT = 7;
+export const SLIPPAGE_OPTIONS = [7, 10, 15];
 
-const V4_SWAP_COMMAND = "0x10";
+// Universal Router commands: PAY_PORTION (0x06) then V4_SWAP (0x10), one tx.
+// PAY_PORTION is Universal Router's own built-in affiliate-fee mechanism —
+// skims `bips` of the router's current token balance to a recipient before
+// the swap command runs, atomically, in the same signature. This is how
+// aggregator frontends normally take a cut without a separate fee tx.
+const COMMANDS = "0x0610";
 const ACTIONS = "0x060c0f"; // SWAP_EXACT_IN_SINGLE, SETTLE_ALL, TAKE_ALL
 
 const abiCoder = ethers.AbiCoder.defaultAbiCoder();
@@ -57,28 +65,41 @@ export async function fetchPrintEthRate(signal?: AbortSignal): Promise<number> {
   return 1 / priceNative; // PRINT per ETH
 }
 
-/** Builds the { to, data, value } for swapping `swapAmountWei` ETH -> PRINT via the correct pool. */
-export function buildDirectSwapTx(swapAmountWei: bigint, minAmountOutWei: bigint) {
-  const params0 = abiCoder.encode(
+/**
+ * Builds the single { to, data, value } transaction that both takes our
+ * 0.85% fee (via PAY_PORTION, atomically) and swaps the remainder for
+ * PRINT — one signature, no separate fee transaction. `totalWei` is the
+ * FULL amount the user typed (fee + swap combined); `minAmountOutWei`
+ * should already be computed against the post-fee swap amount.
+ */
+export function buildDirectSwapTx(totalWei: bigint, minAmountOutWei: bigint) {
+  const { swapWei } = splitFee(totalWei);
+
+  const payPortionInput = abiCoder.encode(
+    ["address", "address", "uint256"],
+    [NATIVE_ETH, RELAY_FEE_RECIPIENT, APP_FEE_BPS]
+  );
+
+  const swapParams = abiCoder.encode(
     ["tuple(tuple(address,address,uint24,int24,address),bool,uint128,uint128,bytes)"],
     [
       [
         [PRINT_POOL_KEY.currency0, PRINT_POOL_KEY.currency1, PRINT_POOL_KEY.fee, PRINT_POOL_KEY.tickSpacing, PRINT_POOL_KEY.hooks],
         true, // zeroForOne: currency0 (ETH) -> currency1 (PRINT)
-        swapAmountWei,
+        swapWei,
         minAmountOutWei,
         "0x",
       ],
     ]
   );
-  const params1 = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency0, swapAmountWei]); // SETTLE_ALL
-  const params2 = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency1, minAmountOutWei]); // TAKE_ALL
+  const settleParams = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency0, swapWei]); // SETTLE_ALL
+  const takeParams = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency1, minAmountOutWei]); // TAKE_ALL
 
-  const input0 = abiCoder.encode(["bytes", "bytes[]"], [ACTIONS, [params0, params1, params2]]);
+  const swapInput = abiCoder.encode(["bytes", "bytes[]"], [ACTIONS, [swapParams, settleParams, takeParams]]);
   const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
-  const data = routerIface.encodeFunctionData("execute", [V4_SWAP_COMMAND, [input0], deadline]);
+  const data = routerIface.encodeFunctionData("execute", [COMMANDS, [payPortionInput, swapInput], deadline]);
 
-  return { to: UNIVERSAL_ROUTER, data, value: swapAmountWei };
+  return { to: UNIVERSAL_ROUTER, data, value: totalWei };
 }
 
 /** Splits a total input amount into (platformFee, swapAmount) — fee taken off the top, 0.85%. */

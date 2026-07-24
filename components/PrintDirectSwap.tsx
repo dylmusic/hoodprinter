@@ -8,7 +8,13 @@ import { getDefaultConfig, RainbowKitProvider, darkTheme, useConnectModal } from
 import "@rainbow-me/rainbowkit/styles.css";
 import type { Chain } from "viem";
 import { siteConfig, WALLETCONNECT_PROJECT_ID } from "@/site.config";
-import { buildDirectSwapTx, fetchPrintEthRate, splitFee, FEE_RECIPIENT, MIN_SLIPPAGE_PCT } from "@/lib/printDirectSwap";
+import {
+  buildDirectSwapTx,
+  fetchPrintEthRate,
+  splitFee,
+  DEFAULT_SLIPPAGE_PCT,
+  SLIPPAGE_OPTIONS,
+} from "@/lib/printDirectSwap";
 
 const CHAIN = {
   explorer: siteConfig.chain.explorerUrl,
@@ -56,6 +62,7 @@ function InnerDirectSwap() {
   const { openConnectModal } = useConnectModal();
 
   const [amount, setAmount] = useState("0.01");
+  const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE_PCT);
   const [rate, setRate] = useState<number | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
   const [swapping, setSwapping] = useState(false);
@@ -81,18 +88,14 @@ function InnerDirectSwap() {
     setTxHash(null);
     try {
       const totalWei = ethers.parseEther(amount);
-      const { feeWei, swapWei } = splitFee(totalWei);
-
-      setStep("Sending platform fee (0.85%)…");
-      const feeHash = await walletClient.sendTransaction({ to: FEE_RECIPIENT as `0x${string}`, value: feeWei });
-      await readProvider.waitForTransaction(feeHash);
+      const { swapWei } = splitFee(totalWei);
 
       const expectedOut = Number(ethers.formatEther(swapWei)) * rate;
-      const minOut = expectedOut * (1 - MIN_SLIPPAGE_PCT / 100);
+      const minOut = expectedOut * (1 - slippage / 100);
       const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
 
-      setStep("Confirm the swap…");
-      const { to, data, value } = buildDirectSwapTx(swapWei, minAmountOutWei);
+      setStep("Confirm in wallet…");
+      const { to, data, value } = buildDirectSwapTx(totalWei, minAmountOutWei);
       const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
       setTxHash(swapHash);
       setStep("Confirming on-chain…");
@@ -112,6 +115,19 @@ function InnerDirectSwap() {
 
   return (
     <div className="swap-card">
+      <div className="swap-slippage-row">
+        {SLIPPAGE_OPTIONS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            className={`swap-slip-btn${slippage === p ? " active" : ""}`}
+            onClick={() => setSlippage(p)}
+          >
+            {p}%
+          </button>
+        ))}
+      </div>
+
       <div className="swap-panel">
         <div className="swap-panel-head">
           <span>You pay</span>

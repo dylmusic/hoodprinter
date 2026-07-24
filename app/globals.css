@@ -4902,6 +4902,34 @@ footer {
   font-size: 0.9rem;
 }
 
+.swap-slippage-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.swap-slip-btn {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.66rem;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  padding: 4px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.swap-slip-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+.swap-slip-btn.active {
+  background: rgba(0, 200, 5, 0.12);
+  border-color: var(--green);
+  color: var(--green);
+}
+
 .swap-summary {
   margin-top: 12px;
   padding: 10px 14px;
