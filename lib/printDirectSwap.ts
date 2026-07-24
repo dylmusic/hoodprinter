@@ -35,8 +35,13 @@ export const PRINT_POOL_KEY = {
 } as const;
 
 export const APP_FEE_BPS = 85n; // 0.85%, matches the Relay-embedded widget's fee
-// $PRINT's pool hook takes 5% on every swap (PRINT_MIN_SLIPPAGE convention
-// elsewhere in the codebase, e.g. PrintBot.tsx) — 7% default leaves headroom.
+// $PRINT's pool hook takes a flat 5% on every swap — factor this into any
+// "you'll receive" estimate or it reads ~5% high vs what actually lands
+// (confirmed against a real swap: shown estimate 4,010 PRINT, actual
+// received 3,752 PRINT — the gap is this tax, not just price impact).
+export const POOL_TAX_PCT = 5;
+// PRINT_MIN_SLIPPAGE convention elsewhere in the codebase (e.g. PrintBot.tsx)
+// — 7% default leaves headroom on top of the tax for real price impact.
 export const DEFAULT_SLIPPAGE_PCT = 7;
 export const SLIPPAGE_OPTIONS = [7, 10, 15];
 
@@ -53,24 +58,45 @@ const routerIface = new ethers.Interface([
   "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
 ]);
 
+// Verified live on Robinhood Chain's Blockscout (contract search for
+// "StateView") — the real Uniswap v4-periphery lens, confirmed by calling
+// getSlot0 with our poolId and getting real non-zero data back (a second
+// contract tagged "StateView" returned all zeros — not this one, wrong one).
+export const STATE_VIEW = "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b";
+export const POOL_ID = "0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075";
+const stateViewIface = new ethers.Interface([
+  "function getSlot0(bytes32 poolId) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)",
+]);
+const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
+
 /**
- * Live price data for the correct pool, read from DexScreener (indexes this
- * exact pool). `ethUsd` is derived from the same response (priceUsd and
- * priceNative are both "per 1 PRINT", so priceUsd / priceNative cancels PRINT
- * and leaves USD per ETH) rather than a second API call.
+ * Live price data for the correct pool. The PRINT/ETH rate is read directly
+ * on-chain via StateView — DexScreener (a third-party indexer) was used here
+ * originally but can lag behind the real chain state for a few seconds,
+ * which is exactly wrong right after the user's own swap moves the price.
+ * Reading StateView directly has no such lag: it's the literal current
+ * state. `ethUsd` (only used for the ~$1 gas-reserve estimate, not
+ * precision-critical) still comes from DexScreener in the same request.
  */
 export async function fetchPrintPriceData(signal?: AbortSignal): Promise<{ rate: number; ethUsd: number }> {
-  const res = await fetch(
-    "https://api.dexscreener.com/latest/dex/pairs/robinhood/0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075",
-    { signal }
-  );
-  const json = await res.json();
-  const pair = json?.pairs?.[0];
-  const priceNative = Number(pair?.priceNative); // ETH per PRINT
-  const priceUsd = Number(pair?.priceUsd); // USD per PRINT
-  if (!priceNative || !Number.isFinite(priceNative)) throw new Error("Couldn't read a live price.");
-  const rate = 1 / priceNative; // PRINT per ETH
-  const ethUsd = priceUsd && Number.isFinite(priceUsd) ? priceUsd / priceNative : 0;
+  const stateView = new ethers.Contract(STATE_VIEW, stateViewIface, readProvider);
+  const [sqrtPriceX96] = await stateView.getSlot0(POOL_ID);
+  if (!sqrtPriceX96 || sqrtPriceX96 === 0n) throw new Error("Couldn't read a live price.");
+  const ratio = Number(sqrtPriceX96) / 2 ** 96;
+  const rate = ratio * ratio; // PRINT per ETH — both tokens are 18 decimals, no adjustment needed
+
+  let ethUsd = 0;
+  try {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/pairs/robinhood/${POOL_ID}`, { signal });
+    const json = await res.json();
+    const pair = json?.pairs?.[0];
+    const priceNative = Number(pair?.priceNative);
+    const priceUsd = Number(pair?.priceUsd);
+    if (priceNative && priceUsd) ethUsd = priceUsd / priceNative;
+  } catch {
+    /* ethUsd is a nice-to-have for the gas-reserve estimate, not critical */
+  }
+
   return { rate, ethUsd };
 }
 

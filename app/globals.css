@@ -4669,6 +4669,9 @@ footer {
   max-width: 600px;
   padding-top: 14px;
 }
+.swap-page .pb-card {
+  margin-top: 20px;
+}
 
 .swap-subnote {
   margin-top: 6px;

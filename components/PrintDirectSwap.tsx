@@ -15,6 +15,7 @@ import {
   splitFee,
   DEFAULT_SLIPPAGE_PCT,
   SLIPPAGE_OPTIONS,
+  POOL_TAX_PCT,
 } from "@/lib/printDirectSwap";
 
 // Reserved out of "swap your full balance" so gas doesn't eat into the swap
@@ -159,7 +160,7 @@ function InnerDirectSwap() {
       const totalWei = ethers.parseEther(amount);
       const { swapWei } = splitFee(totalWei);
 
-      const expectedOut = Number(ethers.formatEther(swapWei)) * rate;
+      const expectedOut = Number(ethers.formatEther(swapWei)) * rate * (1 - POOL_TAX_PCT / 100);
       const minOut = expectedOut * (1 - slippage / 100);
       const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
 
@@ -188,7 +189,7 @@ function InnerDirectSwap() {
 
   const amt = parseFloat(amount) || 0;
   const { swapWei: previewSwapWei } = splitFee(ethers.parseEther((amt || 0).toString() || "0"));
-  const previewOut = rate ? Number(ethers.formatEther(previewSwapWei)) * rate : null;
+  const previewOut = rate ? Number(ethers.formatEther(previewSwapWei)) * rate * (1 - POOL_TAX_PCT / 100) : null;
   const balanceEth = balance ? Number(ethers.formatEther(balance.value)) : null;
 
   return (
