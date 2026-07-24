@@ -231,25 +231,32 @@ in one step), not just same-chain ETH swaps.
   `defaultAmount="0.01"` is still required — omitting it crashes the widget
   on mount (`Value.InvalidDecimalNumberError` parsing an empty string).
 - **Theming gotchas (Relay uses Panda CSS, not all of it is theme-able via
-  their typed `theme` prop)**: the "Select Token" modal's chain-list sidebar
-  uses a hardcoded `.relay-bg_gray3` utility class that stays light gray
-  regardless of `themeScheme: "dark"` and isn't exposed through
-  `RelayKitTheme`'s dropdown/modal/widget keys — found via live CDP
-  (`CSS`/`Runtime.evaluate` walking `getComputedStyle` up the DOM) inspection,
-  overridden directly in `globals.css` with `!important` since the modal
-  portals to `<body>`, outside any of our own scoped containers. The token-
-  pill background also needed an explicit `widget.selector` override (not
-  covered by the base palette) or its text is invisible.
+  their typed `theme` prop)**: fixed TWO separate hardcoded light-gray Panda
+  utility classes in the "Select Token" modal, found via live CDP
+  (`CSS`/`Runtime.evaluate` walking `getComputedStyle` up the DOM) inspection
+  since neither is exposed through `RelayKitTheme`'s dropdown/modal/widget
+  keys — `.relay-bg_gray3` (the chain-list sidebar background) and
+  `.relay-bg_gray6` (the *currently-selected* chain's highlight — a
+  different class, found separately) — both overridden in `globals.css`
+  with `!important` since the modal portals to `<body>`, outside any of our
+  own scoped containers. The token-pill background also needed an explicit
+  `widget.selector` override (not covered by the base palette) or its text
+  is invisible.
 - **Card frame**: `.swap-card`'s decorative top accent bar (`::before`) must
   use `width: fit-content` on the card, not `width: 100%`/stretch — the
   widget has its own intrinsic width and doesn't stretch to fill a wider
   parent, so a stretched frame visibly overhangs past the actual widget.
-- **Post-swap crash**: the widget occasionally throws a render error during
-  its own post-swap state reset (not something we control/can patch,
-  it's bundled/minified). Wrapped in a local React error boundary
-  (`SwapErrorBoundary` in SwapEmbed.tsx) with a `key`-bump remount button,
-  so this can't blank the whole page via Next's page-level error boundary
-  right after a user's swap already succeeded.
+- **Post-swap "crash" is actually the success screen**: the widget reliably
+  throws a render error during its own post-swap state reset (confirmed —
+  fires after every completed swap, not an edge case; not something we
+  control/can patch, it's bundled/minified). Wrapped in a local React error
+  boundary (`SwapErrorBoundary` in SwapEmbed.tsx, `key`-bump remount) so
+  Next's page-level boundary can't blank the whole page over it — and since
+  it's 100% reliable, the fallback IS the success UI: checkmark icon,
+  "Swap successful!", "Swap again" button. `onSwapSuccess` on `SwapWidget`
+  captures the completed tx hash into `InnerSwap`'s own state (survives the
+  widget crashing/unmounting) to show a "View transaction" explorer link
+  when the swap landed on Robinhood Chain.
 - **webpack**: `next.config.mjs` aliases `@x402/*` to `false` — `wagmi/
   connectors`' barrel export pulls in a Coinbase "Base Account" connector we
   don't use, which statically imports `@coinbase/cdp-sdk`'s optional x402
@@ -265,11 +272,15 @@ in one step), not just same-chain ETH swaps.
 
 `components/SiteNav.tsx` (client) is THE nav for home/roadmap/airdrop/media/
 multisend — don't hand-roll `<nav>` blocks on pages anymore. `variant="home"`
-= **Swap**/RWA Pools/Roadmap/Airdrop/Tools/FAQ (no section anchors anymore —
-"How It Works" was replaced by the "Swap" link, plain text no badge);
-default `"sub"` = Home/Roadmap/Airdrop/Tools (no Swap link here — home-variant
-only). **RWA Pools is a top-level link** (with its own BETA badge) both
-desktop and mobile, not tucked in the Tools dropdown. The **Tools dropdown**
+= Swap/RWA Pools/Roadmap/Airdrop/Tools/FAQ ("How It Works" was replaced by
+the "Swap" link, plain text no badge); default `"sub"` = Home/**Swap**/**RWA
+Pools**/Roadmap/Airdrop/Tools — same set as home minus "FAQ" (a homepage
+section anchor that doesn't resolve from other pages), plus "Home" for
+wayfinding. Both variants got Swap+RWA Pools as of 2026-07-24 — sub pages
+used to only show Home/Roadmap/Airdrop/Tools, which buried the two
+highest-priority pages behind the Tools dropdown; fixed for consistency.
+**RWA Pools is a top-level link** (with its own BETA badge) both desktop
+and mobile, not tucked in the Tools dropdown. The **Tools dropdown**
 groups product pages (RWA Pools BETA, Buy Bot BETA, Multisend NEW) — add
 future tools there, not as top-level links. The "Tools" trigger itself has
 no badge (only individual dropdown items do). Mobile (≤720px) hides text
