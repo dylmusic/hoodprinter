@@ -6,9 +6,13 @@ Next.js 14 (App Router) app on Vercel. Repo: `dylmusic/hoodprinter` (branch
 messages with the Claude co-author trailer for whichever model is working
 (e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`).
 
-The two flagship products right now: the **Buy Bot** (`/print`) and the
-**native $PRINT airdrop signup** (`/airdrop`). The GemPad presale is **paused**
-(delayed) — all presale CTAs are swapped to "Level Up" / airdrop until it's live.
+The flagship products right now: the **Buy Bot** (`/print`), **RWA Pools**
+(`/rwa`), and the **native $PRINT airdrop signup** (`/airdrop`). **$PRINT is
+LIVE and trading** (`PRESALE_ACTIVE=true` in `site.config.ts`) — every primary
+CTA sitewide is "Buy Now" pointing at `PRESALE_LINK` (currently a Relay
+bridge+buy link, see Swap section below), not the old airdrop/"Level Up"
+framing. The GemPad presale itself never launched — it was superseded by a
+based.bid fair launch, which sold out and bonded into live trading.
 
 ---
 
@@ -133,15 +137,130 @@ this). Key never leaves the browser; txs go straight to RPC.
 
 ---
 
+## RWA Pools — `/rwa` (`components/RwaPools.tsx`, `lib/rwaPools.ts`)
+
+Second flagship angle alongside the Buy Bot, shipped 2026-07-22: $PRINT's ETH
+reflections deployed as liquidity paired against Robinhood Chain's real
+tokenized Stock Tokens (NVDA/TSLA/SPCX/AAPL/MSFT — verified real contracts via
+on-chain `symbol()` calls, not invented). Dashboard shows platform-wide stats
+(ETH distributed, TVL, pools live) + 5 pool cards. **Everything is currently
+zero on purpose** — no $PRINT/RWA pool exists on-chain yet, confirmed via V2
+factory `getPair`. Deposit/Withdraw open a coming-soon modal → Telegram, not a
+disabled button or waitlist form. Full narrative/rationale in the
+`hoodprinter-rwa-pools` memory file — don't re-litigate the "why RWA" framing,
+it's deliberate and Dylan-approved.
+
+Homepage hero, roadmap (new Phase 04), and site.config.ts tagline/description
+all lead with this RWA framing now. Buy Bot and Multisend were explicitly left
+untouched during this rebrand — additive only.
+
+---
+
+## Swap — `/swap` (Relay-embedded, unlisted/WIP)
+
+`components/SwapEmbed.tsx`. **Not in SiteNav, not in sitemap, `noindex`** —
+say the word before adding it to nav. Exists because $PRINT's real liquidity
+is a Uniswap V4 pool with a hook enforcing the 5% trade tax, which a plain
+swap UI can't account for (miscalculates output, reverts or shorts the user).
+
+**Architecture — embeds Relay's own `SwapWidget`, doesn't hand-roll a UI.**
+First pass hand-rolled a quote UI calling Relay's REST API directly (still in
+git history) — replaced entirely with `@reservoir0x/relay-kit-ui`'s real
+`SwapWidget` component per Dylan's direction ("they have all the sick
+crosschain stuff... rely on the relay interface more"). This gets Relay's
+actual cross-chain UI (any of 85+ origin chains → $PRINT on Robinhood Chain
+in one step), not just same-chain ETH swaps.
+
+- **Package scope matters**: use `@reservoir0x/relay-kit-ui` (React 18-
+  compatible), NOT `@relayprotocol/relay-kit-ui` (their newer scope, requires
+  React 19 — this app is Next 14/React 18 and upgrading the whole framework
+  just for a swap widget is out of scope). Docs at docs.relay.link show the
+  `@relayprotocol` examples; the actual installed/working package here is the
+  `@reservoir0x` one — same protocol/backend, older React-compat UI release.
+- **Wallet connect**: RainbowKit (`getDefaultConfig` + `RainbowKitProvider` +
+  `useConnectModal`), NOT a hand-rolled connect picker — a first attempt at a
+  custom "Browser Wallet / WalletConnect" button picker was unreliable and
+  got ripped out. RainbowKit is what Relay's own docs pair with `SwapWidget`.
+  Bridge to Relay: `wallet={adaptViemWallet(walletClient)}` from wagmi's
+  `useWalletClient()`.
+- **WalletConnect Project ID gotcha**: `getDefaultConfig` requires a non-empty
+  `projectId` string. A genuinely empty string **crashes it outright**
+  (tested). Until `WALLETCONNECT_PROJECT_ID` (site.config.ts) is set to a
+  real ID from cloud.reown.com, we pass a dummy placeholder
+  (`"00000000...")` — this works but spams harmless 403s against Reown's
+  remote-config endpoint (falls back to local defaults). Injected/browser
+  wallets work fully either way; only WC-based wallets in the modal need the
+  real ID.
+- **Chain list**: wagmi's own `chains`/`transports` config is built
+  dynamically from Relay's live `/chains` API (`lib/relayChains.ts`,
+  `fetchRelayEvmChains()`) — not hand-maintained, so new chains Relay adds
+  show up automatically. Separately, `RelayKitProvider`'s `options.chains` is
+  scoped to a **curated subset** (`CURATED_CHAIN_IDS` in SwapEmbed.tsx —
+  majors + Robinhood Chain) rather than Relay's full 85-chain default.
+  Without this, Robinhood Chain got buried under generic global-trending
+  tokens (OpenAI, random BNB tokens) with no "Robinhood Chain" label visible
+  anywhere, which read as the widget defaulting to mainnet ETH instead of
+  Robinhood Chain's ETH — a real, confirmed bug (fixed by curating).
+- **Fee**: 0.85% on every swap via Relay's native `appFees` mechanism, set in
+  `RelayKitProvider options.appFees`, credited to `RELAY_FEE_RECIPIENT`
+  (site.config.ts) — accrues off-chain as a USDC balance, claimable via
+  `api.relay.link/app-fees/<address>/balances` + `/claim`, NOT sent live
+  per-trade. `RELAY_API_KEY` is set in Vercel (Production) but is currently
+  **unused dead config** — it was needed for the deleted server-proxy
+  architecture (`/api/relay/quote`, now removed), the embedded-widget
+  architecture calls Relay directly client-side and doesn't need it.
+- **Default pair**: ETH → $PRINT on Robinhood Chain (matches
+  `relay.link/bridge/robinhood?toCurrency=...&fromChainId=4663`),
+  `lockToToken={true}` so destination always stays $PRINT, origin
+  chain/token deliberately NOT locked (that's the whole cross-chain point).
+  `defaultAmount="0.01"` is required — omitting it crashes the widget on
+  mount (`Value.InvalidDecimalNumberError` parsing an empty string).
+- **Theming gotchas (Relay uses Panda CSS, not all of it is theme-able via
+  their typed `theme` prop)**: the "Select Token" modal's chain-list sidebar
+  uses a hardcoded `.relay-bg_gray3` utility class that stays light gray
+  regardless of `themeScheme: "dark"` and isn't exposed through
+  `RelayKitTheme`'s dropdown/modal/widget keys — found via live CDP
+  (`CSS`/`Runtime.evaluate` walking `getComputedStyle` up the DOM) inspection,
+  overridden directly in `globals.css` with `!important` since the modal
+  portals to `<body>`, outside any of our own scoped containers. The token-
+  pill background also needed an explicit `widget.selector` override (not
+  covered by the base palette) or its text is invisible.
+- **Card frame**: `.swap-card`'s decorative top accent bar (`::before`) must
+  use `width: fit-content` on the card, not `width: 100%`/stretch — the
+  widget has its own intrinsic width and doesn't stretch to fill a wider
+  parent, so a stretched frame visibly overhangs past the actual widget.
+- **Post-swap crash**: the widget occasionally throws a render error during
+  its own post-swap state reset (not something we control/can patch,
+  it's bundled/minified). Wrapped in a local React error boundary
+  (`SwapErrorBoundary` in SwapEmbed.tsx) with a `key`-bump remount button,
+  so this can't blank the whole page via Next's page-level error boundary
+  right after a user's swap already succeeded.
+- **webpack**: `next.config.mjs` aliases `@x402/*` to `false` — `wagmi/
+  connectors`' barrel export pulls in a Coinbase "Base Account" connector we
+  don't use, which statically imports `@coinbase/cdp-sdk`'s optional x402
+  payment modules that aren't installed. Safe to stub; nothing reaches them.
+- Removed `@walletconnect/ethereum-provider` (superseded by RainbowKit/
+  wagmi's own connectors) and the old hand-rolled `lib/lifi.ts`/LI.FI
+  integration entirely (LI.FI had no sell-side route for $PRINT at all;
+  Relay routes both directions).
+
+---
+
 ## Site navigation
 
 `components/SiteNav.tsx` (client) is THE nav for home/roadmap/airdrop/media/
 multisend — don't hand-roll `<nav>` blocks on pages anymore. `variant="home"`
-= section anchors + Roadmap/Airdrop/Tools/FAQ; default `"sub"` = Home/Roadmap/
-Airdrop/Tools. The **Tools dropdown** groups product pages (Buy Bot BETA,
-Multisend NEW) — add future tools there, not as top-level links. Mobile
-(≤720px) hides text links + the Tools trigger; only logo/socials/Level Up
-remain. `/print` and `/multisend` both show SiteNav on top plus the small pb-logo above their H1 — matching tool-page headers.
+= section anchors + RWA Pools/Roadmap/Airdrop/Tools/FAQ; default `"sub"` =
+Home/Roadmap/Airdrop/Tools. **RWA Pools is a top-level link** (with its own
+BETA badge) both desktop and mobile, not tucked in the Tools dropdown. The
+**Tools dropdown** groups product pages (RWA Pools BETA, Buy Bot BETA,
+Multisend NEW) — add future tools there, not as top-level links. The "Tools"
+trigger itself has no badge (only individual dropdown items do). Mobile
+(≤720px) hides text links + the Tools trigger; only logo/socials/Buy Now
+remain. `/print` and `/multisend` both show SiteNav on top plus the small
+pb-logo above their H1 — matching tool-page headers. `/swap` matches this
+pattern too but is intentionally not linked from SiteNav at all (see Swap
+section above).
 
 ## Multisend — `/multisend` (PUBLIC since Jul 2026)
 
@@ -221,10 +340,14 @@ Dylan to create the GA4 property + GSC property and supply the IDs
 
 ## Site pages & metadata
 
-- `app/page.tsx` (home): nav has "Level Up" → `/print` + "Buy Bot BETA" link;
-  green top **announce bar** "Sign Up For FREE Pre-Launch Airdrop" → `/airdrop`
-  (home only); hero CTA "Level up before $PRINT drops" → `/print`. Presale
-  kicker bubble + banner removed. `PRESALE_ACTIVE=false` hides presale copy.
+- `app/page.tsx` (home): `PRESALE_ACTIVE=true` — nav CTA is "Buy Now" →
+  `PRESALE_LINK` everywhere (not "Level Up"/airdrop framing). Hero is 3
+  buttons only (Dylan: "5 is too many and crowded"): "Buy $PRINT" + "Chart"
+  (DexScreener link) side by side in `.hero-ctas-top`, "RWA Pools BETA" as a
+  full-width button below matching their combined width
+  (`.hero-rwa-full`) — all wrapped in `.hero-cta-group`. `LaunchCountdown`
+  and `FairLaunchModal` components were both deleted once trading went live
+  (no more pre-launch countdown/sold-out messaging needed).
 - Each page has its own OG image + title/description (all absolute via
   `metadataBase`): home `og.png`, `/print` `og-print.png?v=2` (bespoke Buy Bot
   card — BETA badge + feature chips, NOT the generic centered template),
@@ -267,4 +390,5 @@ rule (e.g. `clamp()`), or raise the override's specificity.
 ## Related memory files
 `~/.claude/projects/-Users-dylanrhodes-Documents-hoodprinter/memory/`:
 `hoodprinter-github-vercel`, `hoodprinter-onchain`, `hoodprinter-buy-stats`,
-`hoodprinter-airdrop-signups`, `always-push-to-github`.
+`hoodprinter-airdrop-signups`, `hoodprinter-rwa-pools`, `hoodprinter-swap-relay`,
+`always-push-to-github`.
