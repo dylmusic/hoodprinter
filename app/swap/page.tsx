@@ -41,10 +41,7 @@ export default function SwapPage() {
         <SwapEmbed />
 
         <p className="swap-powered-by">
-          Powered by{" "}
-          <a href="https://relay.link" target="_blank" rel="noopener noreferrer">
-            relay.link
-          </a>
+          Powered by <span>relay.link</span>
         </p>
       </main>
     </>

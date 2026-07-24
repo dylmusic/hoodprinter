@@ -4672,7 +4672,8 @@ footer {
 
 .swap-card {
   position: relative;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   margin: 0 auto;
   border-radius: var(--radius);
   overflow: hidden;
@@ -4739,7 +4740,7 @@ footer {
   font-size: 0.78rem;
   color: var(--muted);
 }
-.swap-powered-by a {
+.swap-powered-by span {
   color: var(--green);
   font-weight: 700;
 }
