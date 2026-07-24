@@ -115,6 +115,10 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
           ) : (
             <>
               <a href="/">Home</a>
+              <a href="/swap">Swap</a>
+              <a href="/rwa">
+                RWA Pools <span className="nav-beta">BETA</span>
+              </a>
               <a href="/roadmap">Roadmap</a>
               <a href="/airdrop">Airdrop</a>
               {tools}
@@ -158,6 +162,10 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
           ) : (
             <>
               <a href="/" onClick={close}>Home</a>
+              <a href="/swap" onClick={close}>Swap</a>
+              <a href="/rwa" onClick={close}>
+                RWA Pools <span className="nav-beta">BETA</span>
+              </a>
               <a href="/roadmap" onClick={close}>Roadmap</a>
               <a href="/airdrop" onClick={close}>Airdrop</a>
             </>
