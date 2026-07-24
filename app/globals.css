@@ -4691,12 +4691,33 @@ footer {
   z-index: 1;
 }
 
+/* Relay's "Select Token" modal chain-list sidebar uses this fixed Panda
+   CSS utility class for its background (confirmed via live CSS inspection —
+   not exposed through RelayKitTheme's dropdown/modal/widget keys), and it
+   doesn't flip with themeScheme: "dark" — stays a light gray while our
+   theme's text color stays light too, making chain names unreadable. The
+   modal portals to <body>, outside .swap-card, so this has to be global. */
+.relay-bg_gray3 {
+  background: #101b14 !important;
+}
+
 .swap-loading {
   padding: 40px 20px;
   text-align: center;
   color: var(--muted);
   background: var(--card);
   border: 1px solid var(--border);
+}
+
+.swap-crash-recover {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.swap-crash-recover p {
+  margin-bottom: 14px;
 }
 
 .swap-cta {

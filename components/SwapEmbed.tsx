@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, http, useAccount, useDisconnect, useWalletClient } from "wagmi";
 import { getDefaultConfig, RainbowKitProvider, darkTheme, useConnectModal } from "@rainbow-me/rainbowkit";
@@ -86,6 +86,42 @@ const relayTheme = {
   modal: { background: "#101b14", border: "1px solid #1d2b22", borderRadius: "16px" },
 };
 
+// The widget occasionally throws a render error right after a successful
+// swap (its own post-swap state reset, not something we control) — without
+// this, that crash bubbles up to Next.js's page-level error boundary and
+// blanks the ENTIRE page, right after the user's swap already went through.
+// This contains the blast radius to just the widget and offers a one-click
+// remount instead of a dead page.
+class SwapErrorBoundary extends Component<{ onReset: () => void; children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error("Swap widget error:", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="swap-crash-recover">
+          <p>Your swap likely went through — this is just a display glitch after it finished.</p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              this.setState({ hasError: false });
+              this.props.onReset();
+            }}
+          >
+            Reload swap widget
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // RainbowKit owns the actual wallet-connection UX (its own multi-wallet
 // modal, WalletConnect QR flow, account/disconnect menu) — this is the
 // pairing Relay's own docs use for SwapWidget. We only supply the
@@ -97,22 +133,26 @@ function InnerSwap() {
   const { openConnectModal } = useConnectModal();
   const [fromToken, setFromToken] = useState<Token | undefined>(ETH_TOKEN);
   const [toToken, setToToken] = useState<Token | undefined>(PRINT_TOKEN);
+  const [swapKey, setSwapKey] = useState(0);
 
   return (
     <>
-      <SwapWidget
-        supportedWalletVMs={["evm"]}
-        wallet={walletClient ? adaptViemWallet(walletClient) : undefined}
-        fromToken={fromToken}
-        setFromToken={setFromToken}
-        toToken={toToken}
-        setToToken={setToToken}
-        defaultAmount="0.01"
-        defaultTradeType="EXACT_INPUT"
-        lockToToken={true}
-        popularChainIds={POPULAR_CHAIN_IDS}
-        onConnectWallet={() => openConnectModal?.()}
-      />
+      <SwapErrorBoundary onReset={() => setSwapKey((k) => k + 1)}>
+        <SwapWidget
+          key={swapKey}
+          supportedWalletVMs={["evm"]}
+          wallet={walletClient ? adaptViemWallet(walletClient) : undefined}
+          fromToken={fromToken}
+          setFromToken={setFromToken}
+          toToken={toToken}
+          setToToken={setToToken}
+          defaultAmount="0.01"
+          defaultTradeType="EXACT_INPUT"
+          lockToToken={true}
+          popularChainIds={POPULAR_CHAIN_IDS}
+          onConnectWallet={() => openConnectModal?.()}
+        />
+      </SwapErrorBoundary>
       {isConnected && (
         <p className="swap-address">
           <button type="button" className="swap-disconnect" onClick={() => disconnect()}>
@@ -152,7 +192,10 @@ export default function SwapEmbed() {
       appIcon: `${siteConfig.url}/logo.png`,
       // Empty until a real WalletConnect Cloud project ID is set (site.config.ts)
       // — RainbowKit's injected/browser-wallet options still work either way,
-      // only its WalletConnect-based wallet options need this.
+      // only its WalletConnect-based wallet options need this. A genuinely
+      // empty string crashes getDefaultConfig outright (tested); a
+      // placeholder avoids that at the cost of a harmless 403 against
+      // Reown's remote-config endpoint (it falls back to local defaults).
       projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
       chains: chains as [Chain, ...Chain[]],
       transports: Object.fromEntries(chains.map((c) => [c.id, http()])),
