@@ -1,6 +1,6 @@
-import { createClient, getQuote, execute, adaptViemWallet, type Execute } from "@reservoir0x/relay-sdk";
-import type { WalletClient } from "viem";
-import { RELAY_FEE_RECIPIENT } from "@/site.config";
+import { createClient, getQuote, execute, adaptViemWallet, convertViemChainToRelayChain, type Execute } from "@reservoir0x/relay-sdk";
+import type { Chain, WalletClient } from "viem";
+import { siteConfig, RELAY_FEE_RECIPIENT } from "@/site.config";
 
 /**
  * Headless Relay SDK usage — same package (@reservoir0x/relay-sdk) that
@@ -16,10 +16,26 @@ import { RELAY_FEE_RECIPIENT } from "@/site.config";
 
 const APP_FEE_BPS = "85";
 
+// Real bug, not a hypothetical: createClient() with no `chains` failed a
+// live CASHCAT->PRINT attempt with "Unable to find chain: Chain id 4663" —
+// the SDK's baked-in chain defaults don't include Robinhood Chain, and
+// getQuote/execute both need it registered locally (for RPC calls, gas
+// estimation, etc.), not just reachable over Relay's own API. SwapEmbed.tsx
+// hit the same class of issue for chain *labeling* and fixed it by passing
+// an explicit chains array — same fix here, just for one chain instead of
+// the full fetched list, since this router is same-chain only today.
+const ROBINHOOD_VIEM_CHAIN: Chain = {
+  id: siteConfig.chain.chainId,
+  name: siteConfig.chain.name,
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [siteConfig.chain.rpcUrl] } },
+  blockExplorers: { default: { name: "Explorer", url: siteConfig.chain.explorerUrl } },
+};
+
 let clientReady = false;
 function ensureRelayClient() {
   if (clientReady) return;
-  createClient({ source: "hoodprinter.xyz" });
+  createClient({ source: "hoodprinter.xyz", chains: [convertViemChainToRelayChain(ROBINHOOD_VIEM_CHAIN)] });
   clientReady = true;
 }
 

@@ -264,11 +264,23 @@ and is background for if that ever happens, not the current live page.
   `JSON.stringify`, the full raw error is `console.error`'d for follow-up
   debugging, and a `legContext` string (e.g. "Step 1/2 (CASHCAT → ETH via
   Relay)") is prefixed onto the message for 2-leg routes so a failure says
-  which leg it was in. Root cause of that specific failure is still
-  unconfirmed — couldn't be reproduced without a funded/connected wallet in
-  this environment (same verification gap noted below for the swap tx
-  encodings); next failure should surface an actual diagnosable message
-  instead of the opaque one Dylan saw.
+  which leg it was in. This immediately paid off: the retry surfaced
+  **"Unable to find chain: Chain id 4663"** — `lib/relayLeg.ts`'s
+  `createClient({ source: "hoodprinter.xyz" })` had no `chains` option, so
+  the SDK fell back to its baked-in chain defaults, which don't include
+  Robinhood Chain. `getQuote()` didn't need it (pure API call, worked fine
+  in isolated testing), but `execute()` does — it needs the chain
+  registered locally for RPC calls/gas estimation during signing, not just
+  reachable over Relay's API. **Fix**: `createClient` now passes
+  `chains: [convertViemChainToRelayChain(ROBINHOOD_VIEM_CHAIN)]`, same
+  function SwapEmbed.tsx already used for its (much larger) chain list —
+  just one chain here since this router is same-chain only for now.
+  Verified the fix with a live `getQuote`+`createClient` round-trip outside
+  the browser; still couldn't fully verify `execute()`'s signing path
+  end-to-end without a funded/connected wallet in this environment (same
+  gap noted for the swap tx encodings below), so if a 2-leg swap fails
+  again the on-screen `legContext`-prefixed message is the next thing to
+  check.
 
 - **Price source**: read directly on-chain via Uniswap's `StateView` lens
   contract (`0xF3334192D15450CdD385c8B70e03f9A6bD9E673b`, verified live —
