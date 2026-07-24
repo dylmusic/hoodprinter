@@ -219,14 +219,19 @@ export default function Home() {
             Every $PRINT buy adds to the RWA pools — and pays out holders
             in ETH.
           </p>
-          {presaleActive && (
-            <div className="cd hero-buy-row">
-              <a className="cd-live" href={presaleLink} target="_blank" rel="noopener noreferrer">
-                <span className="cd-live-dot" aria-hidden="true" />
-                Buy Now
-              </a>
+          <div className="hero-cta-group">
+            <div className="hero-ctas-top">
+              {presaleActive ? (
+                <a className="btn btn-primary" href={presaleLink} target="_blank" rel="noopener noreferrer">
+                  Buy $PRINT
+                </a>
+              ) : (
+                <a className="btn btn-primary" href="/print">
+                  Level up before $PRINT drops
+                </a>
+              )}
               <a
-                className="cd-chart"
+                className="btn btn-ghost"
                 href="https://dexscreener.com/robinhood/0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -234,21 +239,7 @@ export default function Home() {
                 📈 Chart
               </a>
             </div>
-          )}
-          <div className="hero-ctas">
-            {presaleActive ? (
-              <a className="btn btn-primary" href={presaleLink} target="_blank" rel="noopener noreferrer">
-                Buy $PRINT
-              </a>
-            ) : (
-              <a className="btn btn-primary" href="/print">
-                Level up before $PRINT drops
-              </a>
-            )}
-            <a className="btn btn-ghost" href="#how-it-works">
-              How it works
-            </a>
-            <a className="btn btn-ghost" href="/rwa">
+            <a className="btn btn-ghost hero-rwa-full" href="/rwa">
               RWA Pools <span className="nav-beta">BETA</span>
             </a>
           </div>
