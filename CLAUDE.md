@@ -7,10 +7,11 @@ messages with the Claude co-author trailer for whichever model is working
 (e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`).
 
 The flagship products right now: the **Buy Bot** (`/print`), **RWA Pools**
-(`/rwa`), and the **native $PRINT airdrop signup** (`/airdrop`). **$PRINT is
-LIVE and trading** (`PRESALE_ACTIVE=true` in `site.config.ts`) — every primary
-CTA sitewide is "Buy Now" pointing at `PRESALE_LINK` (currently a Relay
-bridge+buy link, see Swap section below), not the old airdrop/"Level Up"
+(`/rwa`), the **Swap** page (`/swap`), and the **native $PRINT airdrop
+signup** (`/airdrop`). **$PRINT is LIVE and trading**
+(`PRESALE_ACTIVE=true` in `site.config.ts`) — every primary CTA sitewide is
+"Buy Now" pointing at `PRESALE_LINK`, which is **`/swap`** (our own page, not
+an external link — see Swap section below), not the old airdrop/"Level Up"
 framing. The GemPad presale itself never launched — it was superseded by a
 based.bid fair launch, which sold out and bonded into live trading.
 
@@ -156,10 +157,17 @@ untouched during this rebrand — additive only.
 
 ---
 
-## Swap — `/swap` (Relay-embedded, unlisted/WIP)
+## Swap — `/swap` (Relay-embedded) — THE primary buy destination sitewide
 
-`components/SwapEmbed.tsx`. **Not in SiteNav, not in sitemap, `noindex`** —
-say the word before adding it to nav. Exists because $PRINT's real liquidity
+`components/SwapEmbed.tsx`. Shipped live 2026-07-24: in SiteNav (home variant
+— replaced "How It Works"), in the sitemap, indexable, BETA badge on the page
+only (not the nav link). **`site.config.ts` `PRESALE_LINK = "/swap"`** — every
+buy button sitewide (announce bar, hero CTA, nav "Buy Now" desktop+mobile,
+How It Works step 4, roadmap Fair Launch link) reads from this one constant,
+so they all point here now instead of out to relay.link directly. That's the
+entire point: collect the 0.85% fee on every buy intent on the site instead
+of giving that traffic away. All these buy links dropped `target="_blank"`
+too since it's an internal route now. Exists because $PRINT's real liquidity
 is a Uniswap V4 pool with a hook enforcing the 5% trade tax, which a plain
 swap UI can't account for (miscalculates output, reverts or shorts the user).
 
@@ -257,17 +265,18 @@ in one step), not just same-chain ETH swaps.
 
 `components/SiteNav.tsx` (client) is THE nav for home/roadmap/airdrop/media/
 multisend — don't hand-roll `<nav>` blocks on pages anymore. `variant="home"`
-= section anchors + RWA Pools/Roadmap/Airdrop/Tools/FAQ; default `"sub"` =
-Home/Roadmap/Airdrop/Tools. **RWA Pools is a top-level link** (with its own
-BETA badge) both desktop and mobile, not tucked in the Tools dropdown. The
-**Tools dropdown** groups product pages (RWA Pools BETA, Buy Bot BETA,
-Multisend NEW) — add future tools there, not as top-level links. The "Tools"
-trigger itself has no badge (only individual dropdown items do). Mobile
-(≤720px) hides text links + the Tools trigger; only logo/socials/Buy Now
-remain. `/print` and `/multisend` both show SiteNav on top plus the small
-pb-logo above their H1 — matching tool-page headers. `/swap` matches this
-pattern too but is intentionally not linked from SiteNav at all (see Swap
-section above).
+= **Swap**/RWA Pools/Roadmap/Airdrop/Tools/FAQ (no section anchors anymore —
+"How It Works" was replaced by the "Swap" link, plain text no badge);
+default `"sub"` = Home/Roadmap/Airdrop/Tools (no Swap link here — home-variant
+only). **RWA Pools is a top-level link** (with its own BETA badge) both
+desktop and mobile, not tucked in the Tools dropdown. The **Tools dropdown**
+groups product pages (RWA Pools BETA, Buy Bot BETA, Multisend NEW) — add
+future tools there, not as top-level links. The "Tools" trigger itself has
+no badge (only individual dropdown items do). Mobile (≤720px) hides text
+links + the Tools trigger; only logo/socials/Buy Now remain. `/print` and
+`/multisend` both show SiteNav on top plus the small pb-logo above their H1
+— matching tool-page headers; `/swap` matches this pattern too, plus a BETA
+badge next to its own H1 (page only, not the nav link).
 
 ## Multisend — `/multisend` (PUBLIC since Jul 2026)
 
