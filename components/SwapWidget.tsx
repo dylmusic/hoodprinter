@@ -4,13 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { siteConfig, WALLETCONNECT_PROJECT_ID } from "@/site.config";
 import {
-  getLifiQuote,
-  LifiError,
-  LifiQuote,
+  getRelayQuote,
+  RelayError,
+  RelayQuote,
   NATIVE_TOKEN,
   MIN_SLIPPAGE_PCT,
   DEFAULT_SLIPPAGE_PCT,
-} from "@/lib/lifi";
+} from "@/lib/relay";
 
 type WalletKind = "injected" | "walletconnect";
 
@@ -25,8 +25,6 @@ const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
-  "function allowance(address owner, address spender) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)",
 ];
 
 const DEFAULT_TOKEN = {
@@ -36,7 +34,7 @@ const DEFAULT_TOKEN = {
 };
 
 // A quote doesn't move funds, so it's fine to preview rates before a wallet
-// is connected — LI.FI just needs *some* address to price against.
+// is connected — Relay just needs *some* address to price against.
 const QUOTE_PLACEHOLDER_ADDR = "0x000000000000000000000000000000000000dEaD";
 
 type Direction = "buy" | "sell"; // buy = ETH -> token, sell = token -> ETH
@@ -61,16 +59,15 @@ export default function SwapWidget() {
   const [amount, setAmount] = useState("0.01");
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE_PCT);
 
-  const [quote, setQuote] = useState<LifiQuote | null>(null);
+  const [quote, setQuote] = useState<RelayQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const [ethBalance, setEthBalance] = useState<number | null>(null);
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
-  const [needsApproval, setNeedsApproval] = useState(false);
 
-  const [approving, setApproving] = useState(false);
   const [swapping, setSwapping] = useState(false);
+  const [swapStepLabel, setSwapStepLabel] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
@@ -127,7 +124,7 @@ export default function SwapWidget() {
     const t = setTimeout(async () => {
       try {
         const fromAmount = ethers.parseUnits(amount, fromDecimals).toString();
-        const q = await getLifiQuote({
+        const q = await getRelayQuote({
           fromToken: fromTokenAddr,
           toToken: toTokenAddr,
           fromAmount,
@@ -139,7 +136,7 @@ export default function SwapWidget() {
       } catch (e) {
         if (controller.signal.aborted) return;
         setQuote(null);
-        setQuoteError(e instanceof LifiError ? e.message : "Couldn't fetch a quote. Try again.");
+        setQuoteError(e instanceof RelayError ? e.message : "Couldn't fetch a quote. Try again.");
       } finally {
         if (!controller.signal.aborted) setQuoting(false);
       }
@@ -150,28 +147,6 @@ export default function SwapWidget() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amount, fromTokenAddr, toTokenAddr, fromDecimals, slippage, address, tokenError, tokenLoading]);
-
-  // ---- allowance check whenever a fresh quote lands for an ERC20 "from" ----
-  useEffect(() => {
-    if (!quote || fromIsNative || !address) {
-      setNeedsApproval(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const erc = new ethers.Contract(token.address, ERC20_ABI, readProvider.current!);
-        const allowance: bigint = await erc.allowance(address, quote.estimate.approvalAddress);
-        const needed = ethers.parseUnits(amount || "0", token.decimals);
-        if (!cancelled) setNeedsApproval(allowance < needed);
-      } catch {
-        if (!cancelled) setNeedsApproval(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [quote, fromIsNative, address, token, amount]);
 
   // ---- balances ----
   const refreshBalances = useCallback(async () => {
@@ -301,25 +276,9 @@ export default function SwapWidget() {
     setTxHash(null);
   }
 
-  async function doApprove() {
-    if (!quote || !address) return;
-    setApproving(true);
-    setActionError(null);
-    try {
-      const provider = new ethers.BrowserProvider(providerRef.current);
-      const signer = await provider.getSigner();
-      const erc = new ethers.Contract(token.address, ERC20_ABI, signer);
-      const amountWei = ethers.parseUnits(amount || "0", token.decimals);
-      const tx = await erc.approve(quote.estimate.approvalAddress, amountWei);
-      await tx.wait();
-      setNeedsApproval(false);
-    } catch (e: any) {
-      setActionError(e?.shortMessage || e?.reason || e?.message || "Approval failed.");
-    } finally {
-      setApproving(false);
-    }
-  }
-
+  // Relay's quote already includes an "approve" step ahead of "swap" when the
+  // connected wallet's on-chain allowance is insufficient — no separate
+  // allowance check needed, just sign whatever steps came back, in order.
   async function doSwap() {
     if (!quote || !address) return;
     setSwapping(true);
@@ -328,18 +287,26 @@ export default function SwapWidget() {
     try {
       const provider = new ethers.BrowserProvider(providerRef.current);
       const signer = await provider.getSigner();
-      const tx = await signer.sendTransaction({
-        to: quote.transactionRequest.to,
-        data: quote.transactionRequest.data,
-        value: quote.transactionRequest.value,
-      });
-      setTxHash(tx.hash);
-      await tx.wait();
+      let lastHash = "";
+      for (const step of quote.steps) {
+        const item = step.items[0];
+        if (!item) continue;
+        setSwapStepLabel(step.description);
+        const tx = await signer.sendTransaction({
+          to: item.data.to,
+          data: item.data.data,
+          value: item.data.value,
+        });
+        lastHash = tx.hash;
+        await tx.wait();
+      }
+      setTxHash(lastHash);
       refreshBalances();
     } catch (e: any) {
       setActionError(e?.shortMessage || e?.reason || e?.message || "Swap failed.");
     } finally {
       setSwapping(false);
+      setSwapStepLabel(null);
     }
   }
 
@@ -350,14 +317,16 @@ export default function SwapWidget() {
     setActionError(null);
   }
 
-  const toAmountDisplay =
-    quote && !quoting ? fmt(Number(ethers.formatUnits(quote.estimate.toAmount, fromIsNative ? token.decimals : 18))) : "";
+  const toAmountDisplay = quote && !quoting ? fmt(Number(quote.details.currencyOut.amountFormatted)) : "";
   const minReceivedDisplay =
     quote && !quoting
-      ? `${fmt(Number(ethers.formatUnits(quote.estimate.toAmountMin, fromIsNative ? token.decimals : 18)))} ${toSymbol}`
+      ? `${fmt(
+          Number(ethers.formatUnits(quote.details.currencyOut.minimumAmount, quote.details.currencyOut.currency.decimals))
+        )} ${toSymbol}`
       : "—";
-  const gasCost = quote?.estimate.gasCosts?.[0];
-  const gasDisplay = gasCost ? `~${fmt(Number(ethers.formatUnits(gasCost.amount, 18)), 5)} ETH` : "—";
+  const gasDisplay = quote?.fees.gas ? `~${fmt(Number(quote.fees.gas.amountFormatted), 5)} ETH` : "—";
+  const feeDisplay = quote?.fees.app ? `${fmt(Number(quote.fees.app.amountFormatted), 5)} ${fromSymbol}` : "—";
+  const priceImpact = quote?.details.totalImpact?.percent;
   const fromBalance = fromIsNative ? ethBalance : tokenBalance;
 
   return (
@@ -435,8 +404,18 @@ export default function SwapWidget() {
             <strong>{gasDisplay}</strong>
           </div>
           <div className="swap-detail-row">
+            <span>HOODPrinter fee (0.85%)</span>
+            <strong>{feeDisplay}</strong>
+          </div>
+          {priceImpact && (
+            <div className="swap-detail-row">
+              <span>Price impact</span>
+              <strong>{Number(priceImpact).toFixed(2)}%</strong>
+            </div>
+          )}
+          <div className="swap-detail-row">
             <span>Route</span>
-            <strong>LI.FI · {quote.toolDetails?.name || quote.tool}</strong>
+            <strong>Relay</strong>
           </div>
         </div>
       )}
@@ -481,10 +460,6 @@ export default function SwapWidget() {
             {connecting === "walletconnect" ? "Connecting…" : "WalletConnect"}
           </button>
         </div>
-      ) : needsApproval ? (
-        <button type="button" className="btn btn-primary swap-cta" onClick={doApprove} disabled={approving || !quote}>
-          {approving ? "Approving…" : `Approve ${token.symbol}`}
-        </button>
       ) : (
         <button
           type="button"
@@ -492,7 +467,7 @@ export default function SwapWidget() {
           onClick={doSwap}
           disabled={swapping || quoting || !quote}
         >
-          {swapping ? "Swapping…" : `Swap ${fromSymbol} for ${toSymbol}`}
+          {swapping ? swapStepLabel || "Confirm in wallet…" : `Swap ${fromSymbol} for ${toSymbol}`}
         </button>
       )}
 

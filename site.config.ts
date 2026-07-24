@@ -39,6 +39,14 @@ export const GOOGLE_SITE_VERIFICATION = "";
 // its Project ID, paste it here.
 export const WALLETCONNECT_PROJECT_ID = "";
 
+// /swap routes through Relay (relay.link) — every swap collects a 0.85%
+// app fee (Relay's native `appFees` mechanism, applied server-side in
+// app/api/relay/quote) that accrues off-chain to this wallet and is
+// claimable anytime via https://api.relay.link/app-fees/<address>/balances.
+// Requires RELAY_API_KEY set in Vercel env (optional — quotes work without
+// it too, the key just raises rate limits / ties usage to our dashboard).
+export const RELAY_FEE_RECIPIENT = "0x9e0149f7CC28c93A3B5F76AB3e8A2a22d14435b5";
+
 export const siteConfig = {
   name: "HOODPrinter",
   symbol: "$PRINT",
