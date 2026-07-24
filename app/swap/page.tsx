@@ -39,7 +39,7 @@ export default function SwapPage() {
             <span className="rwa-beta-tag">BETA</span>
           </h1>
           <p>ETH ⇄ $PRINT on Robinhood Chain</p>
-          <p className="swap-subnote">Multi-Chain Relay Coming Soon</p>
+          <p className="swap-subnote">⚠️ Multi-Chain Relay Coming Soon</p>
         </div>
 
         <PrintDirectSwap />

@@ -53,16 +53,42 @@ const routerIface = new ethers.Interface([
   "function execute(bytes commands, bytes[] inputs, uint256 deadline) payable",
 ]);
 
-/** Live PRINT-per-ETH price for the correct pool, read from DexScreener (indexes this exact pool). */
-export async function fetchPrintEthRate(signal?: AbortSignal): Promise<number> {
+/**
+ * Live price data for the correct pool, read from DexScreener (indexes this
+ * exact pool). `ethUsd` is derived from the same response (priceUsd and
+ * priceNative are both "per 1 PRINT", so priceUsd / priceNative cancels PRINT
+ * and leaves USD per ETH) rather than a second API call.
+ */
+export async function fetchPrintPriceData(signal?: AbortSignal): Promise<{ rate: number; ethUsd: number }> {
   const res = await fetch(
     "https://api.dexscreener.com/latest/dex/pairs/robinhood/0xf19f1556acc8cabf39a9632002a92877852031148d4d1deb0144dffa4ee27075",
     { signal }
   );
   const json = await res.json();
-  const priceNative = Number(json?.pairs?.[0]?.priceNative); // ETH per PRINT
+  const pair = json?.pairs?.[0];
+  const priceNative = Number(pair?.priceNative); // ETH per PRINT
+  const priceUsd = Number(pair?.priceUsd); // USD per PRINT
   if (!priceNative || !Number.isFinite(priceNative)) throw new Error("Couldn't read a live price.");
-  return 1 / priceNative; // PRINT per ETH
+  const rate = 1 / priceNative; // PRINT per ETH
+  const ethUsd = priceUsd && Number.isFinite(priceUsd) ? priceUsd / priceNative : 0;
+  return { rate, ethUsd };
+}
+
+const TRANSFER_TOPIC0 = ethers.id("Transfer(address,address,uint256)");
+
+/** Reads the actual PRINT amount received by `recipient` from a swap's transaction receipt. */
+export function parseReceivedPrint(receipt: ethers.TransactionReceipt, recipient: string): number | null {
+  const paddedRecipient = ethers.zeroPadValue(recipient, 32).toLowerCase();
+  for (const log of receipt.logs) {
+    if (
+      log.address.toLowerCase() === siteConfig.contractAddress.toLowerCase() &&
+      log.topics[0] === TRANSFER_TOPIC0 &&
+      log.topics[2]?.toLowerCase() === paddedRecipient
+    ) {
+      return Number(ethers.formatUnits(log.data, 18));
+    }
+  }
+  return null;
 }
 
 /**
