@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CURATED_TOKENS, PINNED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
+import { ALL_RWA_TOKENS, CURATED_TOKENS, PINNED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
 
 // Styled after Relay's own "Select Token" modal (search box + result list,
 // icon/symbol/name/truncated-address rows) so switching between this and
@@ -53,11 +53,16 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
   const [query, setQuery] = useState("");
   const [customToken, setCustomToken] = useState<RhToken | null>(null);
   const [customLoading, setCustomLoading] = useState(false);
+  // "RWAs" pinned pill is a category filter, not a direct token pick — toggles
+  // the results list to the tokenized-stock roster (our own /rwa pools first,
+  // then the broader Robinhood-issued market list) instead of picking one.
+  const [rwaFilter, setRwaFilter] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setQuery("");
       setCustomToken(null);
+      setRwaFilter(false);
     }
   }, [open]);
 
@@ -75,12 +80,13 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
   }, [query]);
 
   const results = useMemo(() => {
+    const pool = rwaFilter ? ALL_RWA_TOKENS : CURATED_TOKENS;
     const q = query.trim().toLowerCase();
-    if (!q) return CURATED_TOKENS;
-    return CURATED_TOKENS.filter(
+    if (!q) return pool;
+    return pool.filter(
       (t) => t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q) || t.address.toLowerCase() === q
     );
-  }, [query]);
+  }, [query, rwaFilter]);
 
   if (!open) return null;
 
@@ -133,7 +139,27 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
                   </button>
                 );
               })}
+              <button
+                type="button"
+                className={`tp-pinned-pill tp-pinned-pill-rwa${rwaFilter ? " active" : ""}`}
+                onClick={() => {
+                  setRwaFilter((v) => !v);
+                  setQuery("");
+                }}
+              >
+                RWAs
+                <span className="tp-pinned-badge">NEW</span>
+              </button>
             </div>
+
+            {rwaFilter && (
+              <div className="tp-filter-note">
+                Showing tokenized stocks — our own /rwa pools first
+                <button type="button" className="tp-filter-clear" onClick={() => setRwaFilter(false)}>
+                  ✕ Clear
+                </button>
+              </div>
+            )}
 
             <div className="tp-results">
               {customLoading && <div className="tp-empty">Looking up token…</div>}

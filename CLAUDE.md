@@ -245,6 +245,22 @@ and is background for if that ever happens, not the current live page.
   crashed the page with a bad-checksum error on load — always source
   addresses from a verified API or on-chain read, never type them from a
   truncated UI screenshot).
+- **"RWAs (NEW)" pinned pill** (`ALL_RWA_TOKENS` in `lib/robinhoodTokens.ts`)
+  — a category filter, not a direct token pick: toggles the results list to
+  the tokenized-stock roster instead of selecting a token, with a
+  `tp-filter-note` ("Showing tokenized stocks — our own /rwa pools first" +
+  Clear button) since that behavior isn't obvious from a pill alone. Order
+  is deliberate — the 5 pools `/rwa` actually tracks (`RWA_POOLS` from
+  `lib/rwaPools.ts`) always come first, then ~17 more Robinhood-issued
+  tokenized stocks (GME, AMZN, META, GOOGL, COIN, PLTR, AMD, INTC, MU,
+  SNDK, MSTR, NFLX, RDDT, COST, USAR, SPY, SLV) as the "bunch" Dylan asked
+  for — all sourced from Relay's `/currencies/v2` API (search term
+  "Robinhood Tokenized", chainId 4663) for real checksummed addresses,
+  including real per-token logos (same green-leaf icon style Relay's own
+  modal uses for these). These extra tokens aren't RWA pool targets (no
+  $PRINT pool exists against them) — they're just swappable like any other
+  curated token; the $PRINT-always-routes-through-our-pool invariant still
+  applies regardless of which of these is on the other side.
 - **2-signature step UI**: `swap-waiting` — a spinning ring around the
   $PRINT logo (CSS `@keyframes swap-spin`, not an image GIF) with "Waiting
   for Confirmation 1/2" / "…2/2" title text and a small 2-dot progress row

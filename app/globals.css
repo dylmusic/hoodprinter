@@ -5288,6 +5288,48 @@ footer {
   opacity: 0.35;
   cursor: not-allowed;
 }
+.tp-pinned-pill-rwa {
+  padding: 6px 12px;
+  gap: 5px;
+}
+.tp-pinned-pill-rwa.active {
+  border-color: var(--green);
+  background: rgba(0, 200, 5, 0.12);
+  color: var(--green);
+}
+.tp-pinned-badge {
+  background: #f5c518;
+  color: #1a1400;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 2px 5px;
+  border-radius: 5px;
+}
+
+.tp-filter-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.tp-filter-clear {
+  background: none;
+  border: none;
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
 
 .tp-results {
   margin-top: 10px;
