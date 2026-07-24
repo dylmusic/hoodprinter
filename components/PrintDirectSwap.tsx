@@ -2,25 +2,59 @@
 
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
-import { siteConfig } from "@/site.config";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WagmiProvider, http, useAccount, useDisconnect, useWalletClient } from "wagmi";
+import { getDefaultConfig, RainbowKitProvider, darkTheme, useConnectModal } from "@rainbow-me/rainbowkit";
+import "@rainbow-me/rainbowkit/styles.css";
+import type { Chain } from "viem";
+import { siteConfig, WALLETCONNECT_PROJECT_ID } from "@/site.config";
 import { buildDirectSwapTx, fetchPrintEthRate, splitFee, FEE_RECIPIENT, MIN_SLIPPAGE_PCT } from "@/lib/printDirectSwap";
 
 const CHAIN = {
-  chainIdHex: "0x" + siteConfig.chain.chainId.toString(16),
-  name: siteConfig.chain.name,
-  rpc: siteConfig.chain.rpcUrl,
   explorer: siteConfig.chain.explorerUrl,
 };
 
 const fmt = (n: number, max = 6) =>
   n === 0 ? "0" : n < 0.000001 ? n.toExponential(2) : n.toLocaleString(undefined, { maximumFractionDigits: max });
 
+// Same wallet-connect stack as the Relay widget (wagmi + RainbowKit) so
+// MetaMask/WalletConnect/etc. all work correctly here too — the earlier
+// version only supported a literal window.ethereum injected wallet.
+const robinhoodChain: Chain = {
+  id: siteConfig.chain.chainId,
+  name: siteConfig.chain.name,
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [siteConfig.chain.rpcUrl] } },
+  blockExplorers: { default: { name: "Explorer", url: siteConfig.chain.explorerUrl } },
+};
+
+const wagmiConfig = getDefaultConfig({
+  appName: "HOODPrinter",
+  appUrl: siteConfig.url,
+  appIcon: `${siteConfig.url}/logo.png`,
+  // See components/SwapEmbed.tsx for why this placeholder (not empty string).
+  projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
+  chains: [robinhoodChain],
+  transports: { [robinhoodChain.id]: http() },
+});
+
+const rainbowTheme = darkTheme({
+  accentColor: "#00c805",
+  accentColorForeground: "#04140a",
+  borderRadius: "medium",
+});
+
+const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
+
 // Deliberately basic: ETH -> $PRINT only, direct against the known-correct
 // pool (see lib/printDirectSwap.ts). No token/chain picker, no cross-chain —
 // this exists only until Relay's routing for $PRINT is fixed.
-export default function PrintDirectSwap() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
+function InnerDirectSwap() {
+  const { address, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { data: walletClient } = useWalletClient();
+  const { openConnectModal } = useConnectModal();
+
   const [amount, setAmount] = useState("0.01");
   const [rate, setRate] = useState<number | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -37,47 +71,8 @@ export default function PrintDirectSwap() {
     return () => controller.abort();
   }, []);
 
-  async function connect() {
-    const eth = (window as any).ethereum;
-    if (!eth) {
-      setError("No browser wallet found — install MetaMask.");
-      return;
-    }
-    setConnecting(true);
-    setError(null);
-    try {
-      const accounts: string[] = await eth.request({ method: "eth_requestAccounts" });
-      try {
-        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN.chainIdHex }] });
-      } catch (e: any) {
-        if (e.code === 4902 || /Unrecognized chain/i.test(e.message || "")) {
-          await eth.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: CHAIN.chainIdHex,
-                chainName: CHAIN.name,
-                nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-                rpcUrls: [CHAIN.rpc],
-                blockExplorerUrls: [CHAIN.explorer],
-              },
-            ],
-          });
-        } else {
-          throw e;
-        }
-      }
-      setAddress(accounts[0]);
-    } catch (e: any) {
-      setError(e?.message || "Could not connect wallet.");
-    } finally {
-      setConnecting(false);
-    }
-  }
-
   async function doSwap() {
-    const eth = (window as any).ethereum;
-    if (!eth || !address || !rate) return;
+    if (!walletClient || !address || !rate) return;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
 
@@ -85,15 +80,12 @@ export default function PrintDirectSwap() {
     setError(null);
     setTxHash(null);
     try {
-      const provider = new ethers.BrowserProvider(eth);
-      const signer = await provider.getSigner();
-
       const totalWei = ethers.parseEther(amount);
       const { feeWei, swapWei } = splitFee(totalWei);
 
       setStep("Sending platform fee (0.85%)…");
-      const feeTx = await signer.sendTransaction({ to: FEE_RECIPIENT, value: feeWei });
-      await feeTx.wait();
+      const feeHash = await walletClient.sendTransaction({ to: FEE_RECIPIENT as `0x${string}`, value: feeWei });
+      await readProvider.waitForTransaction(feeHash);
 
       const expectedOut = Number(ethers.formatEther(swapWei)) * rate;
       const minOut = expectedOut * (1 - MIN_SLIPPAGE_PCT / 100);
@@ -101,10 +93,10 @@ export default function PrintDirectSwap() {
 
       setStep("Confirm the swap…");
       const { to, data, value } = buildDirectSwapTx(swapWei, minAmountOutWei);
-      const swapTx = await signer.sendTransaction({ to, data, value });
-      setTxHash(swapTx.hash);
+      const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+      setTxHash(swapHash);
       setStep("Confirming on-chain…");
-      await swapTx.wait();
+      await readProvider.waitForTransaction(swapHash);
       setStep(null);
     } catch (e: any) {
       setError(e?.shortMessage || e?.reason || e?.message || "Swap failed.");
@@ -115,7 +107,7 @@ export default function PrintDirectSwap() {
   }
 
   const amt = parseFloat(amount) || 0;
-  const { swapWei: previewSwapWei, feeWei: previewFeeWei } = splitFee(ethers.parseEther((amt || 0).toString() || "0"));
+  const { swapWei: previewSwapWei } = splitFee(ethers.parseEther((amt || 0).toString() || "0"));
   const previewOut = rate ? Number(ethers.formatEther(previewSwapWei)) * rate : null;
 
   return (
@@ -132,11 +124,14 @@ export default function PrintDirectSwap() {
             onChange={(e) => /^[0-9]*\.?[0-9]*$/.test(e.target.value) && setAmount(e.target.value)}
             placeholder="0.0"
           />
-          <span className="swap-token-pill">
-            <span className="swap-token-pill-icon" aria-hidden="true">
-              ◆
+          <span className="swap-token-pill-wrap">
+            <span className="swap-token-pill">
+              <span className="swap-token-pill-icon" aria-hidden="true">
+                ◆
+              </span>
+              ETH
             </span>
-            ETH
+            <span className="swap-token-tooltip">Multi-Chain Relay Under Construction</span>
           </span>
         </div>
       </div>
@@ -151,10 +146,13 @@ export default function PrintDirectSwap() {
         </div>
         <div className="swap-panel-row">
           <span className="swap-amount-display">{previewOut !== null ? fmt(previewOut) : rateError ? "—" : "…"}</span>
-          <span className="swap-token-pill">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="swap-token-pill-icon" src="/logo.png" alt="" />
-            PRINT
+          <span className="swap-token-pill-wrap">
+            <span className="swap-token-pill">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="swap-token-pill-icon" src="/logo.png" alt="" />
+              PRINT
+            </span>
+            <span className="swap-token-tooltip">Multi-Chain Relay Under Construction</span>
           </span>
         </div>
       </div>
@@ -165,23 +163,15 @@ export default function PrintDirectSwap() {
             <span>Rate</span>
             <strong>1 ETH ≈ {fmt(rate, 0)} PRINT</strong>
           </div>
-          <div className="swap-summary-row">
-            <span>HOODPrinter fee (0.85%)</span>
-            <strong>{fmt(Number(ethers.formatEther(previewFeeWei)), 6)} ETH</strong>
-          </div>
-          <div className="swap-summary-row">
-            <span>Route</span>
-            <strong>Direct pool</strong>
-          </div>
         </div>
       )}
 
       {rateError && <div className="pb-warn">{rateError}</div>}
       {error && <div className="pb-warn">{error}</div>}
 
-      {!address ? (
-        <button type="button" className="btn btn-primary swap-cta" onClick={connect} disabled={connecting}>
-          {connecting ? "Connecting…" : "Connect Wallet"}
+      {!isConnected ? (
+        <button type="button" className="btn btn-primary swap-cta" onClick={() => openConnectModal?.()}>
+          Connect Wallet
         </button>
       ) : (
         <button type="button" className="btn btn-primary swap-cta" onClick={doSwap} disabled={swapping || !rate}>
@@ -198,7 +188,27 @@ export default function PrintDirectSwap() {
         </div>
       )}
 
-      {address && <p className="swap-address">Connected: {address.slice(0, 6)}…{address.slice(-4)}</p>}
+      {address && (
+        <p className="swap-address">
+          Connected: {address.slice(0, 6)}…{address.slice(-4)} ·{" "}
+          <button type="button" className="swap-disconnect" onClick={() => disconnect()}>
+            Disconnect
+          </button>
+        </p>
+      )}
     </div>
+  );
+}
+
+export default function PrintDirectSwap() {
+  const [queryClient] = useState(() => new QueryClient());
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WagmiProvider config={wagmiConfig}>
+        <RainbowKitProvider theme={rainbowTheme}>
+          <InnerDirectSwap />
+        </RainbowKitProvider>
+      </WagmiProvider>
+    </QueryClientProvider>
   );
 }
