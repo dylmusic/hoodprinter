@@ -14,12 +14,11 @@ export const PLACEHOLDER_TWITTER = "https://x.com/HOODPrinterxyz";
 // (Buy Bot) CTAs across the site — the Buy Bot contest keeps running
 // either way (Tools dropdown).
 export const PRESALE_ACTIVE = true;
-// Relay bridge+buy: lets anyone land on $PRINT straight from another chain
-// in one step (bridges into Robinhood Chain and buys $PRINT), not just
-// people who already have ETH there. Better default than sending everyone
-// to the based.bid pool page directly.
-export const PRESALE_LINK =
-  "https://relay.link/bridge/robinhood?toCurrency=0x6af5db6f72e6030e71ea9b45fed55cbd68a69b1d&fromChainId=4663";
+// Our own /swap page (Relay-embedded, any chain -> $PRINT on Robinhood
+// Chain) — every buy button sitewide points here now instead of sending
+// people to relay.link directly, so we actually collect the 0.85% fee
+// (see RELAY_FEE_RECIPIENT below) instead of giving that traffic away.
+export const PRESALE_LINK = "/swap";
 
 // Google Analytics 4 measurement ID (G-XXXXXXXXXX). Empty = GA script not
 // rendered. Create the property at analytics.google.com → Admin → Create
@@ -39,12 +38,11 @@ export const GOOGLE_SITE_VERIFICATION = "";
 // its Project ID, paste it here.
 export const WALLETCONNECT_PROJECT_ID = "";
 
-// /swap routes through Relay (relay.link) — every swap collects a 0.85%
-// app fee (Relay's native `appFees` mechanism, applied server-side in
-// app/api/relay/quote) that accrues off-chain to this wallet and is
-// claimable anytime via https://api.relay.link/app-fees/<address>/balances.
-// Requires RELAY_API_KEY set in Vercel env (optional — quotes work without
-// it too, the key just raises rate limits / ties usage to our dashboard).
+// /swap embeds Relay's own SwapWidget — every swap collects a 0.85% app fee
+// (Relay's native `appFees` mechanism, set client-side in
+// components/SwapEmbed.tsx's RelayKitProvider config) that accrues off-chain
+// to this wallet and is claimable anytime via
+// https://api.relay.link/app-fees/<address>/balances.
 export const RELAY_FEE_RECIPIENT = "0x9e0149f7CC28c93A3B5F76AB3e8A2a22d14435b5";
 
 export const siteConfig = {

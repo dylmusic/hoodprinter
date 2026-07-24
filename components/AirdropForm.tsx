@@ -174,13 +174,8 @@ export default function AirdropForm() {
         <span className="adf-qlabel">
           Did you check out the presale on GemPad? <span className="adf-req">*</span>
         </span>
-        <a
-          className="adf-qlink"
-          href={siteConfig.presaleLink}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          View the GemPad presale ↗
+        <a className="adf-qlink" href={siteConfig.presaleLink}>
+          View the live buy link ↗
         </a>
         <div className="adf-opts">
           {[

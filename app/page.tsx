@@ -184,12 +184,7 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       {presaleActive ? (
-        <a
-          className="announce-bar"
-          href={presaleLink}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a className="announce-bar" href={presaleLink}>
           🖨️ $PRINT is live — buy now
           <span className="announce-arrow">→</span>
         </a>
@@ -222,7 +217,7 @@ export default function Home() {
           <div className="hero-cta-group">
             <div className="hero-ctas-top">
               {presaleActive ? (
-                <a className="btn btn-primary" href={presaleLink} target="_blank" rel="noopener noreferrer">
+                <a className="btn btn-primary" href={presaleLink}>
                   Buy $PRINT
                 </a>
               ) : (
@@ -499,9 +494,9 @@ export default function Home() {
                 <>
                   <h3>Buy $PRINT</h3>
                   <p>
-                    Use the{" "}
-                    <a href={presaleLink} target="_blank" rel="noopener noreferrer">
-                      live buy link
+                    Use our{" "}
+                    <a href={presaleLink}>
+                      swap page
                     </a>{" "}
                     to bridge in and swap for $PRINT in one step — no need to
                     do steps 1–3 separately.

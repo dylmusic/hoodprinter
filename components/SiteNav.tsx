@@ -103,7 +103,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
         <div className="nav-links">
           {variant === "home" ? (
             <>
-              <a href="#how-it-works">How It Works</a>
+              <a href="/swap">Swap</a>
               <a href="/rwa">
                 RWA Pools <span className="nav-beta">BETA</span>
               </a>
@@ -121,12 +121,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             </>
           )}
           {PRESALE_ACTIVE ? (
-            <a
-              className="btn btn-primary"
-              href={PRESALE_LINK}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className="btn btn-primary" href={PRESALE_LINK}>
               Buy Now
             </a>
           ) : (
@@ -152,7 +147,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
         <div className="nav-mobile" role="menu">
           {variant === "home" ? (
             <>
-              <a href="#how-it-works" onClick={close}>How It Works</a>
+              <a href="/swap" onClick={close}>Swap</a>
               <a href="/rwa" onClick={close}>
                 RWA Pools <span className="nav-beta">BETA</span>
               </a>
@@ -187,13 +182,7 @@ export default function SiteNav({ variant = "sub" }: { variant?: "home" | "sub" 
             <span className="nd-sub">Airdrop any token to thousands of wallets</span>
           </a>
           {PRESALE_ACTIVE ? (
-            <a
-              className="btn btn-primary nav-mobile-cta"
-              href={PRESALE_LINK}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={close}
-            >
+            <a className="btn btn-primary nav-mobile-cta" href={PRESALE_LINK} onClick={close}>
               Buy Now
             </a>
           ) : (
