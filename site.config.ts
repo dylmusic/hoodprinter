@@ -30,6 +30,15 @@ export const GA_MEASUREMENT_ID = "G-YM2PTVBGS5";
 // Empty = meta tag not rendered. Not needed if verifying via DNS or GA.
 export const GOOGLE_SITE_VERIFICATION = "";
 
+// WalletConnect Project ID for the /swap page's "WalletConnect" connect
+// option (mobile wallets, Coinbase Wallet, Rainbow, etc. — anything besides
+// a browser-injected wallet like MetaMask). Empty = that connect option is
+// disabled with an explanatory message; MetaMask/injected connect still
+// works either way. Get a free ID at https://cloud.reown.com (Reown is the
+// WalletConnect Cloud dashboard's current name) — create a project, copy
+// its Project ID, paste it here.
+export const WALLETCONNECT_PROJECT_ID = "";
+
 export const siteConfig = {
   name: "HOODPrinter",
   symbol: "$PRINT",

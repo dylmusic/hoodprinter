@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
-import { siteConfig } from "@/site.config";
+import { siteConfig, WALLETCONNECT_PROJECT_ID } from "@/site.config";
 import {
   getLifiQuote,
   LifiError,
@@ -11,6 +11,8 @@ import {
   MIN_SLIPPAGE_PCT,
   DEFAULT_SLIPPAGE_PCT,
 } from "@/lib/lifi";
+
+type WalletKind = "injected" | "walletconnect";
 
 const CHAIN = {
   chainIdHex: "0x" + siteConfig.chain.chainId.toString(16),
@@ -46,7 +48,9 @@ const fmt = (n: number, max = 6) =>
 
 export default function SwapWidget() {
   const [address, setAddress] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  const [connecting, setConnecting] = useState<WalletKind | null>(null);
+  const [walletKind, setWalletKind] = useState<WalletKind | null>(null);
+  const providerRef = useRef<any>(null); // active EIP-1193 provider (injected or WalletConnect)
 
   const [direction, setDirection] = useState<Direction>("buy");
   const [tokenInput, setTokenInput] = useState<string>(DEFAULT_TOKEN.address);
@@ -188,9 +192,8 @@ export default function SwapWidget() {
     refreshBalances();
   }, [refreshBalances]);
 
-  // ---- wallet ----
-  async function addOrSwitchNetwork() {
-    const eth = (window as any).ethereum;
+  // ---- wallet: injected (MetaMask / browser extension) ----
+  async function addOrSwitchNetwork(eth: any) {
     try {
       await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN.chainIdHex }] });
     } catch (e: any) {
@@ -213,28 +216,31 @@ export default function SwapWidget() {
     }
   }
 
-  async function connect() {
+  async function connectInjected() {
     const eth = (window as any).ethereum;
     if (!eth) {
-      setActionError("No wallet found — install MetaMask or a compatible browser wallet.");
+      setActionError("No browser wallet found — install MetaMask, or use WalletConnect instead.");
       return;
     }
-    setConnecting(true);
+    setConnecting("injected");
     setActionError(null);
     try {
       const accounts: string[] = await eth.request({ method: "eth_requestAccounts" });
-      await addOrSwitchNetwork();
+      await addOrSwitchNetwork(eth);
+      providerRef.current = eth;
+      setWalletKind("injected");
       setAddress(accounts[0]);
     } catch (e: any) {
       setActionError(e?.message || "Could not connect wallet.");
     } finally {
-      setConnecting(false);
+      setConnecting(null);
     }
   }
 
+  // injected-wallet events only matter while it's the active connection
   useEffect(() => {
     const eth = (window as any).ethereum;
-    if (!eth?.on) return;
+    if (!eth?.on || walletKind !== "injected") return;
     const onAccounts = (accs: string[]) => setAddress(accs[0] || null);
     const onChain = () => window.location.reload();
     eth.on("accountsChanged", onAccounts);
@@ -243,15 +249,64 @@ export default function SwapWidget() {
       eth.removeListener?.("accountsChanged", onAccounts);
       eth.removeListener?.("chainChanged", onChain);
     };
-  }, []);
+  }, [walletKind]);
+
+  // ---- wallet: WalletConnect (mobile wallets, Coinbase Wallet, Rainbow, etc.) ----
+  async function connectWalletConnect() {
+    if (!WALLETCONNECT_PROJECT_ID) {
+      setActionError(
+        "WalletConnect isn't set up yet on this site (missing Project ID) — use a browser wallet like MetaMask instead."
+      );
+      return;
+    }
+    setConnecting("walletconnect");
+    setActionError(null);
+    try {
+      const { EthereumProvider } = await import("@walletconnect/ethereum-provider");
+      const wc = await EthereumProvider.init({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        chains: [siteConfig.chain.chainId],
+        rpcMap: { [siteConfig.chain.chainId]: CHAIN.rpc },
+        showQrModal: true,
+        metadata: {
+          name: "HOODPrinter Swap",
+          description: `Swap ETH for ${siteConfig.symbol} on ${CHAIN.name}`,
+          url: siteConfig.url,
+          icons: [`${siteConfig.url}/logo.png`],
+        },
+      });
+      await wc.connect();
+      providerRef.current = wc;
+      setWalletKind("walletconnect");
+      setAddress((wc.accounts as string[])[0] || null);
+      wc.on("accountsChanged", (accs: string[]) => setAddress(accs[0] || null));
+      wc.on("disconnect", () => {
+        providerRef.current = null;
+        setWalletKind(null);
+        setAddress(null);
+      });
+    } catch (e: any) {
+      setActionError(e?.message || "Could not connect via WalletConnect.");
+    } finally {
+      setConnecting(null);
+    }
+  }
+
+  function disconnect() {
+    if (walletKind === "walletconnect") providerRef.current?.disconnect?.();
+    providerRef.current = null;
+    setWalletKind(null);
+    setAddress(null);
+    setQuote(null);
+    setTxHash(null);
+  }
 
   async function doApprove() {
     if (!quote || !address) return;
     setApproving(true);
     setActionError(null);
     try {
-      const eth = (window as any).ethereum;
-      const provider = new ethers.BrowserProvider(eth);
+      const provider = new ethers.BrowserProvider(providerRef.current);
       const signer = await provider.getSigner();
       const erc = new ethers.Contract(token.address, ERC20_ABI, signer);
       const amountWei = ethers.parseUnits(amount || "0", token.decimals);
@@ -271,8 +326,7 @@ export default function SwapWidget() {
     setActionError(null);
     setTxHash(null);
     try {
-      const eth = (window as any).ethereum;
-      const provider = new ethers.BrowserProvider(eth);
+      const provider = new ethers.BrowserProvider(providerRef.current);
       const signer = await provider.getSigner();
       const tx = await signer.sendTransaction({
         to: quote.transactionRequest.to,
@@ -408,9 +462,25 @@ export default function SwapWidget() {
       {actionError && <div className="pb-warn">{actionError}</div>}
 
       {!address ? (
-        <button type="button" className="btn btn-primary swap-cta" onClick={connect} disabled={connecting}>
-          {connecting ? "Connecting…" : "Connect Wallet"}
-        </button>
+        <div className="swap-connect-row">
+          <button
+            type="button"
+            className="btn btn-primary swap-cta"
+            onClick={connectInjected}
+            disabled={connecting !== null}
+          >
+            {connecting === "injected" ? "Connecting…" : "Browser Wallet"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost swap-cta"
+            onClick={connectWalletConnect}
+            disabled={connecting !== null}
+            title={WALLETCONNECT_PROJECT_ID ? undefined : "Needs a WalletConnect Project ID — see site.config.ts"}
+          >
+            {connecting === "walletconnect" ? "Connecting…" : "WalletConnect"}
+          </button>
+        </div>
       ) : needsApproval ? (
         <button type="button" className="btn btn-primary swap-cta" onClick={doApprove} disabled={approving || !quote}>
           {approving ? "Approving…" : `Approve ${token.symbol}`}
@@ -437,7 +507,10 @@ export default function SwapWidget() {
 
       {address && (
         <p className="swap-address">
-          Connected: {short(address)}
+          Connected via {walletKind === "walletconnect" ? "WalletConnect" : "browser wallet"}: {short(address)} ·{" "}
+          <button type="button" className="swap-disconnect" onClick={disconnect}>
+            Disconnect
+          </button>
         </p>
       )}
     </div>

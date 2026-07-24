@@ -4920,6 +4920,14 @@ footer {
   padding: 14px;
   font-size: 1rem;
 }
+.swap-connect-row {
+  display: flex;
+  gap: 10px;
+}
+.swap-connect-row .swap-cta {
+  flex: 1;
+  font-size: 0.92rem;
+}
 .swap-cta:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -4945,6 +4953,16 @@ footer {
   font-size: 0.72rem;
   color: var(--muted);
   font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+.swap-disconnect {
+  background: none;
+  border: none;
+  color: var(--green);
+  font-family: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
 }
 
 .swap-about {
