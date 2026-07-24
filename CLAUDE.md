@@ -175,21 +175,91 @@ specific pool** — `includedSwapSources`/`excludedSwapSources` only filter by
 DEX name ("uniswap" covers all three pools identically), and forcing
 `includedSwapSources: ["uniswap"]` returned `NO_SWAP_ROUTES_FOUND` outright
 (same-chain quotes here don't even go through that filter).
-**Fix: `/swap` now uses `components/PrintDirectSwap.tsx`** — a deliberately
-basic ETH-only-to-$PRINT-only swap that hand-builds a Universal Router
-V4Router transaction against the KNOWN-correct pool (`lib/printDirectSwap.ts`
-has the full `PoolKey` — fee is Uniswap's `DYNAMIC_FEE_FLAG` 0x800000 since
-the hook sets the real fee/tax at swap time, tickSpacing 200). Live price
-for the output preview and slippage protection comes from DexScreener's API
-(indexes this exact pool), not Relay. The 0.85% fee is now a plain ETH
-transfer to `RELAY_FEE_RECIPIENT` sent as its own transaction *before* the
-swap transaction (two signatures total) rather than Relay's `appFees`
-mechanism, since we're bypassing Relay entirely for this pair.
-**`components/SwapEmbed.tsx` (the full Relay-embedded any-token/any-chain
-widget) is untouched, just not rendered on `/swap` right now** — swap it
-back in once Relay fixes their pool selection for this token. Everything
-below this paragraph describes SwapEmbed and is accurate for when it's
+
+**Fix: `/swap` now uses `components/PrintDirectSwap.tsx`** — hand-builds
+Universal Router V4Router transactions against the KNOWN-correct pool
+(`lib/printDirectSwap.ts` has the full `PoolKey` — fee is Uniswap's
+`DYNAMIC_FEE_FLAG` 0x800000 since the hook sets the real fee/tax at swap
+time, tickSpacing 200). Supports **both directions** (buy ETH→PRINT, sell
+PRINT→ETH), flip via the divider button (a two-arrow loop icon) or by
+clicking either token pill. `components/SwapEmbed.tsx` (the full
+Relay-embedded any-token/any-chain widget) is untouched, just not rendered
+on `/swap` right now — swap it back in once Relay fixes their pool
+selection for this token. Everything from "Architecture — embeds Relay's
+own SwapWidget" below describes SwapEmbed and is accurate for when it's
 re-enabled, not for the current live page.
+
+- **Price source**: read directly on-chain via Uniswap's `StateView` lens
+  contract (`0xF3334192D15450CdD385c8B70e03f9A6bD9E673b`, verified live —
+  Blockscout tags a SECOND contract "StateView" too, at a different address,
+  which returns all zeros; not that one), calling
+  `getSlot0(poolId)` → `sqrtPriceX96` → `(sqrtPriceX96/2^96)^2` = PRINT per
+  ETH. DexScreener was used originally but is a third-party indexer that can
+  lag a few seconds behind real chain state — exactly wrong right after the
+  user's own swap moves the price. DexScreener is still used for `ethUsd`
+  only (the ~$1 gas-reserve estimate for the balance "MAX" button — not
+  precision-critical). Price polls every 15s and refetches immediately after
+  a swap confirms; clicking the "Rate" box also force-refreshes.
+- **The pool takes a flat 5% tax on every swap** (`POOL_TAX_PCT` in
+  lib/printDirectSwap.ts) — MUST be multiplied into any "you'll receive"
+  estimate or it reads ~5-7% high vs what actually lands (caught via a real
+  swap: shown estimate 4,010 PRINT, actual received 3,752 PRINT). Slippage
+  buttons (7/10/15%, small/sleek/no-label, top-right of the card, default
+  7% matching `PRINT_MIN_SLIPPAGE` elsewhere in the codebase) apply on top
+  of the tax-adjusted estimate, not instead of it.
+- **Fee bundling — one signature, not two.** First version sent the 0.85%
+  fee as its own transaction before the swap tx; Dylan's reaction: "unacceptable
+  way to do it... every other swap hides it." Fixed by using the Universal
+  Router's own `PAY_PORTION` command (0x06) ahead of `V4_SWAP` (0x10) in a
+  single `execute()` call — `PAY_PORTION` skims `APP_FEE_BPS` (85 = 0.85%)
+  of the router's current balance of a token to `RELAY_FEE_RECIPIENT`,
+  atomically, before the swap settles. Buy: commands `0x0610`
+  (PAY_PORTION then V4_SWAP), fee skimmed from ETH. Sell needs a third
+  command first — see below.
+- **Sell (PRINT→ETH) needs ERC20 approval + Permit2**, not just a native
+  ETH value — meaningfully riskier to hand-roll than buy, built carefully:
+  Permit2 is deployed at the canonical address
+  (`0x000000000022D473030F116dDEE9F6B43aC78BA3`, same on every EVM chain via
+  CREATE2 — verified real bytecode on Robinhood Chain before writing
+  anything against it). Sell commands: `0x020610`
+  (`PERMIT2_TRANSFER_FROM`, `PAY_PORTION`, `V4_SWAP`) — pulls the full PRINT
+  amount into the router first, skims the fee from that balance, THEN lets
+  `V4_SWAP`'s `SETTLE_ALL` use what the router already holds. Order matters:
+  V4Router's settlement (`_pay`/`payOrPermit2Transfer`) only pulls fresh
+  from the user via Permit2 if the router *doesn't* already hold the funds
+  — pulling everything up front avoids a double-pull. `TAKE_ALL` still pays
+  the ETH output straight to the caller either direction (proven pattern,
+  no separate sweep step needed). Two conditional one-time approval txs
+  (`PRINT.approve(PERMIT2, ...)`, then `Permit2.approve(PRINT, ROUTER, ...)`)
+  fire automatically before the swap tx if not already granted —
+  `needsErc20Approval`/`needsPermit2Approval` check first so repeat sellers
+  only sign the swap itself.
+- **Verify new command encodings by round-tripping them**, not just trusting
+  the `abiCoder.encode` call succeeded — for both buy and sell, decoded the
+  built calldata back apart (commands, every action's params) and checked
+  the values matched what was intended before ever touching a real wallet.
+  This is the actual verification method here, given no funded test wallet
+  is available in-session to execute a real transaction end to end.
+- **Balance + MAX**: shown above the "You pay" token pill (ETH balance for
+  buy, PRINT balance for sell, via wagmi's `useBalance` — pass `token:` for
+  the ERC20 case), clickable to fill the max swappable amount. Buy reserves
+  ~$1 of ETH for gas (from live `ethUsd`, falls back to a fixed
+  `FALLBACK_GAS_RESERVE_ETH` if that fetch failed); sell has no such
+  reserve since PRINT isn't spent on gas.
+- **Success message** shows the actual amount for buy (parsed from the
+  PRINT `Transfer` log in the tx receipt via `parseReceivedPrint` — ETH
+  isn't an ERC20 so there's no equivalent log for sell's output; sell shows
+  the pre-swap estimate instead, labeled with a `~`).
+- **Recent transactions feed** below the card reuses the Buy Bot's own
+  `.pb-card`/`.pb-tx` CSS classes for visual consistency, persisted to
+  `localStorage` under `hoodprint_swap_txs` (separate key from the Buy
+  Bot's own `hoodprint_txs` feed) — same restore/save pattern as
+  `components/PrintBot.tsx`.
+- Subnote ("⚠️ Multi-Chain Relay Coming Soon") and the token-pill hover
+  tooltip ("⚠️ Multi-Chain Relay Under Construction") both got a warning
+  icon — Dylan wanted it to read as an active warning, not just a status
+  label; the subnote dropped an all-caps treatment for the same reason
+  ("looks weird... feel like an under construction warning").
 
 `components/SwapEmbed.tsx`. Shipped live 2026-07-24: in SiteNav (home variant
 — replaced "How It Works"), in the sitemap, indexable, BETA badge on the page
