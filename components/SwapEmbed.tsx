@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, http, useAccount, useDisconnect, useWalletClient } from "wagmi";
 import { getDefaultConfig, RainbowKitProvider, darkTheme, useConnectModal } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import { adaptViemWallet, convertViemChainToRelayChain } from "@reservoir0x/relay-sdk";
+import { adaptViemWallet, convertViemChainToRelayChain, type Execute } from "@reservoir0x/relay-sdk";
 import { RelayKitProvider, SwapWidget, type Token } from "@reservoir0x/relay-kit-ui";
 import "@reservoir0x/relay-kit-ui/styles.css";
 import type { Chain } from "viem";
@@ -81,14 +81,26 @@ const relayTheme = {
   modal: { background: "#101b14", border: "1px solid #1d2b22", borderRadius: "16px" },
 };
 
+const CheckIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="11" stroke="#00c805" strokeWidth="1.5" />
+    <path d="M7 12.5l3 3 7-7" stroke="#00c805" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 // The widget occasionally throws a render error right after a successful
 // swap (its own post-swap state reset, not something we control) — without
 // this, that crash bubbles up to Next.js's page-level error boundary and
 // blanks the ENTIRE page, right after the user's swap already went through.
 // This fires reliably after every completed swap (confirmed in practice,
 // not just an edge case), so it's framed as the success screen it
-// effectively is, not an apologetic error message.
-class SwapErrorBoundary extends Component<{ onReset: () => void; children: ReactNode }, { hasError: boolean }> {
+// effectively is, not an apologetic error message. `lastTx` is captured by
+// InnerSwap's onSwapSuccess handler and lives in the PARENT's state, so it
+// survives the widget itself crashing/unmounting.
+class SwapErrorBoundary extends Component<
+  { onReset: () => void; lastTx: { hash: string; explorerUrl: string } | null; children: ReactNode },
+  { hasError: boolean }
+> {
   state = { hasError: false };
   static getDerivedStateFromError() {
     return { hasError: true };
@@ -100,7 +112,11 @@ class SwapErrorBoundary extends Component<{ onReset: () => void; children: React
     if (this.state.hasError) {
       return (
         <div className="swap-done">
-          <p>Swap successful!</p>
+          <span className="swap-done-icon">
+            <CheckIcon />
+          </span>
+          <p className="swap-done-title">Swap successful!</p>
+          <p className="swap-done-sub">Click below to make another swap.</p>
           <button
             type="button"
             className="btn btn-primary"
@@ -111,6 +127,16 @@ class SwapErrorBoundary extends Component<{ onReset: () => void; children: React
           >
             Swap again
           </button>
+          {this.props.lastTx && (
+            <a
+              className="swap-done-explorer"
+              href={this.props.lastTx.explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View transaction ↗
+            </a>
+          )}
         </div>
       );
     }
@@ -130,10 +156,17 @@ function InnerSwap() {
   const [fromToken, setFromToken] = useState<Token | undefined>(ETH_TOKEN);
   const [toToken, setToToken] = useState<Token | undefined>(PRINT_TOKEN);
   const [swapKey, setSwapKey] = useState(0);
+  const [lastTx, setLastTx] = useState<{ hash: string; explorerUrl: string } | null>(null);
 
   return (
     <>
-      <SwapErrorBoundary onReset={() => setSwapKey((k) => k + 1)}>
+      <SwapErrorBoundary
+        lastTx={lastTx}
+        onReset={() => {
+          setLastTx(null);
+          setSwapKey((k) => k + 1);
+        }}
+      >
         <SwapWidget
           key={swapKey}
           supportedWalletVMs={["evm"]}
@@ -146,6 +179,16 @@ function InnerSwap() {
           defaultTradeType="EXACT_INPUT"
           popularChainIds={POPULAR_CHAIN_IDS}
           onConnectWallet={() => openConnectModal?.()}
+          onSwapSuccess={(data: Execute) => {
+            const lastStep = data.steps[data.steps.length - 1];
+            const lastItem = lastStep?.items[lastStep.items.length - 1];
+            const tx = lastItem?.txHashes?.[lastItem.txHashes.length - 1];
+            if (tx?.chainId === RELAY_CHAIN_ID) {
+              setLastTx({ hash: tx.txHash, explorerUrl: `${siteConfig.chain.explorerUrl}/tx/${tx.txHash}` });
+            } else {
+              setLastTx(null);
+            }
+          }}
         />
       </SwapErrorBoundary>
       {isConnected && (

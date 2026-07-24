@@ -4719,15 +4719,47 @@ footer {
 }
 
 .swap-done {
-  padding: 32px 20px;
+  padding: 44px 24px 36px;
   text-align: center;
   color: var(--text);
-  background: rgba(0, 200, 5, 0.08);
+  background: radial-gradient(120% 100% at 50% 0%, rgba(0, 200, 5, 0.14) 0%, rgba(0, 200, 5, 0.04) 60%, transparent 100%),
+    var(--card);
   border: 1px solid rgba(0, 200, 5, 0.3);
 }
-.swap-done p {
-  margin-bottom: 14px;
+.swap-done-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 16px;
+  border-radius: 999px;
+  background: rgba(0, 200, 5, 0.12);
+  box-shadow: 0 0 0 1px rgba(0, 200, 5, 0.3), 0 0 24px rgba(0, 200, 5, 0.25);
+}
+.swap-done-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.swap-done-sub {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-bottom: 22px;
+}
+.swap-done .btn {
+  padding: 13px 32px;
+}
+.swap-done-explorer {
+  display: block;
+  margin-top: 16px;
+  color: var(--green);
   font-weight: 700;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+.swap-done-explorer:hover {
+  text-decoration: underline;
 }
 
 .swap-cta {
