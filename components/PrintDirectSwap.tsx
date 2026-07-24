@@ -115,7 +115,7 @@ export default function PrintDirectSwap() {
   }
 
   const amt = parseFloat(amount) || 0;
-  const { swapWei: previewSwapWei } = splitFee(ethers.parseEther((amt || 0).toString() || "0"));
+  const { swapWei: previewSwapWei, feeWei: previewFeeWei } = splitFee(ethers.parseEther((amt || 0).toString() || "0"));
   const previewOut = rate ? Number(ethers.formatEther(previewSwapWei)) * rate : null;
 
   return (
@@ -132,19 +132,49 @@ export default function PrintDirectSwap() {
             onChange={(e) => /^[0-9]*\.?[0-9]*$/.test(e.target.value) && setAmount(e.target.value)}
             placeholder="0.0"
           />
-          <span className="swap-token-pill">ETH</span>
+          <span className="swap-token-pill">
+            <span className="swap-token-pill-icon" aria-hidden="true">
+              ◆
+            </span>
+            ETH
+          </span>
         </div>
       </div>
 
-      <div className="swap-panel" style={{ marginTop: 10 }}>
+      <span className="swap-divider" aria-hidden="true">
+        ↓
+      </span>
+
+      <div className="swap-panel">
         <div className="swap-panel-head">
           <span>You receive (estimated)</span>
         </div>
         <div className="swap-panel-row">
           <span className="swap-amount-display">{previewOut !== null ? fmt(previewOut) : rateError ? "—" : "…"}</span>
-          <span className="swap-token-pill">PRINT</span>
+          <span className="swap-token-pill">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="swap-token-pill-icon" src="/logo.png" alt="" />
+            PRINT
+          </span>
         </div>
       </div>
+
+      {rate && (
+        <div className="swap-summary">
+          <div className="swap-summary-row">
+            <span>Rate</span>
+            <strong>1 ETH ≈ {fmt(rate, 0)} PRINT</strong>
+          </div>
+          <div className="swap-summary-row">
+            <span>HOODPrinter fee (0.85%)</span>
+            <strong>{fmt(Number(ethers.formatEther(previewFeeWei)), 6)} ETH</strong>
+          </div>
+          <div className="swap-summary-row">
+            <span>Route</span>
+            <strong>Direct pool</strong>
+          </div>
+        </div>
+      )}
 
       {rateError && <div className="pb-warn">{rateError}</div>}
       {error && <div className="pb-warn">{error}</div>}
@@ -168,11 +198,7 @@ export default function PrintDirectSwap() {
         </div>
       )}
 
-      {address && (
-        <p className="swap-address">Connected: {address.slice(0, 6)}…{address.slice(-4)}</p>
-      )}
-
-      <p className="swap-powered-by">Routes directly through Robinhood Chain&rsquo;s $PRINT pool.</p>
+      {address && <p className="swap-address">Connected: {address.slice(0, 6)}…{address.slice(-4)}</p>}
     </div>
   );
 }
