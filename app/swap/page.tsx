@@ -30,7 +30,6 @@ export default function SwapPage() {
             <span className="rwa-beta-tag">WIP</span>
           </h1>
           <p>ETH ⇄ any Robinhood Chain token</p>
-          <p className="pb-tagline">Routed through a real aggregator, not a plain Uniswap swap.</p>
         </div>
 
         <SwapWidget />
