@@ -43,7 +43,11 @@ export const POOL_TAX_PCT = 5;
 // PRINT_MIN_SLIPPAGE convention elsewhere in the codebase (e.g. PrintBot.tsx)
 // — 7% default leaves headroom on top of the tax for real price impact.
 export const DEFAULT_SLIPPAGE_PCT = 7;
-export const SLIPPAGE_OPTIONS = [7, 10, 15];
+// Preset slippage buttons — the last slot is an editable custom input
+// (see components/PrintDirectSwap.tsx) defaulting to this value, not a
+// fixed preset, so users can go above 15% if they want to.
+export const SLIPPAGE_OPTIONS = [7, 10];
+export const DEFAULT_CUSTOM_SLIPPAGE_PCT = 15;
 
 // Universal Router commands: PAY_PORTION (0x06) then V4_SWAP (0x10), one tx.
 // PAY_PORTION is Universal Router's own built-in affiliate-fee mechanism —

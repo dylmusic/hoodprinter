@@ -20,6 +20,7 @@ import {
   splitFee,
   DEFAULT_SLIPPAGE_PCT,
   SLIPPAGE_OPTIONS,
+  DEFAULT_CUSTOM_SLIPPAGE_PCT,
   POOL_TAX_PCT,
 } from "@/lib/printDirectSwap";
 
@@ -75,6 +76,17 @@ const FlipIcon = () => (
   </svg>
 );
 
+// Two-tone diamond, standard Ethereum brand blue — the plain green "◆"
+// character just blended into the green pill and didn't read as ETH.
+const EthIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+    <polygon points="12,2 20,12 12,16 4,12" fill="#8A92B2" />
+    <polygon points="12,2 12,16 4,12" fill="#62688F" />
+    <polygon points="12,22 20,13 12,17 4,13" fill="#8A92B2" />
+    <polygon points="12,22 12,17 4,13" fill="#62688F" />
+  </svg>
+);
+
 type Direction = "buy" | "sell"; // buy = ETH -> PRINT, sell = PRINT -> ETH
 
 type SwapTxRow = {
@@ -105,6 +117,7 @@ function InnerDirectSwap() {
   const [direction, setDirection] = useState<Direction>("buy");
   const [amount, setAmount] = useState("0.01");
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE_PCT);
+  const [customSlippage, setCustomSlippage] = useState(String(DEFAULT_CUSTOM_SLIPPAGE_PCT));
   const [rate, setRate] = useState<number | null>(null);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -297,6 +310,20 @@ function InnerDirectSwap() {
               {p}%
             </button>
           ))}
+          <span className={`swap-slip-custom${!SLIPPAGE_OPTIONS.includes(slippage) ? " active" : ""}`}>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={customSlippage}
+              onChange={(e) => {
+                if (!/^[0-9]*\.?[0-9]*$/.test(e.target.value)) return;
+                setCustomSlippage(e.target.value);
+                const n = parseFloat(e.target.value);
+                if (n > 0) setSlippage(n);
+              }}
+            />
+            %
+          </span>
         </div>
 
         <div className="swap-panel">
@@ -319,8 +346,8 @@ function InnerDirectSwap() {
             <span className="swap-token-pill-wrap" onClick={flip}>
               <span className="swap-token-pill">
                 {fromSym === "ETH" ? (
-                  <span className="swap-token-pill-icon" aria-hidden="true">
-                    ◆
+                  <span className="swap-token-pill-icon swap-eth-icon">
+                    <EthIcon />
                   </span>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -346,8 +373,8 @@ function InnerDirectSwap() {
             <span className="swap-token-pill-wrap" onClick={flip}>
               <span className="swap-token-pill">
                 {toSym === "ETH" ? (
-                  <span className="swap-token-pill-icon" aria-hidden="true">
-                    ◆
+                  <span className="swap-token-pill-icon swap-eth-icon">
+                    <EthIcon />
                   </span>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -358,6 +385,7 @@ function InnerDirectSwap() {
               <span className="swap-token-tooltip">⚠️ Multi-Chain Relay Under Construction</span>
             </span>
           </div>
+          <p className="swap-tax-note">$PRINT includes 5% rewards fee</p>
         </div>
 
         {rate && (

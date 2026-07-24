@@ -4868,6 +4868,11 @@ footer {
   height: 18px;
   border-radius: 999px;
 }
+.swap-eth-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .swap-token-tooltip {
   position: absolute;
@@ -4950,6 +4955,43 @@ footer {
   background: rgba(0, 200, 5, 0.12);
   border-color: var(--green);
   color: var(--green);
+}
+
+.swap-slip-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.66rem;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  padding: 4px 9px;
+  border-radius: 999px;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.swap-slip-custom:hover,
+.swap-slip-custom.active {
+  background: rgba(0, 200, 5, 0.12);
+  border-color: var(--green);
+  color: var(--green);
+}
+.swap-slip-custom input {
+  width: 22px;
+  background: none;
+  border: none;
+  outline: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  text-align: right;
+}
+
+.swap-tax-note {
+  margin-top: 6px;
+  font-size: 0.68rem;
+  color: var(--muted);
 }
 
 .swap-summary {
