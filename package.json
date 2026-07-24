@@ -9,12 +9,15 @@
     "assets": "node scripts/render-assets.mjs"
   },
   "dependencies": {
+    "@reservoir0x/relay-kit-ui": "^2.17.2",
+    "@tanstack/react-query": "^5.101.4",
     "@upstash/redis": "^1.38.0",
-    "@walletconnect/ethereum-provider": "^2.23.10",
     "ethers": "^6.17.0",
     "next": "^14.2.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "viem": "^2.55.8",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
