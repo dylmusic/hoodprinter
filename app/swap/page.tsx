@@ -35,8 +35,7 @@ export default function SwapPage() {
             <img className="pb-logo" src="/logo.png" alt="HOOD Printer" />
           </a>
           <h1>
-            Swap <span className="green">$PRINT</span>{" "}
-            <span className="rwa-beta-tag">BETA</span>
+            <span className="green">$PRINT</span> Swap
           </h1>
           <p className="swap-subnote">⚠️ Multi-Chain Coming Soon</p>
         </div>
