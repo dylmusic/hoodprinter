@@ -192,6 +192,16 @@ type SwapTxRow = {
 
 type LegProgress = { part: 1 | 2; total: 2; label: string } | null;
 
+// Mirrors lib/stats.ts's SwapStats — basic framework, room to grow (top
+// pairs, per-route breakdown, etc.) without changing this shape's callers.
+type SwapStatsShape = {
+  trades: number;
+  eth: number;
+  tradesToday: number;
+  ethToday: number;
+  traders: number;
+};
+
 /**
  * Our own router: any Robinhood Chain token to any other Robinhood Chain
  * token. $PRINT's real liquidity lives behind a hook-taxed Uniswap V4 pool
@@ -303,6 +313,19 @@ function InnerDirectSwap() {
   const [receivedSym, setReceivedSym] = useState<string>("");
   const [txs, setTxs] = useState<SwapTxRow[]>([]);
   const txsRestoredRef = useRef(false);
+
+  // Platform-wide swap stats (basic framework — see lib/stats.ts recordSwap
+  // / readSwapStats). Fetched on mount and refreshed after each swap this
+  // tab completes; other tabs' swaps show up next natural refresh, not live.
+  const [swapStats, setSwapStats] = useState<SwapStatsShape | null>(null);
+  const refreshSwapStats = () =>
+    fetch("/api/swap")
+      .then((r) => r.json())
+      .then((d) => setSwapStats(d))
+      .catch(() => {});
+  useEffect(() => {
+    refreshSwapStats();
+  }, []);
 
   // Relay preview quote for legs that touch Relay (relay-only / one leg of
   // a 2-leg route) — debounced so we're not hammering Relay's quote API on
@@ -524,6 +547,7 @@ function InnerDirectSwap() {
     setReceivedAmt(null);
     setLegProgress(null);
     let legContext: string | null = null; // prefixed onto the error below if a 2-leg route fails mid-flight
+    let finalOk = false; // set at each plan's final leg — gates the swap-stats report below
     try {
       if (plan === "print-buy") {
         if (!rate) return;
@@ -543,6 +567,7 @@ function InnerDirectSwap() {
         setStep("Confirming on-chain…");
         const receipt = await readProvider.waitForTransaction(swapHash);
         const ok = receipt?.status === 1;
+        finalOk = ok;
         const received = ok ? parseReceivedPrint(receipt!, address) : null;
         setReceivedAmt(received);
         setReceivedIsExact(true);
@@ -580,6 +605,7 @@ function InnerDirectSwap() {
         setStep("Confirming on-chain…");
         const receipt = await readProvider.waitForTransaction(swapHash);
         const ok = receipt?.status === 1;
+        finalOk = ok;
         setReceivedAmt(ok ? expectedOut : null);
         setReceivedIsExact(false);
         setReceivedSym("ETH");
@@ -598,6 +624,7 @@ function InnerDirectSwap() {
         });
         const { data: result } = await executeRelayLeg(quote, walletClient, (label) => setStep(label));
         const hash = quoteLastTxHash(result, CHAIN.id);
+        finalOk = !!hash;
         setTxHash(hash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
         const outFormatted = (result as any)?.details?.currencyOut?.amountFormatted;
@@ -679,6 +706,7 @@ function InnerDirectSwap() {
         setStep("Confirming on-chain…");
         const receipt = await readProvider.waitForTransaction(swapHash);
         const ok = receipt?.status === 1;
+        finalOk = ok;
         const received = ok ? parseReceivedPrint(receipt!, address) : null;
         setReceivedAmt(received);
         setReceivedIsExact(true);
@@ -733,6 +761,7 @@ function InnerDirectSwap() {
         setStep("Confirming on-chain…");
         const receipt = await readProvider.waitForTransaction(swapHash);
         const ok = receipt?.status === 1;
+        finalOk = ok;
         const received = ok ? parseReceivedPrint(receipt!, address) : null;
         setReceivedAmt(received);
         setReceivedIsExact(true);
@@ -799,6 +828,7 @@ function InnerDirectSwap() {
           setLegProgress({ part: 2, total: 2, label })
         );
         const hash2 = quoteLastTxHash(result2, CHAIN.id);
+        finalOk = !!hash2;
         setTxHash(hash2);
         setLastSwapped({ amt: amount, sym: "PRINT" });
         const outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted;
@@ -880,11 +910,27 @@ function InnerDirectSwap() {
         setStep("Confirming on-chain…");
         const receipt2 = await readProvider.waitForTransaction(hash2);
         const ok2 = receipt2?.status === 1;
+        finalOk = ok2;
         const receivedTokenEstimate = Number(ethers.formatUnits(minTokenOutWei, toToken.decimals));
         setReceivedAmt(ok2 ? receivedTokenEstimate : null);
         setReceivedIsExact(false);
         setReceivedSym(toToken.symbol);
         updateTx(hash2, { status: ok2 ? "ok" : "fail", toAmt: ok2 ? `~${fmt(receivedTokenEstimate)}` : null });
+      }
+      if (finalOk) {
+        // Best-effort telemetry, not on-chain-verified — same tradeoff as
+        // multisend's own usage reporting (nothing user-facing depends on
+        // this count). ethValue is a best-effort ETH-equivalent size for
+        // ANY pair, derived from the same USD pricing that already powers
+        // the mismatch warning above, not an exact on-chain amount.
+        const ethValue = ethUsd && fromUsdPrice && amt > 0 ? (fromUsdPrice * amt) / ethUsd : 0;
+        fetch("/api/swap", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ wallet: address, plan, fromSym: fromToken.symbol, toSym: toToken.symbol, ethValue }),
+        })
+          .then(() => refreshSwapStats())
+          .catch(() => {});
       }
       setStep(null);
       setLegProgress(null);
@@ -1166,6 +1212,41 @@ function InnerDirectSwap() {
             </a>
           ))}
         </div>
+      </section>
+
+      <section className="pb-card">
+        <h2>Swap Stats</h2>
+        <div className="swap-stats-grid">
+          <div className="swap-stat-tile">
+            <span className="swap-stat-label">Total Trades</span>
+            <span className="swap-stat-value">
+              {swapStats ? swapStats.trades.toLocaleString() : "—"}
+            </span>
+          </div>
+          <div className="swap-stat-tile">
+            <span className="swap-stat-label">Total ETH Traded</span>
+            <span className="swap-stat-value">
+              {swapStats ? fmt(swapStats.eth) : "—"}
+              <em> ETH</em>
+            </span>
+          </div>
+          <div className="swap-stat-tile">
+            <span className="swap-stat-label">Unique Traders</span>
+            <span className="swap-stat-value">
+              {swapStats ? swapStats.traders.toLocaleString() : "—"}
+            </span>
+          </div>
+          <div className="swap-stat-tile">
+            <span className="swap-stat-label">Trades Today</span>
+            <span className="swap-stat-value">
+              {swapStats ? swapStats.tradesToday.toLocaleString() : "—"}
+            </span>
+          </div>
+        </div>
+        <p className="swap-stats-note">
+          Basic framework for now — self-reported per completed swap, ETH value is an estimate. More detailed
+          analytics (top pairs, volume charts) can build on this later.
+        </p>
       </section>
     </>
   );

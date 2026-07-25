@@ -150,6 +150,77 @@ export async function recordMultisendRun(run: MultisendRun): Promise<void> {
   await Promise.all(writes);
 }
 
+// ---- /swap usage ----
+//
+// Basic framework only — self-reported by the client once a swap's final
+// leg confirms (no on-chain re-verification, same tradeoff already made for
+// multisend: nothing user-facing keys off this, so it's not worth the extra
+// round trip). `ethValue` is a best-effort ETH-equivalent size for ANY pair
+// (derived client-side from the same USD pricing that already powers the
+// mismatch warning — see PrintDirectSwap.tsx), not an exact on-chain amount.
+// Keys:
+//   stats:swap:trades / stats:swap:eth       totals (trade count, ETH volume)
+//   stats:swap:trades:<day> / :eth:<day>     daily buckets
+//   swap:traders                             zset, score = first-seen ms (NX)
+//   swap:plans                               zset, count per route kind
+//                                             (print-buy, relay-only, etc.) —
+//                                             not surfaced in the UI yet, just
+//                                             laid down for a future breakdown
+
+export type SwapReport = {
+  wallet: string;
+  plan: string;
+  fromSym: string;
+  toSym: string;
+  ethValue: number;
+};
+
+export async function recordSwap(r: SwapReport): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  const w = r.wallet.toLowerCase();
+  const day = dayKey();
+  const ethValue = Number.isFinite(r.ethValue) && r.ethValue > 0 ? r.ethValue : 0;
+  await Promise.all([
+    redis.incr("stats:swap:trades"),
+    redis.incrbyfloat("stats:swap:eth", ethValue),
+    redis.incr(`stats:swap:trades:${day}`),
+    redis.incrbyfloat(`stats:swap:eth:${day}`, ethValue),
+    redis.zadd("swap:traders", { nx: true }, { score: Date.now(), member: w }),
+    redis.zincrby("swap:plans", 1, r.plan),
+  ]);
+}
+
+export type SwapStats = {
+  trades: number;
+  eth: number;
+  tradesToday: number;
+  ethToday: number;
+  traders: number;
+};
+
+export async function readSwapStats(): Promise<SwapStats> {
+  const redis = getRedis();
+  if (!redis) return { trades: 0, eth: 0, tradesToday: 0, ethToday: 0, traders: 0 };
+  const day = dayKey();
+  const [vals, traders] = await Promise.all([
+    redis.mget<(string | number | null)[]>(
+      "stats:swap:trades",
+      "stats:swap:eth",
+      `stats:swap:trades:${day}`,
+      `stats:swap:eth:${day}`
+    ),
+    redis.zcard("swap:traders"),
+  ]);
+  return {
+    trades: num(vals[0]),
+    eth: num(vals[1]),
+    tradesToday: num(vals[2]),
+    ethToday: num(vals[3]),
+    traders: num(traders),
+  };
+}
+
 /** One-shot platform counters for the admin summary (dataset=summary). */
 export async function readPlatformSummary(): Promise<Record<string, number>> {
   const redis = getRedis();
@@ -168,12 +239,17 @@ export async function readPlatformSummary(): Promise<Record<string, number>> {
     "stats:buy_fails",
     "stats:buy_stops",
     `stats:airdrop:${day}`,
+    "stats:swap:trades",
+    "stats:swap:eth",
+    `stats:swap:trades:${day}`,
+    `stats:swap:eth:${day}`,
   ];
-  const [vals, created, buyers, senders] = await Promise.all([
+  const [vals, created, buyers, senders, traders] = await Promise.all([
     redis.mget<(string | number | null)[]>(...keys),
     redis.zcard("wallets:created"),
     redis.zcard("wallets:bybuys"),
     redis.zcard("ms:senders"),
+    redis.zcard("swap:traders"),
   ]);
   return {
     buys: num(vals[0]),
@@ -188,9 +264,14 @@ export async function readPlatformSummary(): Promise<Record<string, number>> {
     buyFails: num(vals[9]),
     buyStops: num(vals[10]),
     airdropSignupsToday: num(vals[11]),
+    swapTrades: num(vals[12]),
+    swapEth: num(vals[13]),
+    swapTradesToday: num(vals[14]),
+    swapEthToday: num(vals[15]),
     walletsCreated: num(created),
     buyerWallets: num(buyers),
     multisendSenders: num(senders),
+    swapTraders: num(traders),
   };
 }
 

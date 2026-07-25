@@ -5272,6 +5272,62 @@ footer {
   font-weight: 700;
 }
 
+/* Swap Stats — basic framework (lib/stats.ts recordSwap/readSwapStats),
+   below the Transactions feed on /swap. Plain tile grid, not styled after
+   any other page's stat tiles on purpose (RWA's .rwa-ov-tile etc. stay
+   scoped to RWA) — this is its own small, independent surface to build
+   on later. */
+.swap-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.swap-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.swap-stat-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.swap-stat-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--green);
+}
+.swap-stat-value em {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-style: normal;
+  margin-left: 3px;
+}
+.swap-stats-note {
+  margin-top: 12px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 480px) {
+  .swap-stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .swap-stat-tile {
+    padding: 10px 12px;
+  }
+  .swap-stat-value {
+    font-size: 1rem;
+  }
+}
+
 /* Token picker modal — components/TokenPickerModal.tsx, styled after
    Relay's own "Select Token" modal so switching between it and this feels
    like one product. Robinhood-Chain-only for now (single static chain row,

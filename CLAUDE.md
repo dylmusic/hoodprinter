@@ -641,6 +641,38 @@ and is background for if that ever happens, not the current live page.
   `localStorage` under `hoodprint_swap_txs` (separate key from the Buy
   Bot's own `hoodprint_txs` feed) — same restore/save pattern as
   `components/PrintBot.tsx`.
+- **Swap Stats section** below Transactions (Dylan: "do we track the total
+  volume of the swap? add a section... total trades, total ETH value
+  traded, and anything else... a basic framework we can turn into full
+  robust analytics later") — until this, swap volume genuinely wasn't
+  tracked anywhere (only the Buy Bot and Multisend had usage telemetry).
+  New: `lib/stats.ts` `recordSwap()`/`readSwapStats()` +
+  `app/api/swap/route.ts` (POST to report, GET to read), same self-
+  reported/best-effort/throttled tradeoff already made for
+  `/api/multisend` — nothing user-facing (leaderboard, airdrop) keys off
+  this count, so on-chain re-verification isn't worth the round trip.
+  Redis keys: `stats:swap:trades`/`stats:swap:eth` (+ `:<day>` buckets),
+  `swap:traders` (zset, NX, first-seen ms — unique wallet count),
+  `swap:plans` (zset, count per route kind — not surfaced yet, laid down
+  for a future per-route breakdown). Folded into `readPlatformSummary()`
+  too, so `dataset=summary` picks it up for free.
+  **Client-side (`PrintDirectSwap.tsx`)**: a `finalOk` flag is set at each
+  of the 7 route plans' own final-leg success point (mirroring the
+  existing `updateTx(..., {status: "ok"})` calls) and gates a fire-and-
+  forget `POST /api/swap` right after — same `.catch(() => {})` pattern
+  `MultiSender.tsx` already uses, so a failed report can never surface as
+  a false "swap failed" error. **`ethValue` is a deliberately simple
+  cross-pair estimate**, not exact on-chain accounting: `(fromUsdPrice *
+  amt) / ethUsd`, reusing the exact USD pricing already computed for the
+  mismatch-warning feature (`lib/tokenUsdPrice.ts`) rather than hand-
+  rolling per-route ETH math across 7 different plans — good enough for a
+  "basic framework," not meant to be audit-grade. UI is a plain 2x2 tile
+  grid (`.swap-stats-grid`, new dedicated classes — deliberately NOT
+  reusing `/rwa`'s `.rwa-ov-tile` styling despite the visual similarity,
+  to keep the two pages' stat surfaces independently stylable): Total
+  Trades, Total ETH Traded, Unique Traders, Trades Today. Fetches once on
+  mount and again right after this tab's own swap reports — other tabs'
+  swaps show up on next natural refresh, not live.
 - Subnote is now **"⚠️ Multi-Chain Coming Soon"** (was "⚠️ Multi-Chain Relay
   Coming Soon" / warning-icon, non-all-caps styling predates the router
   rebuild and both are kept). The token-pill hover tooltip ("⚠️ Multi-Chain
