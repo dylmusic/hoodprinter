@@ -89,18 +89,6 @@ export default function PrintPage() {
           for any project.
         </p>
         <p className="pb-tagline pb-tagline-sub">
-          Every buy runs on-chain through our{" "}
-          <a
-            href="https://robinhoodchain.blockscout.com/address/0x0e211d54b747832B28a9C8cA74e35069b0049653?tab=contract"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "var(--green)" }}
-          >
-            verified HOODPrinter Buy Router
-          </a>{" "}
-          contract.
-        </p>
-        <p className="pb-tagline pb-tagline-sub">
           <span className="pb-soon">Coming soon</span> — hold{" "}
           <span className="green">$PRINT</span> to automatically buy any token
           with your ETH rewards.
