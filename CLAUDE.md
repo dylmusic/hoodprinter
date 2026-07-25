@@ -869,19 +869,29 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   (`.contract-full`) — same address, just two `<code>` elements toggled by
   media query rather than truncating in JS, so no layout-shift/hydration
   mismatch risk.
-- **`<MoneyPrinter />`'s SVG reserved way more empty height than its
-  artwork used** — flagged by Dylan as "a big space under the graphic on
-  mobile and desktop." Root cause: `viewBox="0 0 400 430"` but the printer
-  body/feet only draw up to y≈264; the remaining ~166px was headroom for
-  the bill-drop-and-fade clip animation (`slotClip` rect, `bill-print`
-  keyframes ending at `translateY(150px)`), which is mostly transparent by
-  the time it travels that far — so the reserved space read as dead air
-  the vast majority of each 2.7s loop. Tightened `viewBox` to `400 305`,
-  `slotClip` height to `55`, and the keyframe's exit `translateY` to `45px`
-  (bill still fully fades to opacity 0 well within the new shorter clip) —
-  same visual animation, ~29% less reserved height. The `84px`/section
-  top-padding gap that remains below it is normal `section { padding: 84px
-  0 }` site-wide spacing, not a bug — left alone.
+- **`<MoneyPrinter />`'s SVG reserved more empty height below the printer
+  than the static artwork uses** — flagged by Dylan as "a big space under
+  the graphic on mobile and desktop." First attempt at a fix (shrinking
+  `viewBox` to `400 305` + `slotClip` height to `55` + the fall keyframe's
+  exit `translateY` to `45px`) was WRONG and made it worse: Dylan caught it
+  immediately — "looks like u cut off the bottom of the printer artwork
+  and left the blank space." Root cause of that regression: the ETH bill
+  graphic itself is 110 viewBox units tall (`<g id="ethBill">`, y=252–362),
+  but the shrunk `slotClip` band was only 55 units — smaller than the bill
+  — so the bottom half of the bill was hard-clipped at every frame,
+  including at rest/full opacity, not just during the fade-out tail.
+  **Reverted `viewBox`/`slotClip`/keyframe exactly back to their original
+  values** (`400 430` / height `180` / `translateY(150px)`) — the
+  animation itself was never the problem. The actual dead space was
+  `.hero`'s own `padding-bottom: 72px` stacking on top of the next
+  `section`'s `padding-top: 84px` (156px combined) on top of the SVG's own
+  ~55–80px of internal idle buffer below the resting bill — trimmed just
+  `.hero`'s bottom padding to `28px` (pure empty CSS space, verified via
+  live `getBoundingClientRect()` measurement, zero risk to the artwork)
+  instead of touching the SVG's geometry at all. Net: full uncropped
+  artwork, ~130px less trailing gap, confirmed via CDP screenshots across
+  multiple points in the animation loop (not just one frame) before
+  shipping this time.
 - Each page has its own OG image + title/description (all absolute via
   `metadataBase`): home `og.png`, `/print` `og-print.png?v=2` (bespoke Buy Bot
   card — BETA badge + feature chips, NOT the generic centered template),

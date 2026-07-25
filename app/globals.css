@@ -268,7 +268,7 @@ a {
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 44px 0 72px;
+  padding: 44px 0 28px;
   text-align: center;
 }
 
@@ -477,7 +477,7 @@ a {
     opacity: 1;
   }
   100% {
-    transform: translateY(45px);
+    transform: translateY(150px);
     opacity: 0;
   }
 }
