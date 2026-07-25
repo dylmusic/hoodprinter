@@ -15,7 +15,6 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onSelect: (token: RhToken) => void;
-  exclude?: string; // address already selected on the other side, greyed out
 };
 
 function shortAddr(a: string) {
@@ -40,10 +39,10 @@ export function TokenIcon({ token, size = 28 }: { token: RhToken; size?: number 
     return (
       <span className="tp-row-icon tp-row-icon-eth" style={style}>
         <svg width="100%" height="100%" viewBox="0 0 24 24" aria-hidden="true">
-          <polygon points="12,2 20,12 12,16 4,12" fill="#8A92B2" />
-          <polygon points="12,2 12,16 4,12" fill="#62688F" />
-          <polygon points="12,22 20,13 12,17 4,13" fill="#8A92B2" />
-          <polygon points="12,22 12,17 4,13" fill="#62688F" />
+          <polygon points="12,2 20,12 12,16 4,12" fill="#00c805" />
+          <polygon points="12,2 12,16 4,12" fill="#068a0a" />
+          <polygon points="12,22 20,13 12,17 4,13" fill="#00c805" />
+          <polygon points="12,22 12,17 4,13" fill="#068a0a" />
         </svg>
       </span>
     );
@@ -67,7 +66,7 @@ export function TokenIcon({ token, size = 28 }: { token: RhToken; size?: number 
   );
 }
 
-export default function TokenPickerModal({ open, onClose, onSelect, exclude }: Props) {
+export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [customToken, setCustomToken] = useState<RhToken | null>(null);
   const [customLoading, setCustomLoading] = useState(false);
@@ -138,25 +137,20 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
             />
 
             <div className="tp-pinned-row">
-              {PINNED_TOKENS.map((t) => {
-                const disabled = exclude?.toLowerCase() === t.address.toLowerCase();
-                return (
-                  <button
-                    key={t.address}
-                    type="button"
-                    className="tp-pinned-pill"
-                    disabled={disabled}
-                    onClick={() => {
-                      if (disabled) return;
-                      onSelect(t);
-                      onClose();
-                    }}
-                  >
-                    <TokenIcon token={t} size={20} />
-                    {t.symbol}
-                  </button>
-                );
-              })}
+              {PINNED_TOKENS.map((t) => (
+                <button
+                  key={t.address}
+                  type="button"
+                  className="tp-pinned-pill"
+                  onClick={() => {
+                    onSelect(t);
+                    onClose();
+                  }}
+                >
+                  <TokenIcon token={t} size={20} />
+                  {t.symbol}
+                </button>
+              ))}
               <button
                 type="button"
                 className={`tp-pinned-pill tp-pinned-pill-rwa${rwaFilter ? " active" : ""}`}
@@ -193,28 +187,27 @@ export default function TokenPickerModal({ open, onClose, onSelect, exclude }: P
               {!customLoading && !customToken && results.length === 0 && (
                 <div className="tp-empty">No token found.</div>
               )}
-              {results.map((t) => {
-                const disabled = exclude?.toLowerCase() === t.address.toLowerCase();
-                return (
-                  <button
-                    key={t.address}
-                    type="button"
-                    className="tp-row"
-                    disabled={disabled}
-                    onClick={() => {
-                      if (disabled) return;
-                      onSelect(t);
-                      onClose();
-                    }}
-                  >
-                    <TokenIcon token={t} />
-                    <span className="tp-row-text">
-                      <strong>{t.symbol}</strong>
-                      <span>{t.isNative ? t.name : `${t.name} ${shortAddr(t.address)}`}</span>
-                    </span>
-                  </button>
-                );
-              })}
+              {results.map((t) => (
+                <button
+                  key={t.address}
+                  type="button"
+                  className="tp-row"
+                  onClick={() => {
+                    // If this token is already selected on the other side,
+                    // PrintDirectSwap.tsx's selectToken() just swaps the two
+                    // sides instead of no-oping — clicking it is always a
+                    // valid, useful action here, never blocked.
+                    onSelect(t);
+                    onClose();
+                  }}
+                >
+                  <TokenIcon token={t} />
+                  <span className="tp-row-text">
+                    <strong>{t.symbol}</strong>
+                    <span>{t.isNative ? t.name : `${t.name} ${shortAddr(t.address)}`}</span>
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>

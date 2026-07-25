@@ -44,13 +44,25 @@ const DEFAULT_ROUTER = "0x89e5db8b5aa49aa85ac63f691524311aeb649eba"; // classic 
 const ADDRESS_THIS = "0x0000000000000000000000000000000000000002"; // Universal Router: keep funds in the router
 const WETH_ADDR = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73";
 
-// The 3 curated tokens PrintBot/MultiSender already confirm are V2 pairs
-// against WETH — CASHCAT/ARROW/HOODRAT. JUGGERNAUT is V3, not included here.
+// V2-pool tokens (confirmed via V2_FACTORY.getPair against WETH, verified
+// live) — the original 3 PrintBot/MultiSender already curate (CASHCAT/
+// ARROW/HOODRAT), plus 6 of Robinhood Chain's top tokens by real liquidity/
+// volume (lib/robinhoodTokens.ts TRENDING_TOKENS, sourced from Relay's own
+// `defaultList` ranking, cross-checked on DexScreener). JUGGERNAUT and the
+// 5 V3 trending tokens (STONKBROKER/INDEX/DIH/YOLO/HMM) are NOT included —
+// no verified V3 quoter on this chain yet to compute a safe minOut against,
+// so those route through Relay when paired with $PRINT instead.
 export const KNOWN_V2_TOKENS = new Set(
   [
-    "0x020bfC650A365f8BB26819deAAbF3E21291018b4",
-    "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03",
-    "0x8e62f281f282686fca6dcb39288069a93fc23f1c",
+    "0x020bfC650A365f8BB26819deAAbF3E21291018b4", // CASHCAT
+    "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", // ARROW
+    "0x8e62f281f282686fca6dcb39288069a93fc23f1c", // HOODRAT
+    "0x92d176ccbeeffecd8089e841d09ea17b6c22d969", // VLAD
+    "0xc6911796042b15d7fa4f6cde69e245ddcd3d9c31", // VIRTUAL
+    "0x39dbed3a2bd333467115de45665cc57f813c4571", // PONS
+    "0x45242320dbb855eea8fd36804c6487e10e97fcf9", // TENDIES
+    "0xdb87393727b666c43f5aecb03d8b419ba54d9b03", // SWOGE
+    "0xf8bc08092c06db6148114dcf82af881f1085f92b", // WOOD
   ].map((a) => a.toLowerCase())
 );
 

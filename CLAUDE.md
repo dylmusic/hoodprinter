@@ -303,6 +303,45 @@ and is background for if that ever happens, not the current live page.
   crashed the page with a bad-checksum error on load — always source
   addresses from a verified API or on-chain read, never type them from a
   truncated UI screenshot).
+- **Trending tokens** (`TRENDING_TOKENS` in `lib/robinhoodTokens.ts`) — 11
+  more of Robinhood Chain's top tokens by real activity, added when Dylan
+  asked to "identify the top tokens on Robinhood Chain and integrate a lot
+  more CAs": VLAD, VIRTUAL, PONS, TENDIES, SWOGE, WOOD, STONKBROKER, INDEX,
+  DIH, YOLO, HMM. Sourced from Relay's `/currencies/v2` `defaultList: true`
+  response for chainId 4663 (Relay's own "what matters on this chain"
+  ranking — the same ordering their screenshot showed pinned first), then
+  cross-checked on DexScreener before including any of them (all had real
+  five-to-seven-figure 24h volume and liquidity, not just a listing — e.g.
+  VIRTUAL alone had ~$7.1M liquidity). Pool venue (V2 vs V3) was checked
+  for every one via `getPair`/`getPool` against WETH: VLAD/VIRTUAL/PONS/
+  TENDIES/SWOGE/WOOD are V2 and got added to `KNOWN_V2_TOKENS` in
+  `lib/curatedPoolSwap.ts` for the no-Relay self-routed fast path (same
+  treatment as CASHCAT/ARROW/HOODRAT); STONKBROKER/INDEX/DIH/YOLO/HMM are
+  V3 and were left off it, same reasoning as JUGGERNAUT — no verified V3
+  quoter on this chain to compute a safe minOut against, so they route
+  through Relay when paired with $PRINT instead (not a correctness
+  regression, just not on the fast path). **Caught and fixed a real
+  copy-paste mistake before shipping**: four of the eleven logo URLs were
+  initially copied from the wrong sibling token (INDEX's logo reused for
+  YOLO and HMM, DIH's reused for WOOD) — caught by re-deriving every URL
+  from the saved raw API response instead of trusting what had already
+  been typed, then verifying all eleven resolve with a live `curl -I`
+  sweep before considering it done.
+- **ETH icon recolored** — the two-tone diamond (`TokenIcon`'s `isNative`
+  branch) used a grey-blue palette (`#8A92B2`/`#62688F`, plain Ethereum
+  brand colors); Dylan wanted it in the site's own neon green instead
+  (`#00c805`/`#068a0a`) to match the rest of the page rather than reading
+  as a generic/foreign brand color.
+- **Clicking the other side's token now swaps sides instead of being
+  blocked** — the picker used to greyed-out/`disabled` whichever token was
+  already selected on the other side (an `exclude` prop passed down from
+  `PrintDirectSwap.tsx`); Dylan: "more intuitive" to just let the click
+  through. The swap-sides logic already existed and was correct
+  (`selectToken()` in `PrintDirectSwap.tsx` already swapped `fromToken`/
+  `toToken` when picking a token that matched the other side) — it was
+  simply unreachable because the modal never let the click fire. Removed
+  `exclude`/`disabled` entirely from `TokenPickerModal.tsx` rather than
+  patching around it.
 - **"RWAs (NEW)" pinned pill** (`ALL_RWA_TOKENS` in `lib/robinhoodTokens.ts`)
   — a category filter, not a direct token pick: toggles the results list to
   the tokenized-stock roster instead of selecting a token (the pill itself

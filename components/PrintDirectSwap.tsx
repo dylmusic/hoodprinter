@@ -859,7 +859,6 @@ function InnerDirectSwap() {
         open={pickerSide !== null}
         onClose={() => setPickerSide(null)}
         onSelect={(t) => pickerSide && selectToken(pickerSide, t)}
-        exclude={pickerSide === "from" ? toToken.address : fromToken.address}
       />
 
       <div className="swap-card">

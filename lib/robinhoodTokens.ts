@@ -148,12 +148,41 @@ const RWA_MARKET_TOKENS: RhToken[] = [
 // this order is what the picker's "RWAs" pill shows.
 export const ALL_RWA_TOKENS: RhToken[] = [...RWA_TOKENS, ...RWA_MARKET_TOKENS];
 
+// Top non-RWA tokens on Robinhood Chain — sourced from Relay's own
+// /currencies/v2 `defaultList: true` response for chainId 4663 (Relay's own
+// "what matters on this chain" ranking, the same one their screenshot
+// showed pinned/first), then cross-checked against DexScreener for real
+// liquidity/volume before including any of them (all had five- to seven-
+// figure 24h volume and real liquidity at the time — not just listed,
+// actually traded). Pool venue (V2 vs V3, `getPair`/`getPool` against
+// WETH) checked for every one of these too, feeding `KNOWN_V2_TOKENS` in
+// lib/curatedPoolSwap.ts below — V3 ones aren't included there since
+// there's no verified V3 quoter on this chain yet to compute a safe minOut
+// against (same reasoning JUGGERNAUT was left out of the V1 curated-pool
+// build), so they route through Relay when paired with $PRINT instead,
+// same as any other non-curated token — never a correctness regression,
+// just not on the no-Relay fast path.
+const TRENDING_TOKENS: RhToken[] = [
+  { address: "0x92d176ccbeeffecd8089e841d09ea17b6c22d969", symbol: "VLAD", name: "Vladhood", decimals: 18, logo: "https://assets.geckoterminal.com/ao9qfd2m3321z7s5pm9v95korxiq" }, // V2
+  { address: "0xc6911796042b15d7fa4f6cde69e245ddcd3d9c31", symbol: "VIRTUAL", name: "Virtuals Protocol", decimals: 18, logo: "https://coin-images.coingecko.com/coins/images/34057/large/LOGOMARK.png?1708356054" }, // V2
+  { address: "0x39dbed3a2bd333467115de45665cc57f813c4571", symbol: "PONS", name: "Pons", decimals: 18, logo: "https://assets.geckoterminal.com/jhitvkisdq8fhxvimdkpcw7y3dx5" }, // V2
+  { address: "0x45242320dbb855eea8fd36804c6487e10e97fcf9", symbol: "TENDIES", name: "Tendies", decimals: 18, logo: "https://assets.geckoterminal.com/x1o0qj8dm7mlay3licerc1y75hr4" }, // V2
+  { address: "0xdb87393727b666c43f5aecb03d8b419ba54d9b03", symbol: "SWOGE", name: "Swole Doge", decimals: 18, logo: "https://assets.geckoterminal.com/7t4dl21ciugls2q680q2kew04slp" }, // V2
+  { address: "0xf8bc08092c06db6148114dcf82af881f1085f92b", symbol: "WOOD", name: "Sherwood Protocol", decimals: 18, logo: "https://coin-images.coingecko.com/coins/images/102174574/large/4vvnmslrns3stkpsmbsnsv4cu5ae.?1784094690" }, // V2
+  { address: "0xe934e36a439c94017b64a3fece66af12099abf50", symbol: "STONKBROKER", name: "StonkBroker", decimals: 18, logo: "https://assets.geckoterminal.com/9gwu14e3hpizobkefg65k66l70wu" }, // V3
+  { address: "0x56910d4409f3a0c78c64dd8d0545ff0705389870", symbol: "INDEX", name: "The Index", decimals: 18, logo: "https://assets.geckoterminal.com/wjec7qns101ifpflir8zgbcl6u0i" }, // V3
+  { address: "0x0c1ed62d7811e5b437e537ac9d0592469c119c74", symbol: "DIH", name: "Dih", decimals: 18, logo: "https://assets.geckoterminal.com/pg5adkfrjm0a1p8j41q5dg1ez8hu" }, // V3
+  { address: "0x62c71cd34a52c30d894419cbcc55db2afa8032ea", symbol: "YOLO", name: "YOLO", decimals: 18, logo: "https://assets.geckoterminal.com/fzvhldxmvphx85ls235mclk6bf3x" }, // V3
+  { address: "0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f", symbol: "HMM", name: "Thinking Cat", decimals: 18, logo: "https://assets.geckoterminal.com/fmu02lq7zai1iyp4qqwfnmu5wr1v" }, // V3
+];
+
 export const CURATED_TOKENS: RhToken[] = [
   ETH_TOKEN,
   PRINT_TOKEN,
   WETH_TOKEN,
   USDG_TOKEN,
   ...OTHER_CURATED,
+  ...TRENDING_TOKENS,
   ...ALL_RWA_TOKENS,
 ];
 
