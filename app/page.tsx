@@ -217,7 +217,11 @@ export default function Home() {
 
           <div className="contract-box">
             <span className="label">Contract</span>
-            <code>{siteConfig.contractAddress}</code>
+            <code className="contract-full">{siteConfig.contractAddress}</code>
+            <code className="contract-short">
+              {siteConfig.contractAddress.slice(0, 6)}…
+              {siteConfig.contractAddress.slice(-4)}
+            </code>
             <CopyAddress address={siteConfig.contractAddress} />
           </div>
 

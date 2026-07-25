@@ -356,7 +356,27 @@ a {
 .contract-box code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--mint);
-  word-break: break-all;
+  white-space: nowrap;
+}
+
+.contract-short {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .contract-box {
+    padding: 8px 14px;
+    gap: 8px;
+    font-size: 0.78rem;
+  }
+
+  .contract-full {
+    display: none;
+  }
+
+  .contract-short {
+    display: inline;
+  }
 }
 
 .copy-btn {
@@ -457,7 +477,7 @@ a {
     opacity: 1;
   }
   100% {
-    transform: translateY(150px);
+    transform: translateY(45px);
     opacity: 0;
   }
 }

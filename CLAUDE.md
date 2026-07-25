@@ -859,7 +859,29 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   (no more pre-launch countdown/sold-out messaging needed). The
   `.contract-box` (CA + copy button) sits right under `.hero-sub` and above
   `.hero-cta-group` — moved up from below `<MoneyPrinter />` per Dylan, so
-  the CA is visible before scrolling past the buy button, not after.
+  the CA is visible before scrolling past the buy button, not after. That
+  move broke on desktop (`display: inline-flex` let the box run onto the
+  same line as the Buy/Chart buttons instead of its own row) — fixed with
+  `display: flex; width: fit-content` (commit `399baeb`). On mobile the
+  full 42-char address wrapped the box across 3 lines; fixed by rendering
+  a truncated `0x6af5…9b1d` form (`.contract-short`, real address still
+  copied via `CopyAddress`) below 640px, full address above it
+  (`.contract-full`) — same address, just two `<code>` elements toggled by
+  media query rather than truncating in JS, so no layout-shift/hydration
+  mismatch risk.
+- **`<MoneyPrinter />`'s SVG reserved way more empty height than its
+  artwork used** — flagged by Dylan as "a big space under the graphic on
+  mobile and desktop." Root cause: `viewBox="0 0 400 430"` but the printer
+  body/feet only draw up to y≈264; the remaining ~166px was headroom for
+  the bill-drop-and-fade clip animation (`slotClip` rect, `bill-print`
+  keyframes ending at `translateY(150px)`), which is mostly transparent by
+  the time it travels that far — so the reserved space read as dead air
+  the vast majority of each 2.7s loop. Tightened `viewBox` to `400 305`,
+  `slotClip` height to `55`, and the keyframe's exit `translateY` to `45px`
+  (bill still fully fades to opacity 0 well within the new shorter clip) —
+  same visual animation, ~29% less reserved height. The `84px`/section
+  top-padding gap that remains below it is normal `section { padding: 84px
+  0 }` site-wide spacing, not a bug — left alone.
 - Each page has its own OG image + title/description (all absolute via
   `metadataBase`): home `og.png`, `/print` `og-print.png?v=2` (bespoke Buy Bot
   card — BETA badge + feature chips, NOT the generic centered template),

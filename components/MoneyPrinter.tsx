@@ -7,7 +7,7 @@ export default function MoneyPrinter() {
     <div className="printer-stage" aria-hidden="true">
       <svg
         className="printer-svg"
-        viewBox="0 0 400 430"
+        viewBox="0 0 400 305"
         xmlns="http://www.w3.org/2000/svg"
         role="img"
         aria-label="Money printer printing ETH bills"
@@ -19,7 +19,7 @@ export default function MoneyPrinter() {
           </linearGradient>
           <clipPath id="slotClip">
             {/* only show bills once they pass the output slot */}
-            <rect x="0" y="250" width="400" height="180" />
+            <rect x="0" y="250" width="400" height="55" />
           </clipPath>
           <g id="ethBill">
             <rect
