@@ -214,6 +214,13 @@ export default function Home() {
             Every $PRINT buy adds to the RWA pools — and pays out holders
             in ETH.
           </p>
+
+          <div className="contract-box">
+            <span className="label">Contract</span>
+            <code>{siteConfig.contractAddress}</code>
+            <CopyAddress address={siteConfig.contractAddress} />
+          </div>
+
           <div className="hero-cta-group">
             <div className="hero-ctas-top">
               {presaleActive ? (
@@ -240,12 +247,6 @@ export default function Home() {
           </div>
 
           <MoneyPrinter />
-
-          <div className="contract-box">
-            <span className="label">Contract</span>
-            <code>{siteConfig.contractAddress}</code>
-            <CopyAddress address={siteConfig.contractAddress} />
-          </div>
         </div>
       </header>
 

@@ -11,6 +11,7 @@ import { ethers } from "ethers";
 import Leaderboard from "@/components/Leaderboard";
 import { siteConfig } from "@/site.config";
 import { BUYROUTER_ADDRESS, BUYROUTER_ABI } from "@/lib/buyrouter";
+import { buildBuySwapParts, fetchPrintRate, POOL_TAX_PCT } from "@/lib/printDirectSwap";
 
 // Buy calldata split into Universal Router execute() args so the same payload
 // can go through the HOODPrinter Buy Router (attribution) or, as a fallback,
@@ -48,6 +49,11 @@ const V3_FEE_TIERS = [10000, 3000, 500, 100];
 // Rough gas a swap burns (real ~131k for V2; a bit more for V3/taxed) — used
 // only to warn when a buy is so small that fees eat a big share of it.
 const GAS_UNITS_ESTIMATE = 200000n;
+// PRINT's V4 buy (PAY_PORTION-free, but still a full V4Router swap against a
+// hook-taxed pool) measured ~558k gas units live via estimateGas — nearly 3x
+// the generic 200k ceiling above, which would under-reserve the $1 safety
+// floor's gas buffer for this token specifically if left unadjusted.
+const PRINT_GAS_UNITS_ESTIMATE = 600000n;
 const GAS_WARN_PCT = 10; // warn when est. fees ≥ this % of the buy amount
 // Never spend the wallet below ~$1 of ETH — stop the bot before the last of the
 // balance goes to gas or a buy. Fallback ETH floor used only if the USD price
@@ -61,6 +67,8 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 const PRINT_TOKEN = siteConfig.contractAddress;
 // $PRINT has a 5% transfer tax; buys need >=7% slippage to clear it.
 const PRINT_MIN_SLIPPAGE = 7;
+const isPrintToken = (addr: string) => addr.trim().toLowerCase() === PRINT_TOKEN.toLowerCase();
+const gasUnitsFor = (addr: string) => (isPrintToken(addr) ? PRINT_GAS_UNITS_ESTIMATE : GAS_UNITS_ESTIMATE);
 
 const ROUTER_ABI = [
   "function WETH() view returns (address)",
@@ -84,7 +92,7 @@ const PAIR_ABI = [
 ];
 
 // Which venue a token trades on. Resolved once when the loop starts.
-type Route = { kind: "v2" } | { kind: "v3"; fee: number };
+type Route = { kind: "v2" } | { kind: "v3"; fee: number } | { kind: "v4-print" };
 
 // Wallet ranks by all-time buy count — a little level-up game under My stats.
 type Tier = { name: string; at: number; emoji: string; color: string };
@@ -752,7 +760,7 @@ export default function PrintBot() {
 
   // Estimated gas cost (ETH) and its share of the current buy amount.
   const gasCostEth = gasPriceWei
-    ? Number(GAS_UNITS_ESTIMATE * gasPriceWei) / 1e18
+    ? Number(gasUnitsFor(token) * gasPriceWei) / 1e18
     : 0;
   const buyNum = parseFloat(amount || "0");
   const gasPct =
@@ -1001,6 +1009,13 @@ export default function PrintBot() {
     tokenAddr: string,
     weth: string
   ): Promise<Route | null> {
+    // $PRINT's real liquidity is a Uniswap V4 pool with a tax hook — it has
+    // NO V2 pair or V3 pool (confirmed: the factory lookups below return
+    // nothing for it). Short-circuiting here, before either factory is ever
+    // queried, is what guarantees a PRINT buy can only ever hit our own
+    // known-correct pool — never a factory lookup result, so there's no
+    // path by which it could land on some other PRINT-adjacent pool.
+    if (isPrintToken(tokenAddr)) return { kind: "v4-print" };
     const v2 = new ethers.Contract(V2_FACTORY, V2_FACTORY_ABI, provider);
     try {
       const pairAddr: string = await v2.getPair(tokenAddr, weth);
@@ -1106,6 +1121,24 @@ export default function PrintBot() {
     }
   }
 
+  // Same idea as quoteV2MinOut but against PRINT's real V4 pool rate
+  // (StateView, not a router quote — V4 pools don't have a getAmountsOut-
+  // style getter) with the 5% tax baked in, same math the /swap page uses.
+  // Fetched fresh per buy (one extra RPC call, same cost class as
+  // quoteV2MinOut's own getAmountsOut call) rather than cached, so a long-
+  // running spam session never buys against a stale rate.
+  async function quotePrintMinOut(valueWei: bigint): Promise<bigint> {
+    try {
+      const rate = await fetchPrintRate();
+      const expectedOut = Number(ethers.formatEther(valueWei)) * rate * (1 - POOL_TAX_PCT / 100);
+      const slipPct = parseFloat(slippage || "0");
+      const minOut = expectedOut * (1 - slipPct / 100);
+      return minOut > 0 ? ethers.parseUnits(minOut.toFixed(18), 18) : 0n;
+    } catch {
+      return 0n;
+    }
+  }
+
   // Broadcast a buy with an explicit nonce and return as soon as it hits the
   // mempool — no waiting for confirmation. Everything goes through the Universal
   // Router, which handles both V2 and V3, so no LP pair address is ever needed.
@@ -1121,7 +1154,16 @@ export default function PrintBot() {
     const tokenAddr = token.trim();
 
     let parts: SwapParts;
-    if (route.kind === "v3") {
+    if (route.kind === "v4-print") {
+      // Same designated pool as /swap, via the shared buildBuySwapParts —
+      // skimFee:false since Buy Bot purchases stay fee-free like every
+      // other token it buys (Dylan's call). recipient is always `to` here
+      // (the caller), matching V4Router's TAKE_ALL sending output straight
+      // to msg.sender either way — buildBuySwapParts doesn't take a
+      // recipient param because it doesn't need one.
+      const minOut = await quotePrintMinOut(valueWei);
+      parts = buildBuySwapParts(valueWei, minOut, { skimFee: false });
+    } else if (route.kind === "v3") {
       parts = buildV3Calldata(to, route.fee, tokenAddr, WETH_ADDR, valueWei);
     } else {
       const minOut = await quoteV2MinOut(provider, WETH_ADDR, tokenAddr, valueWei);
@@ -1133,9 +1175,21 @@ export default function PrintBot() {
     // forwards the identical swap to the Universal Router and the tokens still
     // land with the buyer. Falls back to the Universal Router directly if the
     // canonical router is somehow unset — so buys never break.
+    //
+    // PRINT is a deliberate exception: V2/V3 SWAP commands encode an
+    // explicit `recipient` in their own params, so they deliver correctly
+    // to the bot wallet no matter who calls execute() on their behalf. V4's
+    // TAKE_ALL has no such explicit recipient field — on /swap this is safe
+    // because the user's own wallet calls the Universal Router directly
+    // (msg.sender = the user), but through BuyRouter, msg.sender would be
+    // BuyRouter's own address, which isn't a risk worth taking without a
+    // funded wallet available to verify it. PRINT buys go straight to the
+    // Universal Router instead, same as /swap — losing BuyRouter's on-chain
+    // attribution for this token only, not our own Redis stats (reportBuy
+    // verifies via receipt logs regardless of which contract was called).
     let toAddr: string;
     let data: string;
-    if (BUYROUTER_ADDRESS) {
+    if (BUYROUTER_ADDRESS && route.kind !== "v4-print") {
       toAddr = BUYROUTER_ADDRESS;
       data = buyRouterIface.encodeFunctionData("buy", [
         parts.commands,
@@ -1261,7 +1315,7 @@ export default function PrintBot() {
     const bal = ethBalWeiRef.current;
     if (bal != null) {
       const buyWei = ethers.parseEther(amount || "0");
-      const gasBuffer = GAS_UNITS_ESTIMATE * (gasPriceWei ?? 100000000n);
+      const gasBuffer = gasUnitsFor(token) * (gasPriceWei ?? 100000000n);
       if (bal - buyWei - gasBuffer < floorWei()) {
         handleFloorReached();
         return;
@@ -1387,24 +1441,6 @@ export default function PrintBot() {
 
   async function startLoop() {
     if (runningRef.current) return;
-    // $PRINT isn't tradable yet — explain instead of failing silently.
-    if (token.trim().toLowerCase() === PRINT_TOKEN.toLowerCase()) {
-      showConfirm(
-        <>
-          You can auto-buy any other Robinhood Chain token right now — but{" "}
-          <strong>$PRINT goes live shortly</strong>. Every buy still counts:
-          keep printing to <strong>level up</strong> and rank higher for the{" "}
-          $PRINT airdrop. Join our Telegram to catch the launch?
-        </>,
-        () => window.open(siteConfig.telegram, "_blank", "noopener"),
-        {
-          icon: "🖨️",
-          title: "$PRINT is coming soon!",
-          confirmLabel: "Join Telegram",
-        }
-      );
-      return;
-    }
     if (!pk.trim()) return showAlert("Load a wallet first.");
     if (!ethers.isAddress(token.trim()))
       return showAlert("Enter a valid token address in trade settings.");
@@ -1456,7 +1492,7 @@ export default function PrintBot() {
     } catch {
       return showAlert("Could not reach the RPC to start. Try again.");
     }
-    const gasBuffer = GAS_UNITS_ESTIMATE * (gasPriceWei ?? 100000000n);
+    const gasBuffer = gasUnitsFor(token) * (gasPriceWei ?? 100000000n);
     if (balWei - buyWei - gasBuffer < floorWei()) {
       return showAlert(
         <>
@@ -1471,9 +1507,11 @@ export default function PrintBot() {
 
     routeRef.current = route;
     addLog(
-      route.kind === "v3"
-        ? `Route: Uniswap V3 (${route.fee / 10000}% fee tier)`
-        : "Route: Uniswap V2",
+      route.kind === "v4-print"
+        ? "Route: $PRINT designated pool (Uniswap V4, fee-free)"
+        : route.kind === "v3"
+          ? `Route: Uniswap V3 (${route.fee / 10000}% fee tier)`
+          : "Route: Uniswap V2",
       "ok"
     );
     try {

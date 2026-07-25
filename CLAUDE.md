@@ -86,8 +86,37 @@ this). Key never leaves the browser; txs go straight to RPC.
   (`buildV2Calldata`/`buildV3Calldata`). After 5 consecutive fails → "buying
   failed, check your settings" modal + stop.
 - **$PRINT slippage rule**: `PRINT_MIN_SLIPPAGE = 7`. An effect forces slippage
-  ≥7% whenever $PRINT is the selected token (only raises, never lowers). $PRINT
-  buys are still gated with a "coming soon → join Telegram" modal.
+  ≥7% whenever $PRINT is the selected token (only raises, never lowers).
+- **$PRINT buys are live** — Dylan: "make sure that the buy bot only hits our
+  designated LP for $PRINT, and then enable it." `detectRoute()` short-
+  circuits to `{kind: "v4-print"}` for PRINT's own address *before* either
+  factory is ever queried (PRINT has no V2/V3 pool at all — this just
+  guarantees there's no code path by which a PRINT buy could land anywhere
+  but our known pool). `sendBuyNoWait` builds that leg via
+  `buildBuySwapParts()` (shared with `/swap`'s `lib/printDirectSwap.ts`, so
+  the actual V4Router encoding only exists once), `quotePrintMinOut()`
+  computing the floor from the same StateView rate + 5% tax math `/swap`
+  uses. **Fee-free** (`skimFee: false`) — Dylan's call, so buying PRINT
+  through the bot costs the same as buying anything else through it, unlike
+  `/swap` where every PRINT leg pays 0.85%. **Bypasses the HOODPrinter Buy
+  Router for this token only** — V2/V3 SWAP commands encode an explicit
+  `recipient` so they deliver correctly no matter who calls `execute()` on
+  the buyer's behalf, but V4's `TAKE_ALL` has no such field; on `/swap`
+  that's safe because the user's own wallet calls Universal Router
+  directly, but through BuyRouter, `msg.sender` would be BuyRouter's own
+  address — not a risk worth taking without a funded wallet available to
+  verify it, so PRINT buys go straight to the Universal Router instead
+  (losing BuyRouter's on-chain attribution for this token only, not the
+  site's own Redis stats, which verify via receipt logs regardless of
+  which contract was called). Also bumped the bot's gas-buffer estimate
+  for PRINT specifically (`PRINT_GAS_UNITS_ESTIMATE = 600000n`) — a real
+  V4 buy against the taxed pool measured ~558k gas live via `estimateGas`,
+  nearly 3x the bot's generic 200k assumption, which would have under-
+  reserved the $1 safety floor's gas cushion for this token. Verified via
+  the same round-trip-decode discipline used throughout `/swap` (no funded
+  wallet available in-session for a real signed test) plus a live click-
+  through confirming the old "$PRINT is coming soon" gate no longer
+  appears and the 7% slippage floor still fires correctly.
 - **Balance/gas guards**: won't start if balance ≤ buy amount; stops when out of
   funds; ETH withdrawal leaves `gasPrice × 21000 × 5` for gas.
 - **Branded modal system** replaces ALL native browser popups (no
@@ -827,7 +856,10 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   full-width button below matching their combined width
   (`.hero-rwa-full`) — all wrapped in `.hero-cta-group`. `LaunchCountdown`
   and `FairLaunchModal` components were both deleted once trading went live
-  (no more pre-launch countdown/sold-out messaging needed).
+  (no more pre-launch countdown/sold-out messaging needed). The
+  `.contract-box` (CA + copy button) sits right under `.hero-sub` and above
+  `.hero-cta-group` — moved up from below `<MoneyPrinter />` per Dylan, so
+  the CA is visible before scrolling past the buy button, not after.
 - Each page has its own OG image + title/description (all absolute via
   `metadataBase`): home `og.png`, `/print` `og-print.png?v=2` (bespoke Buy Bot
   card — BETA badge + feature chips, NOT the generic centered template),

@@ -110,20 +110,27 @@ const stateViewIface = new ethers.Interface([
 const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
 
 /**
- * Live price data for the correct pool. The PRINT/ETH rate is read directly
- * on-chain via StateView — DexScreener (a third-party indexer) was used here
- * originally but can lag behind the real chain state for a few seconds,
- * which is exactly wrong right after the user's own swap moves the price.
- * Reading StateView directly has no such lag: it's the literal current
- * state. `ethUsd` (only used for the ~$1 gas-reserve estimate, not
- * precision-critical) still comes from DexScreener in the same request.
+ * Just the PRINT/ETH rate, read directly on-chain via StateView — no
+ * staleness risk (unlike DexScreener, a third-party indexer that can lag
+ * a few seconds behind real chain state) and no DexScreener round-trip,
+ * which matters for the Buy Bot's spam loop calling this on every single
+ * buy (fetchPrintPriceData's extra ethUsd fetch isn't needed there).
  */
-export async function fetchPrintPriceData(signal?: AbortSignal): Promise<{ rate: number; ethUsd: number }> {
+export async function fetchPrintRate(): Promise<number> {
   const stateView = new ethers.Contract(STATE_VIEW, stateViewIface, readProvider);
   const [sqrtPriceX96] = await stateView.getSlot0(POOL_ID);
   if (!sqrtPriceX96 || sqrtPriceX96 === 0n) throw new Error("Couldn't read a live price.");
   const ratio = Number(sqrtPriceX96) / 2 ** 96;
-  const rate = ratio * ratio; // PRINT per ETH — both tokens are 18 decimals, no adjustment needed
+  return ratio * ratio; // PRINT per ETH — both tokens are 18 decimals, no adjustment needed
+}
+
+/**
+ * Live price data for the correct pool — `rate` via fetchPrintRate() above,
+ * plus `ethUsd` (only used for the ~$1 gas-reserve estimate, not
+ * precision-critical) from DexScreener in the same request.
+ */
+export async function fetchPrintPriceData(signal?: AbortSignal): Promise<{ rate: number; ethUsd: number }> {
+  const rate = await fetchPrintRate();
 
   let ethUsd = 0;
   try {
@@ -158,19 +165,17 @@ export function parseReceivedPrint(receipt: ethers.TransactionReceipt, recipient
 }
 
 /**
- * Builds the single { to, data, value } transaction that both takes our
- * 0.85% fee (via PAY_PORTION, atomically) and swaps the remainder ETH ->
- * PRINT — one signature, no separate fee transaction. `totalWei` is the
- * FULL amount the user typed (fee + swap combined); `minAmountOutWei`
- * should already be computed against the post-fee swap amount.
+ * Builds the raw { commands, inputs, deadline } for an ETH -> PRINT V4 swap
+ * against our designated pool — the piece both /swap (fee-taking, via
+ * PAY_PORTION) and the Buy Bot (fee-free, per Dylan: "keep it fee-free" to
+ * match every other token the bot buys) need, factored out so the actual
+ * V4Router encoding only exists once. `totalWei` is the full ETH amount
+ * being spent; when `skimFee` is true it's split (fee + swap) first,
+ * otherwise the whole amount goes to the swap.
  */
-export function buildBuySwapTx(totalWei: bigint, minAmountOutWei: bigint) {
-  const { swapWei } = splitFee(totalWei);
-
-  const payPortionInput = abiCoder.encode(
-    ["address", "address", "uint256"],
-    [NATIVE_ETH, RELAY_FEE_RECIPIENT, APP_FEE_BPS]
-  );
+export function buildBuySwapParts(totalWei: bigint, minAmountOutWei: bigint, opts?: { skimFee?: boolean }) {
+  const skimFee = opts?.skimFee ?? true;
+  const swapWei = skimFee ? splitFee(totalWei).swapWei : totalWei;
 
   const swapParams = abiCoder.encode(
     ["tuple(tuple(address,address,uint24,int24,address),bool,uint128,uint128,bytes)"],
@@ -186,11 +191,29 @@ export function buildBuySwapTx(totalWei: bigint, minAmountOutWei: bigint) {
   );
   const settleParams = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency0, swapWei]); // SETTLE_ALL
   const takeParams = abiCoder.encode(["address", "uint256"], [PRINT_POOL_KEY.currency1, minAmountOutWei]); // TAKE_ALL
-
   const swapInput = abiCoder.encode(["bytes", "bytes[]"], [ACTIONS, [swapParams, settleParams, takeParams]]);
   const deadline = Math.floor(Date.now() / 1000) + 20 * 60;
-  const data = routerIface.encodeFunctionData("execute", [BUY_COMMANDS, [payPortionInput, swapInput], deadline]);
 
+  if (!skimFee) {
+    return { commands: "0x10", inputs: [swapInput], deadline }; // V4_SWAP only
+  }
+  const payPortionInput = abiCoder.encode(
+    ["address", "address", "uint256"],
+    [NATIVE_ETH, RELAY_FEE_RECIPIENT, APP_FEE_BPS]
+  );
+  return { commands: BUY_COMMANDS, inputs: [payPortionInput, swapInput], deadline }; // PAY_PORTION + V4_SWAP
+}
+
+/**
+ * Builds the single { to, data, value } transaction that both takes our
+ * 0.85% fee (via PAY_PORTION, atomically) and swaps the remainder ETH ->
+ * PRINT — one signature, no separate fee transaction. `totalWei` is the
+ * FULL amount the user typed (fee + swap combined); `minAmountOutWei`
+ * should already be computed against the post-fee swap amount.
+ */
+export function buildBuySwapTx(totalWei: bigint, minAmountOutWei: bigint) {
+  const { commands, inputs, deadline } = buildBuySwapParts(totalWei, minAmountOutWei, { skimFee: true });
+  const data = routerIface.encodeFunctionData("execute", [commands, inputs, deadline]);
   return { to: UNIVERSAL_ROUTER, data, value: totalWei };
 }
 
