@@ -105,6 +105,12 @@ const rainbowTheme = darkTheme({
 });
 
 const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
+// Default ethers polling interval (4s) meant every waitForTransaction call
+// in a 2-leg swap — leg 1's confirmation, any approvals, leg 2's own wait —
+// could sit up to 4s past the block actually landing before we noticed.
+// Tightening this is the single biggest lever on perceived "slowness"
+// between leg 1 confirming and leg 2's wallet prompt appearing.
+readProvider.pollingInterval = 1000;
 
 // A real CASHCAT->PRINT attempt failed at exactly this step: leg 1
 // genuinely succeeded, but a flat "~$1 of ETH" reserve held back for leg
@@ -117,10 +123,17 @@ const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
 async function estimateEthGasReserve(
   tx: { to: string; data: string; value: bigint },
   from: string,
-  ethUsd: number | null
+  ethUsd: number | null,
+  // Callers kick this off right after sending leg 1, so it resolves
+  // concurrently with the confirmation wait instead of adding its own
+  // sequential round-trip once leg 1 lands.
+  feeDataPromise?: Promise<ethers.FeeData>
 ): Promise<bigint> {
   try {
-    const [gasUnits, feeData] = await Promise.all([readProvider.estimateGas({ ...tx, from }), readProvider.getFeeData()]);
+    const [gasUnits, feeData] = await Promise.all([
+      readProvider.estimateGas({ ...tx, from }),
+      feeDataPromise ?? readProvider.getFeeData(),
+    ]);
     const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? ethers.parseUnits("1", "gwei");
     return (gasUnits * gasPrice * 130n) / 100n; // 30% buffer for gas price drift between estimate and send
   } catch {
@@ -554,6 +567,7 @@ function InnerDirectSwap() {
         const hash1 = await walletClient.sendTransaction({ to: leg1.to as `0x${string}`, data: leg1.data as `0x${string}`, value: leg1.value });
         setTxHash(hash1);
         addTx({ hash: hash1, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        const feeDataPromise = readProvider.getFeeData(); // resolves while we wait below, not after
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok" });
 
@@ -564,7 +578,7 @@ function InnerDirectSwap() {
         }
         // Probe leg 2's real gas cost using the full received amount (minOut=0 — estimation only, never sent).
         const probeMinOutWei = 0n;
-        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, probeMinOutWei), address, ethUsd);
+        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, probeMinOutWei), address, ethUsd, feeDataPromise);
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
         if (leg2InputWei <= 0n) {
           throw new Error(
@@ -610,6 +624,7 @@ function InnerDirectSwap() {
           userAddress: address,
           chargeFee: false,
         });
+        const feeDataPromise = readProvider.getFeeData(); // resolves while Relay's own leg runs, not after
         await executeRelayLeg(quote1, walletClient, (label) => setLegProgress({ part: 1, total: 2, label }));
 
         const postBalance = await readProvider.getBalance(address);
@@ -618,7 +633,7 @@ function InnerDirectSwap() {
           throw new Error(`Didn't receive any ETH from ${fromToken.symbol} — the swap may not have gone through.`);
         }
         // Probe leg 2's real gas cost (leg 2 is our own tx, so this is estimable even though leg 1 was Relay's).
-        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, 0n), address, ethUsd);
+        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, 0n), address, ethUsd, feeDataPromise);
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
         if (leg2InputWei <= 0n) {
           throw new Error(
@@ -756,6 +771,7 @@ function InnerDirectSwap() {
         const hash1 = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(hash1);
         addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        const feeDataPromise = readProvider.getFeeData(); // resolves while we wait below, not after
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
 
@@ -766,7 +782,7 @@ function InnerDirectSwap() {
         }
         // Probe leg 2's real gas cost using the full received amount (minOut=0 — estimation only, never sent).
         const probeLeg2 = buildV2EthToTokenTx(toToken.address, address, receivedWei, 0n);
-        const gasReserveWei = await estimateEthGasReserve(probeLeg2, address, ethUsd);
+        const gasReserveWei = await estimateEthGasReserve(probeLeg2, address, ethUsd, feeDataPromise);
         const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
         if (leg2InputWei <= 0n) {
           throw new Error(

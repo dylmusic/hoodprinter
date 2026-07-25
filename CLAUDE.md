@@ -267,6 +267,15 @@ and is background for if that ever happens, not the current live page.
     exception left on the flat heuristic — it's Relay's own tx, not ours,
     so its exact gas isn't estimable ahead of a quote (which itself needs
     this same amount as input — circular).
+  - **Speed**: `readProvider.pollingInterval = 1000` (ethers v6 defaults to
+    4000ms) — every `waitForTransaction` across every leg/approval was
+    sitting up to 4s past the block actually landing before ethers even
+    checked again; Dylan flagged the gap between leg 1 confirming and leg
+    2's wallet prompt as "really slow." Each leg also now kicks off
+    `getFeeData()` immediately after sending, running concurrently with
+    that leg's own confirmation wait instead of as a separate sequential
+    round-trip once it lands — passed into `estimateEthGasReserve()`'s
+    optional `feeDataPromise` param.
 - **Token list (`lib/robinhoodTokens.ts`)**: curated (ETH, $PRINT, the same
   CASHCAT/ARROW/HOODRAT/JUGGERNAUT addresses PrintBot/MultiSender already
   curate, the 5 RWA stock tokens from `lib/rwaPools.ts`) plus a paste-any-
@@ -346,6 +355,12 @@ and is background for if that ever happens, not the current live page.
   underneath, replacing an earlier plain dot-stepper that Dylan felt wasn't
   sleek enough. Only rendered for the two-leg plans (`legProgress` state);
   single-leg plans keep the existing plain button-text behavior.
+  **`position: absolute; inset: 0` over the whole `.swap-card`** (which is
+  already `position: relative`), with a dark blurred backdrop — originally
+  rendered inline near the button and pushed the layout down; Dylan wanted
+  it as a greyed-out overlay across the whole trade box instead, so the
+  pay/receive panels visibly dim underneath rather than staying interactive
+  while a leg is in flight.
 - **Slippage pill sizing**: the custom/editable pill (defaults to 15%) must
   visually match the fixed 7%/10% pills — the `<input>` inside it was
   originally a fixed 22px which made the whole pill noticeably wider than
