@@ -5272,59 +5272,196 @@ footer {
   font-weight: 700;
 }
 
-/* Swap Stats — basic framework (lib/stats.ts recordSwap/readSwapStats),
-   below the Transactions feed on /swap. Plain tile grid, not styled after
-   any other page's stat tiles on purpose (RWA's .rwa-ov-tile etc. stay
-   scoped to RWA) — this is its own small, independent surface to build
-   on later. */
-.swap-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+/* Swap Terminal — basic framework (lib/stats.ts recordSwap/readSwapStats),
+   sitting below the Transactions feed on /swap as a scroll-down easter egg
+   (not linked/promoted anywhere). Deliberately its own look, not reusing
+   .pb-card or RWA's .rwa-ov-tile — a little retro-console readout of
+   platform-wide swap activity. Fee revenue is never computed or shown
+   here, or anywhere in this codebase — see CLAUDE.md. */
+.swap-term {
+  position: relative;
+  background: #050d08;
+  border: 1px solid rgba(0, 200, 5, 0.35);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(0, 200, 5, 0.07) inset;
 }
-.swap-stat-tile {
+.swap-term::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 200, 5, 0.035) 0px,
+    rgba(0, 200, 5, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+}
+.swap-term-head {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  position: relative;
 }
-.swap-stat-label {
-  font-size: 0.72rem;
-  color: var(--muted);
-  font-weight: 600;
+.swap-term-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+  animation: swap-term-blink 1.6s ease-in-out infinite;
+  flex-shrink: 0;
 }
-.swap-stat-value {
-  font-size: 1.15rem;
+.swap-term-title {
   font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  color: var(--green);
+  text-shadow: 0 0 12px var(--green-glow);
+}
+.swap-term-live {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #ff5c5c;
+  letter-spacing: 0.05em;
+}
+.swap-term-line {
+  font-size: 0.8rem;
+  padding: 6px 0;
+  position: relative;
+}
+.swap-term-muted {
+  color: var(--muted);
+}
+.swap-term-cursor {
+  display: inline-block;
+  animation: swap-term-blink 1s step-end infinite;
   color: var(--green);
 }
-.swap-stat-value em {
-  font-size: 0.7rem;
+.swap-term-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 0.78rem;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  position: relative;
+}
+.swap-term-key {
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swap-term-val {
+  color: var(--green);
   font-weight: 700;
+  white-space: nowrap;
+}
+.swap-term-val em {
   color: var(--muted);
   font-style: normal;
-  margin-left: 3px;
+  font-weight: 600;
+  font-size: 0.7rem;
+  margin-left: 4px;
 }
-.swap-stats-note {
-  margin-top: 12px;
+.swap-term-up {
+  color: #3ee06a;
+}
+.swap-term-down {
+  color: #ff6b6b;
+}
+.swap-term-divider {
+  height: 1px;
+  background: rgba(0, 200, 5, 0.15);
+  margin: 10px 0;
+  position: relative;
+}
+.swap-term-sub {
+  font-size: 0.66rem;
+  color: var(--green);
+  opacity: 0.8;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  font-weight: 700;
+  position: relative;
+}
+.swap-term-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.72rem;
+  padding: 3px 0;
+  position: relative;
+}
+.swap-term-bar-label {
+  width: 96px;
+  flex-shrink: 0;
   color: var(--muted);
-  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swap-term-bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.swap-term-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #0a8a0f, var(--green));
+  box-shadow: 0 0 6px var(--green-glow);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.swap-term-bar-pct {
+  width: 30px;
+  text-align: right;
+  color: var(--green);
+  font-weight: 700;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+.swap-term-foot {
+  margin-top: 12px;
+  font-size: 0.64rem;
+  color: var(--muted);
+  opacity: 0.6;
+  position: relative;
+}
+
+@keyframes swap-term-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
 }
 
 @media (max-width: 480px) {
-  .swap-stats-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+  .swap-term {
+    padding: 14px 16px;
   }
-  .swap-stat-tile {
-    padding: 10px 12px;
+  .swap-term-row {
+    font-size: 0.72rem;
   }
-  .swap-stat-value {
-    font-size: 1rem;
+  .swap-term-bar-label {
+    width: 74px;
+    font-size: 0.66rem;
   }
 }
 

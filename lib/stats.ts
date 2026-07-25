@@ -175,20 +175,41 @@ export type SwapReport = {
   ethValue: number;
 };
 
+// Deliberately NOT tracked anywhere: fee revenue. It's trivially estimable
+// from `eth` (total ETH traded) by anyone who wants to do that math
+// themselves, but HOODPrinter's own take/margin stays out of the codebase
+// entirely — not computed, not stored, not even in an admin-only key. See
+// the `feedback-fee-revenue-stays-hidden` memory for why.
+
 export async function recordSwap(r: SwapReport): Promise<void> {
   const redis = getRedis();
   if (!redis) return;
   const w = r.wallet.toLowerCase();
   const day = dayKey();
   const ethValue = Number.isFinite(r.ethValue) && r.ethValue > 0 ? r.ethValue : 0;
-  await Promise.all([
+  const from = r.fromSym.toUpperCase();
+  const to = r.toSym.toUpperCase();
+  // Direction only means something for legs that actually touch $PRINT —
+  // an arbitrary CASHCAT<->ARROW relay-only swap isn't a "buy" or "sell"
+  // of anything HOODPrinter cares about, so it's left out of this split.
+  const direction: "buy" | "sell" | null = to === "PRINT" ? "buy" : from === "PRINT" ? "sell" : null;
+  const pair = `${r.fromSym}→${r.toSym}`.slice(0, 40);
+
+  const writes: Promise<unknown>[] = [
     redis.incr("stats:swap:trades"),
     redis.incrbyfloat("stats:swap:eth", ethValue),
     redis.incr(`stats:swap:trades:${day}`),
     redis.incrbyfloat(`stats:swap:eth:${day}`, ethValue),
-    redis.zadd("swap:traders", { nx: true }, { score: Date.now(), member: w }),
     redis.zincrby("swap:plans", 1, r.plan),
-  ]);
+    redis.zincrby("swap:pairs", 1, pair),
+  ];
+  if (direction) writes.push(redis.incr(`stats:swap:${direction}s`));
+  await Promise.all(writes);
+
+  // Separate round trip: need zadd's own return value (1 = newly added, 0 =
+  // already existed) to know whether to bump the new-traders-today counter.
+  const added = await redis.zadd("swap:traders", { nx: true }, { score: Date.now(), member: w });
+  if (num(added) > 0) await redis.incr(`stats:swap:new_traders:${day}`);
 }
 
 export type SwapStats = {
@@ -197,27 +218,66 @@ export type SwapStats = {
   tradesToday: number;
   ethToday: number;
   traders: number;
+  newTradersToday: number;
+  buys: number;
+  sells: number;
+  topPairs: { pair: string; count: number }[];
+  planMix: { plan: string; count: number }[];
 };
 
 export async function readSwapStats(): Promise<SwapStats> {
   const redis = getRedis();
-  if (!redis) return { trades: 0, eth: 0, tradesToday: 0, ethToday: 0, traders: 0 };
+  const empty: SwapStats = {
+    trades: 0,
+    eth: 0,
+    tradesToday: 0,
+    ethToday: 0,
+    traders: 0,
+    newTradersToday: 0,
+    buys: 0,
+    sells: 0,
+    topPairs: [],
+    planMix: [],
+  };
+  if (!redis) return empty;
   const day = dayKey();
-  const [vals, traders] = await Promise.all([
+  const [vals, traders, pairsFlat, plansFlat] = await Promise.all([
     redis.mget<(string | number | null)[]>(
       "stats:swap:trades",
       "stats:swap:eth",
       `stats:swap:trades:${day}`,
-      `stats:swap:eth:${day}`
+      `stats:swap:eth:${day}`,
+      `stats:swap:new_traders:${day}`,
+      "stats:swap:buys",
+      "stats:swap:sells"
     ),
     redis.zcard("swap:traders"),
+    redis.zrange("swap:pairs", 0, 4, { rev: true, withScores: true }) as Promise<(string | number)[]>,
+    // Only ~7 possible plan keys ever exist (see planRoute() in
+    // PrintDirectSwap.tsx) -- fetch all of them, not just a top-N, so the
+    // client can merge them into display groups without silently dropping
+    // low-count routes.
+    redis.zrange("swap:plans", 0, -1, { rev: true, withScores: true }) as Promise<(string | number)[]>,
   ]);
+  const topPairs: { pair: string; count: number }[] = [];
+  for (let i = 0; i < pairsFlat.length; i += 2) {
+    topPairs.push({ pair: String(pairsFlat[i]), count: num(pairsFlat[i + 1]) });
+  }
+  const planMix: { plan: string; count: number }[] = [];
+  for (let i = 0; i < plansFlat.length; i += 2) {
+    planMix.push({ plan: String(plansFlat[i]), count: num(plansFlat[i + 1]) });
+  }
   return {
     trades: num(vals[0]),
     eth: num(vals[1]),
     tradesToday: num(vals[2]),
     ethToday: num(vals[3]),
+    newTradersToday: num(vals[4]),
+    buys: num(vals[5]),
+    sells: num(vals[6]),
     traders: num(traders),
+    topPairs,
+    planMix,
   };
 }
 

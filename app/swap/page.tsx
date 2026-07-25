@@ -37,7 +37,6 @@ export default function SwapPage() {
           <h1>
             <span className="green">$PRINT</span> Swap
           </h1>
-          <p className="swap-subnote">⚠️ Multi-Chain Coming Soon</p>
         </div>
 
         <PrintDirectSwap />

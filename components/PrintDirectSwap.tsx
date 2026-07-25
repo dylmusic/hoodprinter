@@ -200,6 +200,23 @@ type SwapStatsShape = {
   tradesToday: number;
   ethToday: number;
   traders: number;
+  newTradersToday: number;
+  buys: number;
+  sells: number;
+  topPairs: { pair: string; count: number }[];
+  planMix: { plan: string; count: number }[];
+};
+
+// Route-plan keys -> a short, terminal-friendly label. Kept here (not in
+// lib/printDirectSwap.ts) since it's purely a display concern.
+const PLAN_LABELS: Record<string, string> = {
+  "print-buy": "PRINT POOL",
+  "print-sell": "PRINT POOL",
+  "relay-only": "RELAY",
+  "curated-to-print": "SELF-ROUTED",
+  "print-to-curated": "SELF-ROUTED",
+  "relay-to-print": "RELAY+POOL",
+  "print-to-relay": "POOL+RELAY",
 };
 
 /**
@@ -1214,41 +1231,112 @@ function InnerDirectSwap() {
         </div>
       </section>
 
-      <section className="pb-card">
-        <h2>Swap Stats</h2>
-        <div className="swap-stats-grid">
-          <div className="swap-stat-tile">
-            <span className="swap-stat-label">Total Trades</span>
-            <span className="swap-stat-value">
-              {swapStats ? swapStats.trades.toLocaleString() : "—"}
-            </span>
+      <SwapTerminal stats={swapStats} />
+    </>
+  );
+}
+
+// A little scroll-down easter egg, not promoted anywhere — a live-feeling
+// terminal readout of platform-wide swap activity. Basic framework (self-
+// reported, ethValue estimated — see lib/stats.ts) dressed up to feel
+// futuristic without pulling in a charting library. Fee revenue is
+// deliberately never computed or shown here, anywhere in this codebase.
+function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
+  const loaded = !!stats;
+  const trades = stats?.trades ?? 0;
+  const dirTotal = (stats?.buys ?? 0) + (stats?.sells ?? 0);
+  const buyPct = dirTotal > 0 ? Math.round(((stats?.buys ?? 0) / dirTotal) * 100) : 0;
+  const sellPct = dirTotal > 0 ? 100 - buyPct : 0;
+
+  const planTotals: Record<string, number> = {};
+  for (const { plan, count } of stats?.planMix ?? []) {
+    const label = PLAN_LABELS[plan] || plan.toUpperCase();
+    planTotals[label] = (planTotals[label] || 0) + count;
+  }
+  const planSum = Object.values(planTotals).reduce((a, b) => a + b, 0);
+  const routeMix = Object.entries(planTotals)
+    .map(([label, count]) => ({ label, count, pct: planSum > 0 ? Math.round((count / planSum) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
+
+  return (
+    <section className="swap-term">
+      <div className="swap-term-head">
+        <span className="swap-term-dot" />
+        <span className="swap-term-title">SWAP_TERMINAL</span>
+        <span className="swap-term-live">● LIVE</span>
+      </div>
+
+      {!loaded ? (
+        <div className="swap-term-line swap-term-muted">$ connecting to feed…</div>
+      ) : trades === 0 ? (
+        <div className="swap-term-line swap-term-muted">
+          $ no trades recorded yet — be the first<span className="swap-term-cursor">_</span>
+        </div>
+      ) : (
+        <>
+          <div className="swap-term-row">
+            <span className="swap-term-key">TOTAL_TRADES</span>
+            <span className="swap-term-val">{trades.toLocaleString()}</span>
           </div>
-          <div className="swap-stat-tile">
-            <span className="swap-stat-label">Total ETH Traded</span>
-            <span className="swap-stat-value">
-              {swapStats ? fmt(swapStats.eth) : "—"}
+          <div className="swap-term-row">
+            <span className="swap-term-key">ETH_VOLUME</span>
+            <span className="swap-term-val">
+              {fmt(stats!.eth)}
               <em> ETH</em>
             </span>
           </div>
-          <div className="swap-stat-tile">
-            <span className="swap-stat-label">Unique Traders</span>
-            <span className="swap-stat-value">
-              {swapStats ? swapStats.traders.toLocaleString() : "—"}
+          <div className="swap-term-row">
+            <span className="swap-term-key">TRADERS</span>
+            <span className="swap-term-val">
+              {stats!.traders.toLocaleString()}
+              {stats!.newTradersToday > 0 && <em> (+{stats!.newTradersToday} today)</em>}
             </span>
           </div>
-          <div className="swap-stat-tile">
-            <span className="swap-stat-label">Trades Today</span>
-            <span className="swap-stat-value">
-              {swapStats ? swapStats.tradesToday.toLocaleString() : "—"}
-            </span>
-          </div>
-        </div>
-        <p className="swap-stats-note">
-          Basic framework for now — self-reported per completed swap, ETH value is an estimate. More detailed
-          analytics (top pairs, volume charts) can build on this later.
-        </p>
-      </section>
-    </>
+          {dirTotal > 0 && (
+            <div className="swap-term-row">
+              <span className="swap-term-key">PRINT_FLOW</span>
+              <span className="swap-term-val">
+                <span className="swap-term-up">▲ {buyPct}%</span> <span className="swap-term-down">▼ {sellPct}%</span>
+              </span>
+            </div>
+          )}
+
+          {routeMix.length > 0 && (
+            <>
+              <div className="swap-term-divider" />
+              <div className="swap-term-sub">TOP_ROUTES</div>
+              {routeMix.map((r) => (
+                <div className="swap-term-bar-row" key={r.label}>
+                  <span className="swap-term-bar-label">{r.label}</span>
+                  <span className="swap-term-bar-track">
+                    <span className="swap-term-bar-fill" style={{ width: `${Math.max(r.pct, 4)}%` }} />
+                  </span>
+                  <span className="swap-term-bar-pct">{r.pct}%</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {stats!.topPairs.length > 0 && (
+            <>
+              <div className="swap-term-divider" />
+              <div className="swap-term-sub">TOP_PAIRS</div>
+              {stats!.topPairs.map((p, i) => (
+                <div className="swap-term-row" key={p.pair}>
+                  <span className="swap-term-key">
+                    {i + 1}. {p.pair}
+                  </span>
+                  <span className="swap-term-val">{p.count}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
+
+      <div className="swap-term-foot">// self-reported · basic framework · eth values estimated</div>
+    </section>
   );
 }
 

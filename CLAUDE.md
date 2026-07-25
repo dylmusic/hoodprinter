@@ -641,7 +641,7 @@ and is background for if that ever happens, not the current live page.
   `localStorage` under `hoodprint_swap_txs` (separate key from the Buy
   Bot's own `hoodprint_txs` feed) — same restore/save pattern as
   `components/PrintBot.tsx`.
-- **Swap Stats section** below Transactions (Dylan: "do we track the total
+- **Swap Terminal** below Transactions (Dylan: "do we track the total
   volume of the swap? add a section... total trades, total ETH value
   traded, and anything else... a basic framework we can turn into full
   robust analytics later") — until this, swap volume genuinely wasn't
@@ -651,11 +651,6 @@ and is background for if that ever happens, not the current live page.
   reported/best-effort/throttled tradeoff already made for
   `/api/multisend` — nothing user-facing (leaderboard, airdrop) keys off
   this count, so on-chain re-verification isn't worth the round trip.
-  Redis keys: `stats:swap:trades`/`stats:swap:eth` (+ `:<day>` buckets),
-  `swap:traders` (zset, NX, first-seen ms — unique wallet count),
-  `swap:plans` (zset, count per route kind — not surfaced yet, laid down
-  for a future per-route breakdown). Folded into `readPlatformSummary()`
-  too, so `dataset=summary` picks it up for free.
   **Client-side (`PrintDirectSwap.tsx`)**: a `finalOk` flag is set at each
   of the 7 route plans' own final-leg success point (mirroring the
   existing `updateTx(..., {status: "ok"})` calls) and gates a fire-and-
@@ -666,19 +661,50 @@ and is background for if that ever happens, not the current live page.
   amt) / ethUsd`, reusing the exact USD pricing already computed for the
   mismatch-warning feature (`lib/tokenUsdPrice.ts`) rather than hand-
   rolling per-route ETH math across 7 different plans — good enough for a
-  "basic framework," not meant to be audit-grade. UI is a plain 2x2 tile
-  grid (`.swap-stats-grid`, new dedicated classes — deliberately NOT
-  reusing `/rwa`'s `.rwa-ov-tile` styling despite the visual similarity,
-  to keep the two pages' stat surfaces independently stylable): Total
-  Trades, Total ETH Traded, Unique Traders, Trades Today. Fetches once on
-  mount and again right after this tab's own swap reports — other tabs'
-  swaps show up on next natural refresh, not live.
-- Subnote is now **"⚠️ Multi-Chain Coming Soon"** (was "⚠️ Multi-Chain Relay
-  Coming Soon" / warning-icon, non-all-caps styling predates the router
-  rebuild and both are kept). The token-pill hover tooltip ("⚠️ Multi-Chain
-  Relay Under Construction") was **removed** — the pill is now a real
-  picker button (opens `TokenPickerModal`), not a disabled-feature warning,
-  now that same-chain token switching actually works.
+  "basic framework," not meant to be audit-grade.
+  **Fee revenue is never computed or stored anywhere** — not in Redis, not
+  admin-only, not in an export. Dylan floated seeing it, I offered to add
+  an explicit tile for it, and he shut that down immediately: "do not add
+  the fee revenue there absolutely not, we want that to be hidden."
+  It's trivially estimable by anyone from `eth` (~0.85% of total volume)
+  but HOODPrinter's own take deliberately isn't a first-class number in
+  this codebase at all (see the `feedback-fee-revenue-stays-hidden`
+  memory).
+  **Redis keys**: `stats:swap:trades`/`stats:swap:eth` (+ `:<day>`
+  buckets), `stats:swap:new_traders:<day>`, `stats:swap:buys`/
+  `stats:swap:sells` (only counted when a leg actually touches $PRINT —
+  an arbitrary CASHCAT↔ARROW relay-only swap isn't a "buy" or "sell" of
+  anything HOODPrinter cares about), `swap:traders` (zset, NX, first-seen
+  ms — `recordSwap` checks ZADD's own return value to know whether to
+  bump `new_traders:<day>`, no separate lookup needed), `swap:plans`
+  (zset, count per route kind — `readSwapStats` pulls ALL of these, not a
+  top-N, since there are only ~7 possible plan keys and under-fetching
+  would silently skew the route-mix percentages), `swap:pairs` (zset,
+  count per `"<fromSym>→<toSym>"` string — this one IS a real top-N since
+  the pair space is unbounded). Folded the trade/volume totals into
+  `readPlatformSummary()` too, so `dataset=summary` picks them up for free
+  (the new buy/sell/pair/plan breakdown isn't in that summary — it's
+  terminal-only for now, no admin use for it yet).
+  **UI**: a retro console readout (`SwapTerminal` component, `.swap-term`
+  classes) — monospace font, scanline texture, blinking status dot,
+  `TOTAL_TRADES`/`ETH_VOLUME`/`TRADERS`/`PRINT_FLOW` rows, a `TOP_ROUTES`
+  section with horizontal bars (route-plan keys collapsed to short labels
+  via `PLAN_LABELS`, e.g. `print-buy`+`print-sell` → "PRINT POOL"), and a
+  `TOP_PAIRS` ranked list. Explicitly **not** reusing `.pb-card` or
+  `/rwa`'s `.rwa-ov-tile` — its own independent look. Framed as "a little
+  easter egg if people scroll down" (Dylan's words) — not linked or
+  promoted anywhere, just sitting where the old plain stat-grid used to
+  be. Empty state before any swaps exist reads `$ no trades recorded yet
+  — be the first_` with a blinking cursor rather than a wall of zeros.
+  Fetches once on mount and again right after this tab's own swap
+  reports — other tabs' swaps show up on next natural refresh, not live.
+- The old **"⚠️ Multi-Chain Coming Soon" subnote** under the `/swap` H1 was
+  removed entirely (Dylan: "feels unnecessary now") — no replacement text.
+  It had already replaced an earlier "⚠️ Multi-Chain Relay Coming Soon"
+  version. The token-pill hover tooltip ("⚠️ Multi-Chain Relay Under
+  Construction") was separately **removed** earlier too — the pill is now
+  a real picker button (opens `TokenPickerModal`), not a disabled-feature
+  warning, now that same-chain token switching actually works.
 
 `components/SwapEmbed.tsx`. Shipped live 2026-07-24: in SiteNav (home variant
 — replaced "How It Works"), in the sitemap, indexable, BETA badge on the page
