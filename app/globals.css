@@ -5060,6 +5060,18 @@ footer {
   padding: 0;
   text-align: right;
 }
+@media (max-width: 720px) {
+  /* Same iOS auto-zoom trigger as .tp-search (any focused text input under
+     16px) — this one genuinely needs to stay visually tiny to match its
+     7%/10% sibling pills, so real font-size goes to 16px (stops the zoom)
+     and a transform scales it back down to its old ~10.6px look instead of
+     just letting it render bigger than its neighbors on mobile. */
+  .swap-slip-custom input {
+    font-size: 16px;
+    transform: scale(0.6625);
+    transform-origin: right center;
+  }
+}
 
 .swap-tax-note {
   margin-top: 6px;
@@ -5287,7 +5299,11 @@ footer {
   border-radius: 12px;
   padding: 10px 14px;
   color: var(--paper);
-  font-size: 0.88rem;
+  /* 16px, not smaller — this input is autoFocus'd the instant the modal
+     opens, and iOS Safari auto-zooms the whole page in on focusing any
+     text input under 16px. That's the "zooms in a little" bug: it fires
+     immediately on open, not from any explicit tap into the field. */
+  font-size: 16px;
   font-family: inherit;
   outline: none;
 }
@@ -5408,7 +5424,14 @@ footer {
 }
 
 @media (max-width: 520px) {
+  /* The chain sidebar is a single static "Robinhood Chain" row (no chain-
+     switching is actually wired up yet — see components/TokenPickerModal.tsx)
+     — on a real phone width it was eating ~110px of a ~360px-wide modal for
+     zero function, squeezing the token list and truncating the search
+     placeholder. Hidden entirely below 520px so the token side gets the
+     full modal width; kept on desktop where there's room to spare and it
+     hints at the future multichain picker. */
   .tp-chain-side {
-    width: 110px;
+    display: none;
   }
 }

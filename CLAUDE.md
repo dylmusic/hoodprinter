@@ -800,6 +800,30 @@ overrides an earlier `@media` override (source order wins). This shadowed the
 mobile `.pb-head h1` and the `.pb-tile-wd` withdraw buttons. Fix at the base
 rule (e.g. `clamp()`), or raise the override's specificity.
 
+**Any focused text `<input>` under 16px font-size triggers iOS Safari's
+auto-zoom-on-focus** — the whole page zooms in, not just the input. Caught
+on `/swap`'s `TokenPickerModal`: its search box is `autoFocus`, so the zoom
+fired the instant the modal opened ("when u click the switch currency it
+zooms in a little" — not from an explicit tap into the field, from the
+modal opening at all). Fixed by setting `.tp-search` to a flat `16px`. For
+inputs that need to stay genuinely tiny for a design reason (`.swap-slip-
+custom input`, the editable custom-slippage %, sized to match its 7%/10%
+sibling pills) — set the real `font-size: 16px` to stop the zoom, then
+`transform: scale(...)` back down to the old visual size instead of
+letting it render bigger than its neighbors; `transform-origin: right
+center` keeps the right-aligned text anchored. True mobile screenshots
+(CDP device emulation at 393px, not headless `--screenshot`'s ~800px
+default) are what actually caught this — see "True mobile screenshots"
+above.
+
+**A sidebar with zero function on mobile still costs real width.**
+`TokenPickerModal`'s chain sidebar (a single static "Robinhood Chain" row
+— no chain-switching is wired up yet) was eating ~110px of a ~360px-wide
+modal on a real phone, squeezing the token list and truncating the search
+placeholder ("paste ac…"). `display: none` below 520px, letting the token
+side take the full modal width — kept on desktop where the space doesn't
+cost anything and it hints at the future multichain picker.
+
 ---
 
 ## Related memory files
