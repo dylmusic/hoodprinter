@@ -110,7 +110,6 @@ export async function quoteV2EthToToken(tokenAddr: string, amountWei: bigint, sl
   return (quoted * (10000n - slipBps)) / 10000n;
 }
 
-const MAX_UINT160 = (1n << 160n) - 1n;
 const FAR_FUTURE_EXPIRATION = 4102444800;
 
 export async function needsErc20ApprovalFor(tokenAddr: string, owner: string, amountWei: bigint): Promise<boolean> {
@@ -126,13 +125,17 @@ export async function needsPermit2ApprovalFor(tokenAddr: string, owner: string, 
   return amount < amountWei || !notExpired;
 }
 
-export function buildErc20ApproveTxFor(tokenAddr: string) {
-  const data = erc20Iface.encodeFunctionData("approve", [PERMIT2, ethers.MaxUint256]);
+// Exact-amount approvals, not unlimited — see lib/printDirectSwap.ts's
+// buildErc20ApproveTx/buildPermit2ApproveTx for the full rationale (matches
+// Relay's own approve-step behavior, verified by decoding its real
+// calldata: it requests exactly the trade amount, never MaxUint256).
+export function buildErc20ApproveTxFor(tokenAddr: string, amountWei: bigint) {
+  const data = erc20Iface.encodeFunctionData("approve", [PERMIT2, amountWei]);
   return { to: tokenAddr, data, value: 0n };
 }
 
-export function buildPermit2ApproveTxFor(tokenAddr: string) {
-  const data = permit2Iface.encodeFunctionData("approve", [tokenAddr, UNIVERSAL_ROUTER, MAX_UINT160, FAR_FUTURE_EXPIRATION]);
+export function buildPermit2ApproveTxFor(tokenAddr: string, amountWei: bigint) {
+  const data = permit2Iface.encodeFunctionData("approve", [tokenAddr, UNIVERSAL_ROUTER, amountWei, FAR_FUTURE_EXPIRATION]);
   return { to: PERMIT2, data, value: 0n };
 }
 

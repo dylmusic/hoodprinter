@@ -52,6 +52,11 @@ const FALLBACK_GAS_RESERVE_ETH = 0.0004;
 const PRICE_POLL_MS = 15000;
 const RELAY_QUOTE_DEBOUNCE_MS = 500;
 const TXS_STORAGE_KEY = "hoodprint_swap_txs"; // separate feed from the Buy Bot's own hoodprint_txs
+// Relay's getQuote requires a `user` field but doesn't validate it belongs
+// to anyone real for a read-only quote (verified live) — used ONLY to let
+// the preview estimate work before a wallet is connected, never for
+// execution (doSwap always requires the real connected address).
+const PREVIEW_QUOTE_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const CHAIN = {
   id: siteConfig.chain.chainId,
@@ -68,6 +73,12 @@ const fmt = (n: number, max = 6) =>
   n === 0 || (n > 0 && n < DUST_THRESHOLD)
     ? "0"
     : n.toLocaleString(undefined, { maximumFractionDigits: max });
+
+// Balances specifically: 3 decimals once the amount is >= 1 (a wallet
+// holding 39,059.161337 CASHCAT doesn't need all 6 digits shown), but keep
+// full precision below 1 where the extra decimals are the only thing that
+// distinguishes a meaningful amount from dust.
+const fmtBalance = (n: number) => (n === 0 ? "0" : n >= 1 ? fmt(n, 3) : fmt(n, 6));
 
 const fmtUsd = (n: number) => {
   if (n > 0 && n < DUST_THRESHOLD) return "$0";
@@ -268,6 +279,16 @@ function InnerDirectSwap() {
   const [amount, setAmount] = useState("0.01");
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE_PCT);
   const [customSlippage, setCustomSlippage] = useState(String(DEFAULT_CUSTOM_SLIPPAGE_PCT));
+  // Renders as plain text (byte-for-byte the same size as the 7%/10% sibling
+  // pills) until tapped — only becomes a real <input> while actively being
+  // edited. A permanently-mounted tiny input can't be both genuinely 16px
+  // (required so iOS Safari doesn't auto-zoom the page on focus) and
+  // visually match its 0.66rem siblings at the same time: CSS transforms
+  // shrink paint, not layout, so a scaled-down 16px input still reserves
+  // its full pre-scale width in the flex row, making the pill wider than
+  // its neighbors regardless (confirmed — this is what "still looks wider
+  // on mobile" was).
+  const [editingSlippage, setEditingSlippage] = useState(false);
   const [rate, setRate] = useState<number | null>(null);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -419,7 +440,12 @@ function InnerDirectSwap() {
     setRelayPreviewError(null);
     if (!amt || amt <= 0) return;
     if (plan === "print-buy" || plan === "print-sell" || plan === "invalid") return;
-    if (!address && plan !== "curated-to-print" && plan !== "print-to-curated") return;
+
+    // Relay's getQuote requires *some* user address but doesn't need it to
+    // be real for a read-only quote (verified live) — a placeholder lets
+    // the estimate show up before connecting a wallet. Never used for
+    // execution: doSwap() below still requires a real connected address.
+    const previewAddress = address || PREVIEW_QUOTE_ADDRESS;
 
     let cancelled = false;
     setRelayPreviewLoading(true);
@@ -435,31 +461,31 @@ function InnerDirectSwap() {
           if (ethOut <= 0) return;
           const tokenOut = await quoteV2EthToToken(toToken.address, ethers.parseEther(ethOut.toFixed(18)), 0);
           if (!cancelled) setRelayPreviewOut(Number(ethers.formatUnits(tokenOut, toToken.decimals)));
-        } else if (plan === "relay-only" && address) {
+        } else if (plan === "relay-only") {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
           const quote = await getRelayLegQuote({
             chainId: CHAIN.id,
             fromCurrency: fromToken.address,
             toCurrency: toToken.address,
             amountWei,
-            userAddress: address,
+            userAddress: previewAddress,
             chargeFee: true,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
           if (!cancelled) setRelayPreviewOut(outFormatted ? Number(outFormatted) : null);
-        } else if (plan === "relay-to-print" && address) {
+        } else if (plan === "relay-to-print") {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
           const quote = await getRelayLegQuote({
             chainId: CHAIN.id,
             fromCurrency: fromToken.address,
             toCurrency: NATIVE_ETH,
             amountWei,
-            userAddress: address,
+            userAddress: previewAddress,
             chargeFee: false,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
           if (!cancelled) setRelayPreviewEth(outFormatted ? Number(outFormatted) : null);
-        } else if (plan === "print-to-relay" && rate && address) {
+        } else if (plan === "print-to-relay" && rate) {
           const { swapWei } = splitFee(ethers.parseUnits(amount, 18));
           const ethOut = (Number(ethers.formatUnits(swapWei, 18)) / rate) * (1 - POOL_TAX_PCT / 100);
           if (ethOut <= 0) return;
@@ -469,7 +495,7 @@ function InnerDirectSwap() {
             fromCurrency: NATIVE_ETH,
             toCurrency: toToken.address,
             amountWei,
-            userAddress: address,
+            userAddress: previewAddress,
             chargeFee: false,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
@@ -528,13 +554,13 @@ function InnerDirectSwap() {
 
         if (await needsErc20Approval(address, totalPrintWei)) {
           setStep("Approve PRINT…");
-          const approveTx = buildErc20ApproveTx();
+          const approveTx = buildErc20ApproveTx(totalPrintWei);
           const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2Approval(address, totalPrintWei)) {
           setStep("Approve router…");
-          const permitTx = buildPermit2ApproveTx();
+          const permitTx = buildPermit2ApproveTx(totalPrintWei);
           const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
@@ -597,13 +623,13 @@ function InnerDirectSwap() {
         const totalTokenWei = ethers.parseUnits(amount, fromToken.decimals);
         if (await needsErc20ApprovalFor(fromToken.address, address, totalTokenWei)) {
           setStep(`Approve ${fromToken.symbol}…`);
-          const approveTx = buildErc20ApproveTxFor(fromToken.address);
+          const approveTx = buildErc20ApproveTxFor(fromToken.address, totalTokenWei);
           const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2ApprovalFor(fromToken.address, address, totalTokenWei)) {
           setStep("Approve router…");
-          const permitTx = buildPermit2ApproveTxFor(fromToken.address);
+          const permitTx = buildPermit2ApproveTxFor(fromToken.address, totalTokenWei);
           const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
@@ -718,13 +744,13 @@ function InnerDirectSwap() {
 
         if (await needsErc20Approval(address, totalPrintWei)) {
           setStep("Approve PRINT…");
-          const approveTx = buildErc20ApproveTx();
+          const approveTx = buildErc20ApproveTx(totalPrintWei);
           const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2Approval(address, totalPrintWei)) {
           setStep("Approve router…");
-          const permitTx = buildPermit2ApproveTx();
+          const permitTx = buildPermit2ApproveTx(totalPrintWei);
           const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
@@ -796,13 +822,13 @@ function InnerDirectSwap() {
 
         if (await needsErc20Approval(address, totalPrintWei)) {
           setStep("Approve PRINT…");
-          const approveTx = buildErc20ApproveTx();
+          const approveTx = buildErc20ApproveTx(totalPrintWei);
           const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2Approval(address, totalPrintWei)) {
           setStep("Approve router…");
-          const permitTx = buildPermit2ApproveTx();
+          const permitTx = buildPermit2ApproveTx(totalPrintWei);
           const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
@@ -936,17 +962,25 @@ function InnerDirectSwap() {
             </button>
           ))}
           <span className={`swap-slip-custom${!slipOptions.includes(slippage) ? " active" : ""}`}>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={customSlippage}
-              onChange={(e) => {
-                if (!/^[0-9]*\.?[0-9]*$/.test(e.target.value)) return;
-                setCustomSlippage(e.target.value);
-                const n = parseFloat(e.target.value);
-                if (n > 0) setSlippage(n);
-              }}
-            />
+            {editingSlippage ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                autoFocus
+                value={customSlippage}
+                onBlur={() => setEditingSlippage(false)}
+                onChange={(e) => {
+                  if (!/^[0-9]*\.?[0-9]*$/.test(e.target.value)) return;
+                  setCustomSlippage(e.target.value);
+                  const n = parseFloat(e.target.value);
+                  if (n > 0) setSlippage(n);
+                }}
+              />
+            ) : (
+              <button type="button" className="swap-slip-custom-display" onClick={() => setEditingSlippage(true)}>
+                {customSlippage}
+              </button>
+            )}
             %
           </span>
         </div>
@@ -956,7 +990,7 @@ function InnerDirectSwap() {
             <span>You pay</span>
             {isConnected && fromBalance !== null && (
               <button type="button" className="swap-balance" onClick={setMaxAmount}>
-                Balance: {fmt(fromBalance)} {fromToken.symbol}
+                {fmtBalance(fromBalance)} {fromToken.symbol}
               </button>
             )}
           </div>
@@ -987,10 +1021,10 @@ function InnerDirectSwap() {
 
         <div className="swap-panel">
           <div className="swap-panel-head">
-            <span>You receive (estimated)</span>
+            <span>You receive</span>
             {isConnected && toBalance !== null && (
               <span className="swap-balance swap-balance-static">
-                Balance: {fmt(toBalance)} {toToken.symbol}
+                {fmtBalance(toBalance)} {toToken.symbol}
               </span>
             )}
           </div>

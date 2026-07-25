@@ -241,7 +241,6 @@ export function buildSellSwapTx(totalPrintWei: bigint, minAmountOutWei: bigint) 
   return { to: UNIVERSAL_ROUTER, data, value: 0n };
 }
 
-const MAX_UINT160 = (1n << 160n) - 1n;
 const FAR_FUTURE_EXPIRATION = 4102444800; // Jan 1 2100 — Permit2 allowances need an expiration, not just an amount
 
 /** True if PRINT hasn't approved Permit2 to move at least `amountWei` yet (standard ERC20 approve, one-time). */
@@ -259,16 +258,29 @@ export async function needsPermit2Approval(owner: string, amountWei: bigint): Pr
   return amount < amountWei || !notExpired;
 }
 
-export function buildErc20ApproveTx() {
-  const data = erc20Iface.encodeFunctionData("approve", [PERMIT2, ethers.MaxUint256]);
+/**
+ * Exact-amount approval, not unlimited — Relay's own approve step (verified
+ * by decoding its real calldata) requests exactly the trade amount, not
+ * MaxUint256. An unlimited approval to Permit2 itself is actually the
+ * intended way to use Permit2 (the whole point is delegating to that one
+ * canonical, heavily-audited contract once); this second-layer approval —
+ * what actually authorizes the Universal Router to spend — is where an
+ * unbounded amount matters, since a compromised router could otherwise
+ * drain the full PRINT balance, not just what was ever traded. Exact-amount
+ * means a fresh approval tx per trade whose size exceeds the last one, but
+ * `needsErc20Approval`/`needsPermit2Approval` (both `allowance < amountWei`
+ * checks) already handle that correctly with no changes needed there.
+ */
+export function buildErc20ApproveTx(amountWei: bigint) {
+  const data = erc20Iface.encodeFunctionData("approve", [PERMIT2, amountWei]);
   return { to: siteConfig.contractAddress, data, value: 0n };
 }
 
-export function buildPermit2ApproveTx() {
+export function buildPermit2ApproveTx(amountWei: bigint) {
   const data = permit2Iface.encodeFunctionData("approve", [
     siteConfig.contractAddress,
     UNIVERSAL_ROUTER,
-    MAX_UINT160,
+    amountWei,
     FAR_FUTURE_EXPIRATION,
   ]);
   return { to: PERMIT2, data, value: 0n };

@@ -5050,6 +5050,17 @@ footer {
   border-color: var(--green);
   color: var(--green);
 }
+/* Plain-text display state (not editing) — a <button>, not an <input>, so
+   it's exactly as small as its 7%/10% sibling pills with zero iOS-zoom risk
+   at any width, no transform tricks needed. */
+.swap-slip-custom-display {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
 .swap-slip-custom input {
   width: 1.4em;
   background: none;
@@ -5061,15 +5072,16 @@ footer {
   text-align: right;
 }
 @media (max-width: 720px) {
-  /* Same iOS auto-zoom trigger as .tp-search (any focused text input under
-     16px) — this one genuinely needs to stay visually tiny to match its
-     7%/10% sibling pills, so real font-size goes to 16px (stops the zoom)
-     and a transform scales it back down to its old ~10.6px look instead of
-     just letting it render bigger than its neighbors on mobile. */
+  /* Only the actively-editing <input> needs to be a real 16px (the
+     threshold under which iOS Safari auto-zooms the page on focus) — since
+     it only exists in the DOM while being edited, a brief size bump during
+     that moment doesn't create the permanent width mismatch a scaled-down
+     always-mounted input did (transforms shrink paint, not the reserved
+     layout box, so the pill stayed wider than its neighbors regardless of
+     how small the text was made to look — this replaces that approach). */
   .swap-slip-custom input {
     font-size: 16px;
-    transform: scale(0.6625);
-    transform-origin: right center;
+    width: 1.6em;
   }
 }
 

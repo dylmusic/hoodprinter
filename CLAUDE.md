@@ -466,6 +466,53 @@ and is background for if that ever happens, not the current live page.
   — the `swap-waiting` two-leg overlay only ever applies to the four
   plans that actually split into two of *our own* legs, so it correctly
   never shows here.
+- **Exact-amount approvals, not unlimited** (`buildErc20ApproveTx`/
+  `buildPermit2ApproveTx` in `lib/printDirectSwap.ts`, `...For` variants in
+  `lib/curatedPoolSwap.ts` — all now take an `amountWei` param instead of
+  hardcoding `MaxUint256`/max-uint160) — Dylan, after asking whether
+  Relay requests unlimited allowance too: it doesn't. Decoded Relay's own
+  real approve calldata from an earlier CASHCAT quote and confirmed it
+  requests exactly the trade amount (`is MaxUint256? false`), not
+  unlimited. Our own unlimited approvals were a real, if standard,
+  security tradeoff — Dylan's call was to match Relay's more conservative
+  behavior. `needsErc20Approval`/`needsPermit2Approval` already checked
+  `allowance < amountWei`, so a later, larger trade against the same token
+  correctly triggers a fresh approval with no changes needed there — only
+  the build functions and their call sites (now passing `totalPrintWei`/
+  `totalTokenWei` through) changed.
+- **Preview estimate works without a connected wallet** — Relay's
+  `getQuote` requires *some* `user` address but doesn't validate it
+  belongs to anyone real for a read-only quote (verified live: omitting
+  `user` entirely 400s with "User is required", but the zero address
+  works fine and returns real pricing). `PREVIEW_QUOTE_ADDRESS` (the zero
+  address) is used as a fallback only inside the debounced preview effect
+  when no wallet is connected — never for execution, `doSwap()` still
+  hard-requires the real connected address throughout. `curated-to-print`/
+  `print-to-curated` already worked wallet-less before this (they quote
+  on-chain, no Relay call at all); this extends the same behavior to
+  `relay-only`/`relay-to-print`/`print-to-relay`.
+- **Slippage pill sizing, second attempt** — the first fix (font-size:16px
+  + `transform: scale()` on the always-mounted `<input>`, to stop iOS
+  auto-zoom while keeping the old visual size) didn't actually work:
+  transforms shrink paint, not the reserved flex-layout box, so the pill
+  stayed wider than its 7%/10% siblings regardless of how small the text
+  was made to look — confirmed by measuring real `getBoundingClientRect()`
+  widths on a live mobile render. Fixed properly by not permanently
+  mounting an `<input>` at all: it renders as a plain `<button>` (`swap-
+  slip-custom-display`, byte-for-byte the same size as its siblings, zero
+  zoom risk since it isn't a text input) until tapped, and only becomes a
+  real 16px `<input>` for the brief moment it's actually being edited —
+  verified live, pill widths now within ~1px of each other.
+- **`(estimated)` dropped from "You receive" and the "Any Robinhood Chain
+  asset ⇄ $PRINT" subtitle removed** — Dylan: the subtitle "looks dumb"
+  screenshotted next to an actual CASHCAT trade (the page is about $PRINT,
+  not a generic multi-asset pitch, once you're mid-swap). Cosmetic only.
+- **Balance display**: drops the "Balance:" label (just the number +
+  symbol now) and truncates to 3 decimals once the amount is ≥ 1 via a new
+  `fmtBalance()` (`fmt(n, 3)` above 1, `fmt(n, 6)` below it) — a wallet
+  holding `39,059.161337 CASHCAT` doesn't need all 6 digits on screen;
+  full precision is kept below 1 where the extra decimals are the only
+  thing separating a real amount from dust.
 - **Error diagnostics**: a real end-to-end CASHCAT→$PRINT attempt failed in
   production with just "Swap failed." — the generic fallback text, meaning
   the thrown error's shape didn't match any of the fields being checked.
