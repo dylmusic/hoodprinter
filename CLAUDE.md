@@ -885,16 +885,25 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   ("most people use metamask... focus on metamask"). No wagmi/RainbowKit
   dependency (the homepage isn't wrapped in that provider) — calls
   `window.ethereum.request` directly, falls back to opening
-  metamask.io/download if no injected provider AND not on mobile. The fox
-  icon is an original inline SVG (pointed ears + tapered head/muzzle +
-  nose, MetaMask's orange `#F6851B`/`#E2761B`), not traced from MetaMask's
-  actual copyrighted logo — same practice as the generic token-fallback
-  badge in `TokenPickerModal.tsx`. First version (bat-wing-shaped ears
-  flaring sideways off a plain diamond) read as an alien/deer, not a fox —
-  Dylan: "are u sure thats the metamask fox logo it looks a little weird."
-  Redrawn with ears sitting on top of a rounded head that tapers to a
-  point (snout), a lighter muzzle patch, and a nose — reads clearly as a
-  fox at 15px now, verified via a zoomed CDP screenshot before shipping.
+  metamask.io/download if no injected provider AND not on mobile. **Icon**:
+  went through two versions before landing on the real thing. First was an
+  original hand-drawn inline SVG (avoiding the trademarked logo, same
+  spirit as the generic token-fallback badge in `TokenPickerModal.tsx`)
+  with bat-wing-shaped ears flaring off a plain diamond — read as an
+  alien/deer, not a fox (Dylan: "are u sure thats the metamask fox logo it
+  looks a little weird"). Redrew it with ears on top of a tapered
+  head/muzzle/nose — better, but still not the real logo, and Dylan called
+  that out too with a link to the actual asset. **Now uses MetaMask's real
+  fox artwork** — `public/brand/metamask-fox.svg`, pulled from Wikimedia
+  Commons' mirror of the official SVG
+  (`commons.wikimedia.org/wiki/File:MetaMask_Fox.svg`,
+  `upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg` for the
+  raw file, not the `/thumb/.../960px-*.png` raster Dylan linked). This is
+  standard nominative/referential use — indicating "this button
+  interoperates with MetaMask," the same category as any site's "Add to
+  MetaMask" or "Download on the App Store" badge — not a claim of
+  affiliation. `<img>` tag, not inlined, so it's byte-identical to the
+  official asset with no hand-editing risk.
   **Mobile deep-link** (Dylan: "make it open the metamask app from safari
   on mobile, other links do this successfully" — referring to how
   RainbowKit's own MetaMask connector on `/swap` deep-links out of mobile

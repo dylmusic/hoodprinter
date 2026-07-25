@@ -149,26 +149,8 @@ export default function AddToMetaMask({ address, symbol, decimals, image }: Prop
           : "Add to MetaMask"
       }
     >
-      <svg width="16" height="16" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        {/* ears */}
-        <path d="M11 3 L6 13 L15 11 Z" fill="#E2761B" />
-        <path d="M21 3 L26 13 L17 11 Z" fill="#E2761B" />
-        {/* head, tapering to a snout */}
-        <path
-          d="M16 9 C21 9 25 13 25 18 C25 22.5 20.5 26.5 16 29.5 C11.5 26.5 7 22.5 7 18 C7 13 11 9 16 9 Z"
-          fill="#F6851B"
-        />
-        {/* muzzle */}
-        <path
-          d="M16 16 C18.5 16 20.3 18.3 20.3 20.6 C20.3 23.1 18.3 25.6 16 27.8 C13.7 25.6 11.7 23.1 11.7 20.6 C11.7 18.3 13.5 16 16 16 Z"
-          fill="#FEF3E0"
-        />
-        {/* eyes */}
-        <circle cx="13" cy="19.4" r="1.1" fill="#1a1a1a" />
-        <circle cx="19" cy="19.4" r="1.1" fill="#1a1a1a" />
-        {/* nose */}
-        <path d="M16 24.4 L17.2 25.9 L16 27 L14.8 25.9 Z" fill="#1a1a1a" />
-      </svg>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/metamask-fox.svg" width={16} height={16} alt="" aria-hidden="true" />
       {status === "added" && <span className="mm-add-tip">Added!</span>}
     </button>
   );
