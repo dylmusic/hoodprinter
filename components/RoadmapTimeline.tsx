@@ -50,76 +50,6 @@ const PHASES: Phase[] = [
   },
   {
     num: "02",
-    name: "The Buy Bot",
-    items: [
-      {
-        title: "Buy Bot Beta Testing",
-        desc: "The HOOD Printer buy bot is live in beta — auto-buy any Robinhood Chain token in one click from a dedicated in-browser wallet.",
-        status: "active",
-        href: "/print",
-        hrefLabel: "Try the beta →",
-      },
-      {
-        title: "Live Volume Tracking & Ranks",
-        desc: "Platform-wide buy counter, personal stats, and a Bronze → Diamond rank ladder that levels up as you print.",
-        status: "done",
-      },
-      {
-        title: "Buy Bot v2 — On-Chain Buy Router",
-        desc: "A major upgrade from the beta: every buy now routes through the canonical, verified HOODPrinter Buy Router contract — stamping HOODPrinter's volume and gas on-chain and recording provable per-wallet buy stats. All beta progress carries over seamlessly; you keep leveling up on the same ranks.",
-        status: "done",
-        href: "https://robinhoodchain.blockscout.com/address/0x0e211d54b747832B28a9C8cA74e35069b0049653?tab=contract",
-        hrefLabel: "View the Buy Router contract →",
-      },
-      {
-        title: "Buy Bot Public Launch",
-        desc: "A polished, mobile-first public release — open to every trader on Robinhood Chain.",
-        status: "upcoming",
-      },
-      {
-        title: "The $PRINT Flywheel",
-        desc: "Hold $PRINT in your bot wallet and its ETH reflections refuel your auto-buys — rewards become buying power, automatically.",
-        status: "upcoming",
-      },
-      {
-        title: "Level-Up Rewards",
-        desc: "Rank up to unlock real rewards — the higher your tier, the more the printer pays.",
-        status: "upcoming",
-      },
-      {
-        title: "Advanced Automation",
-        desc: "Multi-wallet campaigns, scheduling, budget caps, and smarter buy strategies.",
-        status: "upcoming",
-      },
-    ],
-  },
-  {
-    num: "03",
-    name: "The Multisender",
-    items: [
-      {
-        title: "Designing the First Robinhood Chain Multisender",
-        desc: "Robinhood Chain launched with no way to bulk-send tokens — no multisend contract existed on the chain. We set out to build the first one.",
-        status: "done",
-      },
-      {
-        title: "Multisend Tool Launched",
-        desc: "A public bulk sender went live — airdrop any token to a pasted list of wallets, straight from your dedicated in-browser wallet.",
-        status: "done",
-        href: "/multisend",
-        hrefLabel: "Open Multisend →",
-      },
-      {
-        title: "First Multisend Contract Deployed & Verified on Robinhood Chain",
-        desc: "The HOODPrinter Multisend contract — ownerless and permissionless — deployed and source-verified on-chain. One transaction now fans out to ~150 wallets. A first for the chain.",
-        status: "done",
-        href: "https://robinhoodchain.blockscout.com/address/0x891172B6d7ad82774025C045f6eae517817a6269?tab=contract",
-        hrefLabel: "View the verified contract →",
-      },
-    ],
-  },
-  {
-    num: "04",
     name: "RWA Pools",
     items: [
       {
@@ -147,7 +77,59 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "05",
+    num: "03",
+    name: "The Buy Bot",
+    items: [
+      {
+        title: "Buy Bot Beta Testing",
+        desc: "The HOOD Printer buy bot is live in beta — auto-buy any Robinhood Chain token in one click from a dedicated in-browser wallet.",
+        status: "active",
+        href: "/print",
+        hrefLabel: "Try the beta →",
+      },
+      {
+        title: "Live Volume Tracking & Ranks",
+        desc: "Platform-wide buy counter, personal stats, and a Bronze → Diamond rank ladder that levels up as you print.",
+        status: "done",
+      },
+      {
+        title: "Buy Bot v2 — On-Chain Buy Router",
+        desc: "A major upgrade from the beta: every buy now routes through the canonical, verified HOODPrinter Buy Router contract — stamping HOODPrinter's volume and gas on-chain and recording provable per-wallet buy stats. All beta progress carries over seamlessly; you keep leveling up on the same ranks.",
+        status: "done",
+        href: "https://robinhoodchain.blockscout.com/address/0x0e211d54b747832B28a9C8cA74e35069b0049653?tab=contract",
+        hrefLabel: "View the Buy Router contract →",
+      },
+      {
+        title: "Multisend Tool Launched",
+        desc: "The first bulk-sender on Robinhood Chain — airdrop any token to a pasted list of wallets in one go, backed by a verified, ownerless multisend contract.",
+        status: "done",
+        href: "/multisend",
+        hrefLabel: "Open Multisend →",
+      },
+      {
+        title: "Buy Bot Public Launch",
+        desc: "A polished, mobile-first public release — open to every trader on Robinhood Chain.",
+        status: "upcoming",
+      },
+      {
+        title: "The $PRINT Flywheel",
+        desc: "Hold $PRINT in your bot wallet and its ETH reflections refuel your auto-buys — rewards become buying power, automatically.",
+        status: "upcoming",
+      },
+      {
+        title: "Level-Up Rewards",
+        desc: "Rank up to unlock real rewards — the higher your tier, the more the printer pays.",
+        status: "upcoming",
+      },
+      {
+        title: "Advanced Automation",
+        desc: "Multi-wallet campaigns, scheduling, budget caps, and smarter buy strategies.",
+        status: "upcoming",
+      },
+    ],
+  },
+  {
+    num: "04",
     name: "Launch",
     items: [
       {
@@ -173,7 +155,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "06",
+    num: "05",
     name: "Expansion",
     items: [
       {
@@ -194,7 +176,7 @@ const PHASES: Phase[] = [
     ],
   },
   {
-    num: "07",
+    num: "06",
     name: "Ascension",
     items: [
       {

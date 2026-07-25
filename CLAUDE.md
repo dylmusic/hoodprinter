@@ -180,9 +180,16 @@ disabled button or waitlist form. Full narrative/rationale in the
 `hoodprinter-rwa-pools` memory file — don't re-litigate the "why RWA" framing,
 it's deliberate and Dylan-approved.
 
-Homepage hero, roadmap (new Phase 04), and site.config.ts tagline/description
-all lead with this RWA framing now. Buy Bot and Multisend were explicitly left
-untouched during this rebrand — additive only.
+Homepage hero, roadmap, and site.config.ts tagline/description all lead with
+this RWA framing now. Buy Bot and Multisend were explicitly left untouched
+during this rebrand — additive only. **Roadmap reordered later (2026-07-25,
+Dylan: "the RWA story is most important now")**: RWA Pools moved up to Phase
+02 (right after Ignition, ahead of the Buy Bot) — was Phase 04. The
+Multisender's old dedicated 3-item phase was removed entirely and folded into
+a single "Multisend Tool Launched" milestone inside the Buy Bot phase (Dylan:
+"multisend should just be a small step... it's not worth a whole section").
+Phases renumbered straight through, 01–06 (Ignition, RWA Pools, The Buy Bot,
+Launch, Expansion, Ascension) — no gaps.
 
 ---
 
@@ -920,8 +927,10 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   angle is the flywheel: hold $PRINT in the bot wallet → 5% tax pays it ETH →
   the bot spends those reflections on auto-buys. Keep bot marketing light;
   ETH rewards / 5% tax / reflections stay the headline story.
-- `components/RoadmapTimeline.tsx`: Phase 02 "The Buy Bot" (Beta Testing =
+- `components/RoadmapTimeline.tsx`: Phase 03 "The Buy Bot" (Beta Testing =
   active/yellow, etc.); GemPad Presale item softened to upcoming, no live link.
+  See RWA Pools section above for the 2026-07-25 phase reorder (RWA Pools
+  now Phase 02, Multisend folded into a single Buy Bot milestone).
 
 ## Mobile CSS gotcha (recurring)
 Media-query rules don't add specificity — a later, equal-specificity base rule
