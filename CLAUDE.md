@@ -326,7 +326,20 @@ and is background for if that ever happens, not the current live page.
   YOLO and HMM, DIH's reused for WOOD) — caught by re-deriving every URL
   from the saved raw API response instead of trusting what had already
   been typed, then verifying all eleven resolve with a live `curl -I`
-  sweep before considering it done.
+  sweep before considering it done. **AI (Artificial Inu,
+  `0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18`, V3)** added the same way
+  when Dylan supplied it directly along with two others — PONS turned out
+  to already be in this list (same address, just re-supplied), no-op.
+  **Deliberately excluded**: `0xc2362aff...4BA3`, also symbol "GME" / name
+  "GameStop" on-chain — a real, liquid token (~$150-240K per pool, real
+  volume) but a completely different contract from the official Robinhood-
+  issued GameStop stock already in `RWA_MARKET_TOKENS` below
+  (`0x1b0e319c...153e` — Relay tags that one "Robinhood Token" everywhere;
+  this new one is `verified: false`, same as any ordinary meme token, not
+  part of the tokenized-stock program). Flagged the collision risk to
+  Dylan before adding anything; his call was to exclude it entirely rather
+  than relabel it — two tokens sharing the exact "GME" symbol in the same
+  picker was judged too easy to mix up, even with a disambiguating name.
 - **ETH icon recolored** — the two-tone diamond (`TokenIcon`'s `isNative`
   branch) used a grey-blue palette (`#8A92B2`/`#62688F`, plain Ethereum
   brand colors); Dylan wanted it in the site's own neon green instead
