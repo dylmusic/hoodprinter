@@ -908,7 +908,25 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   round trip so a `useEffect` on mount fires the `wallet_watchAsset`
   prompt automatically once back inside MetaMask, instead of making the
   user tap "Add to MetaMask" a second time — param is stripped via
-  `history.replaceState` right after being read.
+  `history.replaceState` right after being read. **Chain guard**:
+  `wallet_watchAsset` has no `chainId` param — it silently adds the token
+  against whatever chain the wallet currently has active, which (per
+  Dylan: "it only works if the user is already on Robinhood chain") meant
+  a wallet sat on mainnet or any other chain would get a $PRINT entry
+  that's really a mainnet-chain token with that address — no error, just
+  a dead entry that never shows a real balance. `ensureRobinhoodChain()`
+  now checks `eth_chainId` first and, if it doesn't match `0x1237`, runs
+  the same `wallet_switchEthereumChain` → (on error code `4902`, meaning
+  unrecognized chain) `wallet_addEthereumChain` fallback already used by
+  `PrintBot.tsx`'s `addOrSwitchNetwork()` — before ever calling
+  `wallet_watchAsset`. If the user rejects the switch, the whole call
+  throws and surfaces as the existing "Couldn't add — try again" state,
+  rather than silently adding on the wrong chain. Verified with a mocked
+  `window.ethereum` (via CDP `Page.addScriptToEvaluateOnNewDocument`)
+  simulating a mainnet-active wallet: confirmed `wallet_watchAsset` only
+  fires after `wallet_switchEthereumChain` resolves to `0x1237`, and that
+  an already-correct chain skips the switch call entirely (no extra
+  prompt for the common case).
 - **`<MoneyPrinter />`'s SVG reserved more empty height below the printer
   than the static artwork uses** — flagged by Dylan as "a big space under
   the graphic on mobile and desktop." First attempt at a fix (shrinking

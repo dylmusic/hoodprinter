@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { siteConfig } from "@/site.config";
 
 type Props = {
   address: string;
@@ -15,14 +16,52 @@ type Status = "idle" | "added" | "error";
 // so the in-app browser knows to fire the prompt as soon as it loads.
 const AUTO_PARAM = "mmAddToken";
 
+const CHAIN_ID_HEX = "0x" + siteConfig.chain.chainId.toString(16); // 0x1237
+
 function isMobileUA() {
   if (typeof navigator === "undefined") return false;
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+// wallet_watchAsset has no chainId param -- it always adds the token
+// against whichever chain the wallet currently has active. Adding $PRINT
+// while sat on mainnet (or any other chain) silently creates a token entry
+// that will never show a real balance. Same switch/add pattern already
+// used in PrintBot.tsx's addOrSwitchNetwork().
+async function ensureRobinhoodChain(eth: any) {
+  const currentChainId = await eth.request({ method: "eth_chainId" });
+  if (typeof currentChainId === "string" && currentChainId.toLowerCase() === CHAIN_ID_HEX) {
+    return;
+  }
+  try {
+    await eth.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: CHAIN_ID_HEX }],
+    });
+  } catch (e: any) {
+    if (e?.code === 4902 || /Unrecognized chain/i.test(e?.message || "")) {
+      await eth.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: CHAIN_ID_HEX,
+            chainName: siteConfig.chain.name,
+            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+            rpcUrls: [siteConfig.chain.rpcUrl],
+            blockExplorerUrls: [siteConfig.chain.explorerUrl],
+          },
+        ],
+      });
+    } else {
+      throw e;
+    }
+  }
+}
+
 async function watchPrint(address: string, symbol: string, decimals: number, image: string) {
   const eth = (window as any).ethereum;
   if (!eth?.request) return false;
+  await ensureRobinhoodChain(eth);
   const added = await eth.request({
     method: "wallet_watchAsset",
     params: {
