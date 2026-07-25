@@ -685,18 +685,24 @@ and is background for if that ever happens, not the current live page.
   `readPlatformSummary()` too, so `dataset=summary` picks them up for free
   (the new buy/sell/pair/plan breakdown isn't in that summary — it's
   terminal-only for now, no admin use for it yet).
-  **UI**: a retro console readout (`SwapTerminal` component, `.swap-term`
-  classes) — monospace font, scanline texture, blinking status dot,
-  `TOTAL_TRADES`/`ETH_VOLUME`/`TRADERS`/`PRINT_FLOW` rows, a `TOP_ROUTES`
-  section with horizontal bars (route-plan keys collapsed to short labels
-  via `PLAN_LABELS`, e.g. `print-buy`+`print-sell` → "PRINT POOL"), and a
-  `TOP_PAIRS` ranked list. Explicitly **not** reusing `.pb-card` or
-  `/rwa`'s `.rwa-ov-tile` — its own independent look. Framed as "a little
-  easter egg if people scroll down" (Dylan's words) — not linked or
-  promoted anywhere, just sitting where the old plain stat-grid used to
-  be. Empty state before any swaps exist reads `$ no trades recorded yet
-  — be the first_` with a blinking cursor rather than a wall of zeros.
-  Fetches once on mount and again right after this tab's own swap
+  **UI**: a console-styled readout (`SwapTerminal` component, `.swap-term`
+  classes) — monospace font, scanline texture, blinking status dot, plain
+  spaced labels (Total Trades / ETH Volume / Traders / $PRINT Flow), a Top
+  Routes section with horizontal bars (route-plan keys collapsed to short
+  labels via `PLAN_LABELS`, e.g. `print-buy`+`print-sell` → "PRINT POOL"),
+  and a Top Pairs ranked list. First pass used underscore-joined labels
+  (`TOTAL_TRADES`, a `$ ` shell prompt, a literal `_` text cursor) — Dylan:
+  "take away the underscores, it goes too far with the terminal branding.
+  make it a little more like a futuristic trading terminal." Swapped to
+  normal spaced words (no underscores, no `$` prompts), and the empty
+  state's cursor is now a small pulsing dot (`Awaiting first trade ●`)
+  instead of a glued-on underscore — same monospace/scanline/glow shell,
+  reads like a trading ticker instead of a literal command line. Not
+  reusing `.pb-card` or `/rwa`'s `.rwa-ov-tile` — its own independent
+  look. Framed as "a little easter egg if people scroll down" (Dylan's
+  words) — not linked or promoted anywhere, just sitting where the old
+  plain stat-grid used to be. Fetches once on mount and again right after
+  this tab's own swap
   reports — other tabs' swaps show up on next natural refresh, not live.
 - The old **"⚠️ Multi-Chain Coming Soon" subnote** under the `/swap` H1 was
   removed entirely (Dylan: "feels unnecessary now") — no replacement text.

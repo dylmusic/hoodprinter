@@ -1263,31 +1263,33 @@ function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
     <section className="swap-term">
       <div className="swap-term-head">
         <span className="swap-term-dot" />
-        <span className="swap-term-title">SWAP_TERMINAL</span>
-        <span className="swap-term-live">● LIVE</span>
+        <span className="swap-term-title">Swap Terminal</span>
+        <span className="swap-term-live">
+          <span className="swap-term-live-dot" /> LIVE
+        </span>
       </div>
 
       {!loaded ? (
-        <div className="swap-term-line swap-term-muted">$ connecting to feed…</div>
+        <div className="swap-term-line swap-term-muted">Connecting to feed…</div>
       ) : trades === 0 ? (
         <div className="swap-term-line swap-term-muted">
-          $ no trades recorded yet — be the first<span className="swap-term-cursor">_</span>
+          Awaiting first trade <span className="swap-term-cursor">●</span>
         </div>
       ) : (
         <>
           <div className="swap-term-row">
-            <span className="swap-term-key">TOTAL_TRADES</span>
+            <span className="swap-term-key">Total Trades</span>
             <span className="swap-term-val">{trades.toLocaleString()}</span>
           </div>
           <div className="swap-term-row">
-            <span className="swap-term-key">ETH_VOLUME</span>
+            <span className="swap-term-key">ETH Volume</span>
             <span className="swap-term-val">
               {fmt(stats!.eth)}
               <em> ETH</em>
             </span>
           </div>
           <div className="swap-term-row">
-            <span className="swap-term-key">TRADERS</span>
+            <span className="swap-term-key">Traders</span>
             <span className="swap-term-val">
               {stats!.traders.toLocaleString()}
               {stats!.newTradersToday > 0 && <em> (+{stats!.newTradersToday} today)</em>}
@@ -1295,7 +1297,7 @@ function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
           </div>
           {dirTotal > 0 && (
             <div className="swap-term-row">
-              <span className="swap-term-key">PRINT_FLOW</span>
+              <span className="swap-term-key">$PRINT Flow</span>
               <span className="swap-term-val">
                 <span className="swap-term-up">▲ {buyPct}%</span> <span className="swap-term-down">▼ {sellPct}%</span>
               </span>
@@ -1305,7 +1307,7 @@ function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
           {routeMix.length > 0 && (
             <>
               <div className="swap-term-divider" />
-              <div className="swap-term-sub">TOP_ROUTES</div>
+              <div className="swap-term-sub">Top Routes</div>
               {routeMix.map((r) => (
                 <div className="swap-term-bar-row" key={r.label}>
                   <span className="swap-term-bar-label">{r.label}</span>
@@ -1321,7 +1323,7 @@ function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
           {stats!.topPairs.length > 0 && (
             <>
               <div className="swap-term-divider" />
-              <div className="swap-term-sub">TOP_PAIRS</div>
+              <div className="swap-term-sub">Top Pairs</div>
               {stats!.topPairs.map((p, i) => (
                 <div className="swap-term-row" key={p.pair}>
                   <span className="swap-term-key">

@@ -5320,17 +5320,28 @@ footer {
 }
 .swap-term-title {
   font-weight: 800;
-  font-size: 0.82rem;
-  letter-spacing: 0.06em;
+  font-size: 0.84rem;
+  letter-spacing: 0.03em;
   color: var(--green);
   text-shadow: 0 0 12px var(--green-glow);
 }
 .swap-term-live {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 0.62rem;
   font-weight: 700;
-  color: #ff5c5c;
-  letter-spacing: 0.05em;
+  color: #ff6b6b;
+  letter-spacing: 0.06em;
+}
+.swap-term-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff5c5c;
+  box-shadow: 0 0 6px rgba(255, 92, 92, 0.7);
+  animation: swap-term-blink 1.2s ease-in-out infinite;
 }
 .swap-term-line {
   font-size: 0.8rem;
@@ -5342,7 +5353,9 @@ footer {
 }
 .swap-term-cursor {
   display: inline-block;
-  animation: swap-term-blink 1s step-end infinite;
+  font-size: 0.55em;
+  vertical-align: middle;
+  animation: swap-term-blink 1s ease-in-out infinite;
   color: var(--green);
 }
 .swap-term-row {
