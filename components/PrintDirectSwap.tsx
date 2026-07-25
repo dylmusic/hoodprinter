@@ -58,13 +58,23 @@ const CHAIN = {
   explorer: siteConfig.chain.explorerUrl,
 };
 
-const fmt = (n: number, max = 6) =>
-  n === 0 ? "0" : n < 0.000001 ? n.toExponential(2) : n.toLocaleString(undefined, { maximumFractionDigits: max });
+// Below this, a nonzero result reads as dust from rounding/estimation, not
+// a real amount worth showing — "1.24e-10 ETH" is a genuinely confusing
+// preview for what's functionally zero, so it collapses to a plain "0"
+// instead of switching to scientific notation.
+const DUST_THRESHOLD = 0.000001;
 
-const fmtUsd = (n: number) =>
-  n > 0 && n < 0.01
+const fmt = (n: number, max = 6) =>
+  n === 0 || (n > 0 && n < DUST_THRESHOLD)
+    ? "0"
+    : n.toLocaleString(undefined, { maximumFractionDigits: max });
+
+const fmtUsd = (n: number) => {
+  if (n > 0 && n < DUST_THRESHOLD) return "$0";
+  return n > 0 && n < 0.01
     ? `$${n.toFixed(4)}`
     : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
 // Wallet/viem errors, Relay SDK errors, and our own thrown Errors all shape
 // their message differently — try every field we've actually seen used

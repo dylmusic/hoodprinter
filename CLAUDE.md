@@ -448,6 +448,24 @@ and is background for if that ever happens, not the current live page.
   "give a warning before allowing them to swap," so the normal-looking
   button is never clickable while the mismatch is showing, only the
   explicitly-relabeled risky one.
+- **Dust cutoff** (`DUST_THRESHOLD = 0.000001` in `PrintDirectSwap.tsx`) —
+  `fmt()` used to fall back to scientific notation below this (`"1.24e-10
+  ETH"`, seen in a real preview for a near-zero PRINT→ETH amount), which
+  reads as a confusing amount rather than what it functionally is: zero.
+  Below the threshold it now just renders `"0"` (and `fmtUsd()` renders
+  `"$0"`) instead of switching notation. Display-only — the underlying
+  numeric state driving calculations (mismatch %, minAmountOut, etc.) is
+  untouched, only what's shown changes.
+- **WETH→ETH is genuinely one signature, not two** — confirmed (not
+  assumed) via a live `getQuote` call: Relay returns a single `"swap"`
+  step for this pair, not `approve`+`swap` like an arbitrary ERC20 origin
+  (e.g. CASHCAT) needs. Makes sense once you think about it — unwrapping
+  WETH is `WETH.withdraw(amount)` on your own balance, which needs no
+  allowance/approval at all, unlike a real DEX swap. `planRoute()` already
+  correctly classifies WETH↔ETH as `relay-only` (neither side is $PRINT)
+  — the `swap-waiting` two-leg overlay only ever applies to the four
+  plans that actually split into two of *our own* legs, so it correctly
+  never shows here.
 - **Error diagnostics**: a real end-to-end CASHCAT→$PRINT attempt failed in
   production with just "Swap failed." — the generic fallback text, meaning
   the thrown error's shape didn't match any of the fields being checked.
