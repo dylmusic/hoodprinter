@@ -397,6 +397,45 @@ a {
   border-color: var(--green);
 }
 
+.mm-add-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.mm-add-btn:hover {
+  border-color: #f6851b;
+}
+
+.mm-add-btn:active {
+  transform: scale(0.94);
+}
+
+.mm-add-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--green);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* ---------- printer animation ---------- */
 .printer-stage {
   display: flex;

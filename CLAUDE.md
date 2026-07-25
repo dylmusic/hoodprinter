@@ -875,7 +875,21 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   copied via `CopyAddress`) below 640px, full address above it
   (`.contract-full`) — same address, just two `<code>` elements toggled by
   media query rather than truncating in JS, so no layout-shift/hydration
-  mismatch risk.
+  mismatch risk. **`components/AddToMetaMask.tsx`** — a small icon-only
+  button next to `CopyAddress` (`.mm-add-btn`, 28x28px, matches `.copy-btn`
+  height) firing `wallet_watchAsset` (EIP-747) via `window.ethereum` to
+  prompt "Add $PRINT to your wallet." Not actually MetaMask-exclusive —
+  any injected wallet implementing EIP-747 (Rabby, Coinbase Wallet
+  extension, Brave Wallet, etc.) responds to the same call via the same
+  `window.ethereum` — but the icon/copy frames it as MetaMask per Dylan
+  ("most people use metamask... focus on metamask"). No wagmi/RainbowKit
+  dependency (the homepage isn't wrapped in that provider) — calls
+  `window.ethereum.request` directly, falls back to opening
+  metamask.io/download if no injected provider exists. The fox icon is an
+  original inline SVG (simplified head/ears/muzzle shape in MetaMask's
+  orange, `#F6851B`), not traced from MetaMask's actual copyrighted logo —
+  same practice as the generic token-fallback badge in
+  `TokenPickerModal.tsx`.
 - **`<MoneyPrinter />`'s SVG reserved more empty height below the printer
   than the static artwork uses** — flagged by Dylan as "a big space under
   the graphic on mobile and desktop." First attempt at a fix (shrinking

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import MoneyPrinter from "@/components/MoneyPrinter";
 import CopyAddress from "@/components/CopyAddress";
+import AddToMetaMask from "@/components/AddToMetaMask";
 import SiteNav from "@/components/SiteNav";
 import { siteConfig } from "@/site.config";
 
@@ -223,6 +224,12 @@ export default function Home() {
               {siteConfig.contractAddress.slice(-4)}
             </code>
             <CopyAddress address={siteConfig.contractAddress} />
+            <AddToMetaMask
+              address={siteConfig.contractAddress}
+              symbol="PRINT"
+              decimals={18}
+              image="/logo.png"
+            />
           </div>
 
           <div className="hero-cta-group">
