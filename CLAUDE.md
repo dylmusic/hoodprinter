@@ -885,11 +885,30 @@ Dylan to create the GA4 property + GSC property and supply the IDs
   ("most people use metamask... focus on metamask"). No wagmi/RainbowKit
   dependency (the homepage isn't wrapped in that provider) — calls
   `window.ethereum.request` directly, falls back to opening
-  metamask.io/download if no injected provider exists. The fox icon is an
-  original inline SVG (simplified head/ears/muzzle shape in MetaMask's
-  orange, `#F6851B`), not traced from MetaMask's actual copyrighted logo —
-  same practice as the generic token-fallback badge in
-  `TokenPickerModal.tsx`.
+  metamask.io/download if no injected provider AND not on mobile. The fox
+  icon is an original inline SVG (pointed ears + tapered head/muzzle +
+  nose, MetaMask's orange `#F6851B`/`#E2761B`), not traced from MetaMask's
+  actual copyrighted logo — same practice as the generic token-fallback
+  badge in `TokenPickerModal.tsx`. First version (bat-wing-shaped ears
+  flaring sideways off a plain diamond) read as an alien/deer, not a fox —
+  Dylan: "are u sure thats the metamask fox logo it looks a little weird."
+  Redrawn with ears sitting on top of a rounded head that tapers to a
+  point (snout), a lighter muzzle patch, and a nose — reads clearly as a
+  fox at 15px now, verified via a zoomed CDP screenshot before shipping.
+  **Mobile deep-link** (Dylan: "make it open the metamask app from safari
+  on mobile, other links do this successfully" — referring to how
+  RainbowKit's own MetaMask connector on `/swap` deep-links out of mobile
+  Safari): mobile Safari has no injected `window.ethereum` at all, so the
+  direct EIP-747 call silently has nothing to call. `isMobileUA()` detects
+  iOS/Android and, when there's no injected provider, redirects to
+  MetaMask's official `https://metamask.app.link/dapp/<url>` universal
+  link instead of the desktop `metamask.io/download` fallback — this
+  reopens the same page inside MetaMask's own in-app browser, where
+  `window.ethereum` DOES exist. A `mmAddToken=1` query param survives that
+  round trip so a `useEffect` on mount fires the `wallet_watchAsset`
+  prompt automatically once back inside MetaMask, instead of making the
+  user tap "Add to MetaMask" a second time — param is stripped via
+  `history.replaceState` right after being read.
 - **`<MoneyPrinter />`'s SVG reserved more empty height below the printer
   than the static artwork uses** — flagged by Dylan as "a big space under
   the graphic on mobile and desktop." First attempt at a fix (shrinking
