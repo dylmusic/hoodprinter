@@ -21,6 +21,9 @@ import {
   DEFAULT_SLIPPAGE_PCT,
   SLIPPAGE_OPTIONS,
   DEFAULT_CUSTOM_SLIPPAGE_PCT,
+  DEFAULT_SLIPPAGE_PCT_OTHER,
+  SLIPPAGE_OPTIONS_OTHER,
+  DEFAULT_CUSTOM_SLIPPAGE_PCT_OTHER,
   POOL_TAX_PCT,
   NATIVE_ETH,
 } from "@/lib/printDirectSwap";
@@ -38,6 +41,7 @@ import {
   buildV2EthToTokenTx,
 } from "@/lib/curatedPoolSwap";
 import TokenPickerModal, { TokenIcon } from "@/components/TokenPickerModal";
+import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
 
 // Reserved out of "swap your full balance" so gas doesn't eat into the swap
 // amount and cause a revert — roughly $1 worth of ETH, falls back to a fixed
@@ -56,6 +60,11 @@ const CHAIN = {
 
 const fmt = (n: number, max = 6) =>
   n === 0 ? "0" : n < 0.000001 ? n.toExponential(2) : n.toLocaleString(undefined, { maximumFractionDigits: max });
+
+const fmtUsd = (n: number) =>
+  n > 0 && n < 0.01
+    ? `$${n.toFixed(4)}`
+    : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Wallet/viem errors, Relay SDK errors, and our own thrown Errors all shape
 // their message differently — try every field we've actually seen used
@@ -272,7 +281,14 @@ function InnerDirectSwap() {
   const [relayPreviewLoading, setRelayPreviewLoading] = useState(false);
   const [relayPreviewError, setRelayPreviewError] = useState<string | null>(null);
 
+  // Per-unit USD price for each side — fetched once per token selection
+  // (not per keystroke), so "≈ $X" under each amount is cheap to keep live.
+  // Powers both the display and the >25% mismatch warning below.
+  const [fromUsdPrice, setFromUsdPrice] = useState<number | null>(null);
+  const [toUsdPrice, setToUsdPrice] = useState<number | null>(null);
+
   const plan = planRoute(fromToken, toToken);
+  const involvesPrint = isPrintToken(fromToken) || isPrintToken(toToken);
 
   const refreshPrice = () =>
     fetchPrintPriceData()
@@ -291,6 +307,29 @@ function InnerDirectSwap() {
     const interval = setInterval(refreshPrice, PRICE_POLL_MS);
     return () => clearInterval(interval);
   }, []);
+
+  // Per-token USD price — refetches on token selection (not per keystroke).
+  useEffect(() => {
+    let cancelled = false;
+    setFromUsdPrice(null);
+    setToUsdPrice(null);
+    getTokenUsdPrice(fromToken, rate, ethUsd).then((p) => !cancelled && setFromUsdPrice(p));
+    getTokenUsdPrice(toToken, rate, ethUsd).then((p) => !cancelled && setToUsdPrice(p));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromToken.address, toToken.address, rate, ethUsd]);
+
+  // 7/10/15 only makes sense when clearing $PRINT's 5% tax — "7 as default
+  // is too high for regular tokens, 2 should be default on most tokens."
+  // Resets to the right preset whenever the pair crosses the PRINT boundary
+  // (not on every keystroke — only when involvesPrint itself flips).
+  useEffect(() => {
+    setSlippage(involvesPrint ? DEFAULT_SLIPPAGE_PCT : DEFAULT_SLIPPAGE_PCT_OTHER);
+    setCustomSlippage(String(involvesPrint ? DEFAULT_CUSTOM_SLIPPAGE_PCT : DEFAULT_CUSTOM_SLIPPAGE_PCT_OTHER));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [involvesPrint]);
 
   // Restore this wallet's recent-swap feed, same pattern as the Buy Bot's tx feed.
   useEffect(() => {
@@ -851,7 +890,20 @@ function InnerDirectSwap() {
   const isTwoLeg =
     plan === "relay-to-print" || plan === "print-to-relay" || plan === "curated-to-print" || plan === "print-to-curated";
   const isCuratedRoute = plan === "curated-to-print" || plan === "print-to-curated";
-  const involvesPrint = isPrintToken(fromToken) || isPrintToken(toToken);
+
+  // USD value on each side + a >25% mismatch warning — a gap that big means
+  // a bad quote, a mispriced/illiquid token, or a mistake, not normal
+  // slippage or our own fees (PRINT's 5% tax + 0.85% fee together are ~6%,
+  // well under this threshold, so a legitimate PRINT swap never trips it).
+  const fromUsdTotal = fromUsdPrice !== null && amt > 0 ? fromUsdPrice * amt : null;
+  const toUsdTotal = toUsdPrice !== null && previewOut !== null ? toUsdPrice * previewOut : null;
+  const mismatchPct =
+    fromUsdTotal !== null && toUsdTotal !== null && fromUsdTotal > 0
+      ? (Math.abs(fromUsdTotal - toUsdTotal) / fromUsdTotal) * 100
+      : null;
+  const showMismatchWarning = mismatchPct !== null && mismatchPct > 25;
+
+  const slipOptions = involvesPrint ? SLIPPAGE_OPTIONS : SLIPPAGE_OPTIONS_OTHER;
 
   return (
     <>
@@ -863,7 +915,7 @@ function InnerDirectSwap() {
 
       <div className="swap-card">
         <div className="swap-slippage-row">
-          {SLIPPAGE_OPTIONS.map((p) => (
+          {slipOptions.map((p) => (
             <button
               key={p}
               type="button"
@@ -873,7 +925,7 @@ function InnerDirectSwap() {
               {p}%
             </button>
           ))}
-          <span className={`swap-slip-custom${!SLIPPAGE_OPTIONS.includes(slippage) ? " active" : ""}`}>
+          <span className={`swap-slip-custom${!slipOptions.includes(slippage) ? " active" : ""}`}>
             <input
               type="text"
               inputMode="decimal"
@@ -916,6 +968,7 @@ function InnerDirectSwap() {
               </span>
             </button>
           </div>
+          {fromUsdTotal !== null && <p className="swap-usd-note">≈ {fmtUsd(fromUsdTotal)}</p>}
         </div>
 
         <button type="button" className="swap-divider" onClick={flip} aria-label="Flip direction">
@@ -945,6 +998,7 @@ function InnerDirectSwap() {
               </span>
             </button>
           </div>
+          {toUsdTotal !== null && <p className="swap-usd-note">≈ {fmtUsd(toUsdTotal)}</p>}
           {involvesPrint && <p className="swap-tax-note">$PRINT includes 5% rewards fee</p>}
         </div>
 
@@ -968,6 +1022,14 @@ function InnerDirectSwap() {
         {relayPreviewError && !involvesPrint && <div className="pb-warn">{relayPreviewError}</div>}
         {rateError && involvesPrint && <div className="pb-warn">{rateError}</div>}
         {error && <div className="pb-warn">{error}</div>}
+
+        {showMismatchWarning && fromUsdTotal !== null && toUsdTotal !== null && (
+          <div className="swap-mismatch-warn">
+            ⚠️ <strong>Price mismatch:</strong> you're paying ≈{fmtUsd(fromUsdTotal)} but receiving ≈
+            {fmtUsd(toUsdTotal)} — a {fmt(mismatchPct!, 0)}% difference. This is much bigger than normal fees or
+            slippage and usually means a bad quote, an illiquid token, or a mistake. Double check before continuing.
+          </div>
+        )}
 
         {!isConnected ? (
           <button type="button" className="btn btn-primary swap-cta" onClick={() => openConnectModal?.()}>
@@ -994,7 +1056,7 @@ function InnerDirectSwap() {
             )}
             <button
               type="button"
-              className="btn btn-primary swap-cta"
+              className={`btn swap-cta ${showMismatchWarning ? "swap-cta-danger" : "btn-primary"}`}
               onClick={doSwap}
               disabled={swapping || plan === "invalid" || (plan !== "relay-only" && !rate)}
             >
@@ -1004,7 +1066,9 @@ function InnerDirectSwap() {
                   : step || "Swapping…"
                 : plan === "invalid"
                   ? "Choose two different tokens"
-                  : `Swap ${fromToken.symbol} for ${toToken.symbol}`}
+                  : showMismatchWarning
+                    ? "Swap Anyway"
+                    : `Swap ${fromToken.symbol} for ${toToken.symbol}`}
             </button>
           </>
         )}

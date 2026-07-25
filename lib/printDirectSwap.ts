@@ -41,13 +41,24 @@ export const APP_FEE_BPS = 85n; // 0.85%, matches the Relay-embedded widget's fe
 // received 3,752 PRINT — the gap is this tax, not just price impact).
 export const POOL_TAX_PCT = 5;
 // PRINT_MIN_SLIPPAGE convention elsewhere in the codebase (e.g. PrintBot.tsx)
-// — 7% default leaves headroom on top of the tax for real price impact.
+// — 7% default leaves headroom on top of the 5% tax for real price impact.
+// Only used when $PRINT is on one side of the swap; 7% is needlessly high
+// for an ordinary token-token swap with no built-in tax (Dylan: "7 as
+// default is too high for regular tokens, 2 should be default on most
+// tokens") — see SLIPPAGE_OPTIONS_OTHER below for that case.
 export const DEFAULT_SLIPPAGE_PCT = 7;
 // Preset slippage buttons — the last slot is an editable custom input
 // (see components/PrintDirectSwap.tsx) defaulting to this value, not a
 // fixed preset, so users can go above 15% if they want to.
 export const SLIPPAGE_OPTIONS = [7, 10];
 export const DEFAULT_CUSTOM_SLIPPAGE_PCT = 15;
+
+// Same idea, scaled down for swaps that don't touch $PRINT at all (no 5%
+// tax to clear) — components/PrintDirectSwap.tsx switches between these two
+// sets based on whether either side of the current pair is $PRINT.
+export const DEFAULT_SLIPPAGE_PCT_OTHER = 2;
+export const SLIPPAGE_OPTIONS_OTHER = [2, 5];
+export const DEFAULT_CUSTOM_SLIPPAGE_PCT_OTHER = 10;
 
 // Universal Router commands: PAY_PORTION (0x06) then V4_SWAP (0x10), one tx.
 // PAY_PORTION is Universal Router's own built-in affiliate-fee mechanism —

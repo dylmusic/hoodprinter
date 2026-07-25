@@ -5067,6 +5067,33 @@ footer {
   color: #f5c518;
 }
 
+.swap-usd-note {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.swap-mismatch-warn {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.4);
+  color: #ff8080;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.swap-mismatch-warn strong {
+  color: #ffb0b0;
+}
+.swap-cta-danger {
+  background: #ff4d4d;
+  color: #2a0000;
+}
+.swap-cta-danger:hover {
+  background: #ff6b6b;
+}
+
 .swap-summary {
   margin-top: 12px;
   padding: 10px 14px;

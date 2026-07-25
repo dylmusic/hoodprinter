@@ -405,6 +405,36 @@ and is background for if that ever happens, not the current live page.
   originally a fixed 22px which made the whole pill noticeably wider than
   its siblings even though the padding was identical; narrowed to `1.4em`
   (fits 2 digits) so all three pills read as the same size.
+- **Two slippage tiers, not one** (`lib/printDirectSwap.ts`) — 7/10/15%
+  (`SLIPPAGE_OPTIONS`) only makes sense when clearing $PRINT's 5% tax;
+  Dylan: "7 as default is too high for regular tokens, 2 should be default
+  on most tokens." `SLIPPAGE_OPTIONS_OTHER` (2/5/10%, custom defaults to
+  10) is used for any pair that doesn't touch $PRINT at all. A `useEffect`
+  keyed on `involvesPrint` (not on every keystroke — only when the pair
+  crosses the PRINT boundary) resets `slippage`/`customSlippage` to the
+  right tier's default.
+- **USD value under each side + a >25% mismatch warning**
+  (`lib/tokenUsdPrice.ts`, `getTokenUsdPrice()`) — Dylan, after seeing
+  Relay's own bottom-left "$0.00" display: "this can help to show the real
+  swap rate and avoid mistakes." Native ETH/WETH reuse the already-fetched
+  `ethUsd`; $PRINT is derived from the already-polled on-chain `rate`
+  (`ethUsd / rate`) rather than a separate fetch, for the same staleness
+  reasons `rate` itself moved off DexScreener earlier; every other curated
+  token queries DexScreener's `/tokens/<address>` endpoint directly,
+  filtered to Robinhood Chain pairs, highest-liquidity pair wins. Fetched
+  once per token **selection** (a `useEffect` keyed on `fromToken.address`/
+  `toToken.address`), not per keystroke — the `≈ $X` line then just
+  multiplies the cached per-unit price by the live typed/estimated amount,
+  no extra API calls while typing. **Mismatch warning**: `mismatchPct =
+  |fromUsdTotal - toUsdTotal| / fromUsdTotal * 100`; PRINT's tax+fee
+  together are ~6%, so a legitimate PRINT swap never comes close to the
+  25% threshold — a gap that big means a bad quote, an illiquid/mispriced
+  token, or a real mistake, not normal cost. When it fires, the warning
+  box (`swap-mismatch-warn`, red) REPLACES the normal green CTA's label/
+  style with a red "Swap Anyway" (`swap-cta-danger`) — the ask was to
+  "give a warning before allowing them to swap," so the normal-looking
+  button is never clickable while the mismatch is showing, only the
+  explicitly-relabeled risky one.
 - **Error diagnostics**: a real end-to-end CASHCAT→$PRINT attempt failed in
   production with just "Swap failed." — the generic fallback text, meaning
   the thrown error's shape didn't match any of the fields being checked.
