@@ -134,6 +134,20 @@ this). Key never leaves the browser; txs go straight to RPC.
   soon."
 - Custom window events wire PrintBot ↔ PlatformStatsNote: `hoodprint:buy`
   (each confirmed buy) and `hoodprint:running`.
+- **Pinned tokens**: `PINNED_TOKENS` is PRINT then CASHCAT, always shown
+  first in the quick-select row. ROBINFUN was removed from
+  `DEFAULT_RECENTS` and replaced with PONS earlier (commit `bf8b416`) —
+  confirmed zero remaining references anywhere in the repo before Dylan
+  asked to remove it again 2026-07-26, so that part was already done.
+  **Default token defaults to $PRINT now** (Dylan: "set default to
+  PRINT") — `token` state's initial value changed from `""` to
+  `PRINT_TOKEN` so a first-time visitor lands with $PRINT's contract
+  already filled into "Token to buy" and the 7% $PRINT-tax slippage floor
+  already applied, no manual selection needed. The localStorage restore
+  effect was hardened alongside this (`s.token.trim()` check, not just
+  `typeof === "string"`) so a stray saved empty string from an old visit
+  can't stomp the new default back to blank — returning users who already
+  picked a real token are unaffected either way.
 
 ### Buy stats + wallet levels (airdrop-ready)
 - `app/api/buy/route.ts`: POST verifies the tx on-chain, dedupes by hash,

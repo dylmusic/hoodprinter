@@ -174,7 +174,7 @@ function fmtBal(v: string | number | null): string {
 }
 
 export default function PrintBot() {
-  const [token, setToken] = useState<string>("");
+  const [token, setToken] = useState<string>(PRINT_TOKEN);
   const [router, setRouter] = useState<string>(DEFAULT_ROUTER);
   const [pair, setPair] = useState("");
   const [amount, setAmount] = useState("0.0002");
@@ -422,7 +422,10 @@ export default function PrintBot() {
     }
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
-      if (typeof s.token === "string") setToken(s.token);
+      // Only restore a saved token if it's non-empty -- a stray blank save
+      // (e.g. an old visit that blurred the CA field without picking one)
+      // shouldn't stomp the PRINT default below.
+      if (typeof s.token === "string" && s.token.trim()) setToken(s.token);
       // Collapse trade settings if they've already configured a token.
       if (typeof s.token === "string" && s.token.trim()) setSettingsOpen(false);
       if (typeof s.router === "string" && s.router) setRouter(s.router);
