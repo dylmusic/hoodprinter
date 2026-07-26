@@ -819,6 +819,85 @@ in one step), not just same-chain ETH swaps.
   integration entirely (LI.FI had no sell-side route for $PRINT at all;
   Relay routes both directions).
 
+### Cross-chain swap — scoped 2026-07-25, NOT built yet (except the chain picker below)
+
+Dylan asked to scope (explicitly: "do not execute") letting `/swap` accept
+Solana and Base wallets, routed cross-chain via Relay into $PRINT. Full
+scope discussion lives in conversation history; the load-bearing
+conclusions, so a future session doesn't re-derive them:
+
+- **The architecture is: any origin (Base, Solana, anything Relay
+  supports) → Relay's `recipient` param (distinct from `user`, confirmed
+  via Relay's own API docs) delivers native ETH to the user's Robinhood-
+  Chain EVM wallet address → that ETH feeds the EXACT leg-2 logic
+  `relay-to-print`/`print-to-relay` already use today** (measure balance
+  delta, feed into our own hardcoded pool). Non-$PRINT cross-chain swaps
+  can be pure Relay end-to-end, no pool involved — same as `relay-only`
+  today, different origin chain. This means the $PRINT-bound half of
+  cross-chain reuses proven code almost as-is; it's not a rebuild.
+- **Base** (EVM): straightforward — reuses the existing wagmi/RainbowKit
+  MetaMask connection unchanged. Needs registering as an origin chain
+  with both wagmi's `chains` array (`PrintDirectSwap.tsx` currently hard-
+  codes `chains: [robinhoodChain]`, just one entry) and Relay's client
+  (`ensureRelayClient()` in `lib/relayLeg.ts` currently only registers
+  Robinhood Chain — same "Unable to find chain" bug class already fixed
+  once would recur for any chain left unregistered).
+- **Solana**: genuinely bigger, but more concrete than first assumed.
+  Relay's own recommended pattern is `adaptSolanaWallet` from
+  `@relayprotocol/relay-solana-wallet-adapter`, used alongside
+  `adaptViemWallet` — **but both live under the `@relayprotocol` scope**,
+  not the `@reservoir0x` scope this repo currently pins (`@reservoir0x/
+  relay-sdk@2.4.0`, `@reservoir0x/relay-kit-ui@2.17.2` — see the main
+  Swap section above for why that scope was chosen originally). Verified
+  via Relay's own SDK getting-started docs: the *headless* `@relayprotocol/
+  relay-sdk` only peer-depends on `viem` + Node 18+ + TS 5.0.4+ — **no
+  React requirement at all**. The React 19 lock-in documented elsewhere
+  in this file is specific to `@relayprotocol/relay-kit-ui` (the pre-built
+  widget), which `/swap`'s headless flow never used anyway (that's
+  `SwapEmbed.tsx`, currently dead code). So migrating just the headless
+  SDK import to get `adaptSolanaWallet` should NOT force a React/Next
+  upgrade — `createClient`/`convertViemChainToRelayChain` have matching
+  shapes across both scopes, reads like a compatible rename rather than a
+  breaking rewrite, though this wasn't hands-on verified.
+  Confirmed independently (Relay's own blog): **"if routing to or from
+  Solana, you need to connect both your EVM wallet and Solana wallet"** —
+  dual-wallet UX is a real, unavoidable requirement per Relay's own model
+  (window.solana/Phantom and window.ethereum/MetaMask are separate
+  provider namespaces, no technical conflict, but it's a second wallet
+  stack — `@solana/wallet-adapter-react` + UI — with its own connect
+  surface, not a config flip). Only mount/prompt that stack when the
+  Solana chain pill is actually selected, never on page load — this is
+  what keeps the default Robinhood-only path untouched (see below).
+- **Guardrail, non-negotiable**: Dylan repeated this every message —
+  "make sure this works and DO NOT break our current functionality which
+  is great" / "prioritize not messing with the current Robinhood chain
+  only swap so that stays as is and functions while we build." The
+  planned approach is to treat cross-chain as a NEW, additive path
+  alongside the existing same-chain branches in `doSwap()`, not a
+  modification of them — new chain state, new wallet state, existing
+  print-buy/print-sell/curated/relay-only logic untouched unless a
+  non-Robinhood chain is actively selected.
+
+**Chain picker (shipped 2026-07-25, layout only — this part IS built)**:
+`TokenPickerModal.tsx`'s old dead-weight left sidebar (see "A sidebar
+with zero function on mobile" above) is gone, replaced with a "Select
+Chain" pill row at the top of the modal, above the untouched "Select
+Token" search/pinned-pills/results — Dylan preferred this outright over
+the sidebar, not just as a mobile fix. `lib/robinhoodTokens.ts` exports
+`CHAINS: RhChain[]` (Robinhood/Base/Solana), icons sourced from Relay's
+own hosted chain-icon CDN (`assets.relay.link/icons/<chainId>/light.png`
+— same trusted-source pattern already used for token logos via Relay's
+`/currencies/v2` API, verified live via curl before using: 200s, real
+image bytes, not guessed URLs). **Only Robinhood is `enabled`** — Base
+and Solana pills render with a "Soon" badge, `disabled` attribute, no
+click handler at all (verified live: clicking a disabled pill fires
+nothing, active chain stays Robinhood, zero console errors). Selecting a
+token from the list still calls the exact same `onSelect`/`onClose` path
+as before — verified live by picking CASHCAT post-change and confirming
+the swap card's pay-side pill updated correctly, matching pre-change
+behavior exactly. This is deliberately the ONLY piece of the cross-chain
+work actually shipped so far — everything else above is scope, not code.
+
 ---
 
 ## Site navigation
@@ -1078,13 +1157,15 @@ center` keeps the right-aligned text anchored. True mobile screenshots
 default) are what actually caught this — see "True mobile screenshots"
 above.
 
-**A sidebar with zero function on mobile still costs real width.**
-`TokenPickerModal`'s chain sidebar (a single static "Robinhood Chain" row
-— no chain-switching is wired up yet) was eating ~110px of a ~360px-wide
-modal on a real phone, squeezing the token list and truncating the search
-placeholder ("paste ac…"). `display: none` below 520px, letting the token
-side take the full modal width — kept on desktop where the space doesn't
-cost anything and it hints at the future multichain picker.
+**A sidebar with zero function on mobile still costs real width** (fixed,
+then later fully replaced — see "Chain picker" below). `TokenPickerModal`'s
+chain sidebar (a single static "Robinhood Chain" row — no chain-switching
+was wired up yet) was eating ~110px of a ~360px-wide modal on a real
+phone, squeezing the token list and truncating the search placeholder
+("paste ac…"). First fix: `display: none` below 520px. Superseded
+entirely on 2026-07-25 when the sidebar itself was replaced with a top
+pill row (Dylan preferred that layout outright, not just as a mobile
+patch) — see "Chain picker" in the Swap section.
 
 ---
 

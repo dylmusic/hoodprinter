@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ALL_RWA_TOKENS, CURATED_TOKENS, PINNED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
+import { ALL_RWA_TOKENS, CHAINS, CURATED_TOKENS, PINNED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
 
 // Styled after Relay's own "Select Token" modal (search box + result list,
 // icon/symbol/name/truncated-address rows) so switching between this and
-// the Relay-embedded parts of the site feels like one product. Scoped to
-// Robinhood Chain only for now — no chain sidebar yet (see
-// components/PrintDirectSwap.tsx route-planner comments for why: the router
-// only needs Relay for legs that don't touch $PRINT, and phase 1 is
-// same-chain only; a chain picker slots in here later without changing this
-// modal's shape).
+// the Relay-embedded parts of the site feels like one product.
+//
+// Chain picker (top pill row, lib/robinhoodTokens.ts CHAINS): UI/layout
+// only for now, shipped ahead of the actual cross-chain routing + wallet
+// work (Dylan, 2026-07-25). Robinhood is the only enabled/selectable
+// chain — Base and Solana render but are inert ("Soon" badge, no click
+// handler) until that work lands. This replaces the OLD static
+// `.tp-chain-side` left sidebar, which was truly dead weight (a single
+// hardcoded "Robinhood Chain" row with zero switching logic, already
+// `display:none` below 520px because it cost real width on mobile for
+// nothing) — Dylan preferred a top pill row to that sidebar outright, not
+// just as a mobile fix. See components/PrintDirectSwap.tsx route-planner
+// comments for why the actual swap flow is still Robinhood-only: the
+// router only needs Relay for legs that don't touch $PRINT, and this
+// phase is same-chain only. Wiring a real chain switch here must NOT
+// touch that flow while Robinhood is selected — see PrintDirectSwap.tsx
+// for the guardrail this modal's `onSelect` still assumes.
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -118,12 +129,24 @@ export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
         </div>
 
         <div className="tp-body">
-          <div className="tp-chain-side">
-            <div className="tp-chain-row active">
-              <span className="tp-chain-dot" />
-              Robinhood Chain
+          <div className="tp-chains">
+            <span className="tp-chains-label">Select Chain</span>
+            <div className="tp-chains-row">
+              {CHAINS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`tp-chain-pill${c.enabled ? " active" : ""}${c.enabled ? "" : " disabled"}`}
+                  disabled={!c.enabled}
+                  aria-current={c.enabled ? "true" : undefined}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img className="tp-chain-pill-icon" src={c.icon} alt="" />
+                  {c.name}
+                  {!c.enabled && <span className="tp-chain-pill-soon">Soon</span>}
+                </button>
+              ))}
             </div>
-            <p className="tp-chain-note">More chains coming soon</p>
           </div>
 
           <div className="tp-token-side">

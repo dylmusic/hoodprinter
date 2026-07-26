@@ -20,6 +20,30 @@ export type RhToken = {
   isNative?: boolean;
 };
 
+/**
+ * Chain picker for TokenPickerModal.tsx — UI/layout only for now (Dylan,
+ * 2026-07-25: "ship the layout now, chains disabled" — Base/Solana are
+ * shown but not selectable until the actual cross-chain routing + wallet
+ * work is built). Robinhood Chain is the only `enabled` entry; picking it
+ * is a no-op today since it's already the only chain the rest of the swap
+ * flow understands. Icons are Relay's own hosted chain-icon CDN
+ * (`assets.relay.link/icons/<chainId>/light.png`) — same source this repo
+ * already trusts for token logos via Relay's `/currencies/v2` API, and the
+ * same icon set Relay's own SwapWidget shows for these exact chains.
+ */
+export type RhChain = {
+  id: number; // Relay's own chain ID (792703809 for Solana, not a real EVM chain ID)
+  name: string;
+  icon: string;
+  enabled: boolean;
+};
+
+export const CHAINS: RhChain[] = [
+  { id: siteConfig.chain.chainId, name: "Robinhood", icon: "https://assets.relay.link/icons/4663/light.png", enabled: true },
+  { id: 8453, name: "Base", icon: "https://assets.relay.link/icons/8453/light.png", enabled: false },
+  { id: 792703809, name: "Solana", icon: "https://assets.relay.link/icons/792703809/light.png", enabled: false },
+];
+
 export const ETH_TOKEN: RhToken = {
   address: NATIVE_ETH,
   symbol: "ETH",

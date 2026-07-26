@@ -5528,44 +5528,75 @@ footer {
 }
 .tp-body {
   display: flex;
+  flex-direction: column;
   min-height: 0;
   flex: 1;
 }
-.tp-chain-side {
-  width: 150px;
+/* Chain picker — top pill row, replaces the old left sidebar entirely
+   (that sidebar was a single static "Robinhood Chain" row with zero real
+   switching logic, and cost ~110px of width on mobile for nothing — see
+   components/TokenPickerModal.tsx). Robinhood is the only enabled pill
+   today; Base/Solana render with a "Soon" badge and are non-interactive
+   until the actual cross-chain work lands. */
+.tp-chains {
+  padding: 14px 14px 0;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  padding: 14px 10px;
 }
-.tp-chain-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
-  border-radius: 10px;
-  font-size: 0.82rem;
+.tp-chains-label {
+  display: block;
+  font-size: 0.68rem;
   font-weight: 700;
-}
-.tp-chain-row.active {
-  background: rgba(0, 200, 5, 0.12);
-  color: var(--green);
-}
-.tp-chain-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--green);
-  box-shadow: 0 0 6px var(--green);
-}
-.tp-chain-note {
-  margin: 10px 10px 0;
-  font-size: 0.66rem;
+  letter-spacing: 0.04em;
   color: var(--muted);
-  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.tp-chains-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tp-chain-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: default;
+}
+.tp-chain-pill.active {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(0, 200, 5, 0.1);
+  cursor: pointer;
+}
+.tp-chain-pill.disabled {
+  opacity: 0.55;
+}
+.tp-chain-pill-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.tp-chain-pill-soon {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 2px 5px;
+  margin-left: 1px;
 }
 .tp-token-side {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 14px;
@@ -5701,15 +5732,3 @@ footer {
   font-size: 0.82rem;
 }
 
-@media (max-width: 520px) {
-  /* The chain sidebar is a single static "Robinhood Chain" row (no chain-
-     switching is actually wired up yet — see components/TokenPickerModal.tsx)
-     — on a real phone width it was eating ~110px of a ~360px-wide modal for
-     zero function, squeezing the token list and truncating the search
-     placeholder. Hidden entirely below 520px so the token side gets the
-     full modal width; kept on desktop where there's room to spare and it
-     hints at the future multichain picker. */
-  .tp-chain-side {
-    display: none;
-  }
-}
