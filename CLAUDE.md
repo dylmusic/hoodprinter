@@ -148,6 +148,25 @@ this). Key never leaves the browser; txs go straight to RPC.
   `typeof === "string"`) so a stray saved empty string from an old visit
   can't stomp the new default back to blank — returning users who already
   picked a real token are unaffected either way.
+  **Turned out Dylan was still seeing ROBINFUN anyway** — not from the
+  app's own list (already confirmed clean), but from his OWN browser's
+  saved recents row (`hoodprint_recent_tokens` localStorage key, per-user,
+  independent of `DEFAULT_RECENTS`/`PINNED_TOKENS` — a token clicked once
+  gets remembered there via `addRecent()` and stays until manually
+  cleared). Fix: bumped `RECENTS_STORAGE_KEY` to `hoodprint_recent_
+  tokens_v2`, forcing every browser's saved recents row to reset on next
+  load. Dylan flagged the risk directly before I touched anything —
+  "is that gunna dump all of the local storage they have? thats really
+  bad then. especially we cant lose their wallets" — confirmed and showed
+  him the four keys involved are fully independent (`hoodprint_burner_pk`
+  the wallet, `hoodprint_settings`, `hoodprint_txs`, and the recents key)
+  before making the change. **The old key is left in place, just
+  unread/unwritten** — nothing is deleted, only orphaned. Verified live
+  with a seeded fake wallet key + settings + tx history + an old-key
+  ROBINFUN entry, reloaded, and confirmed: old recents key still holds
+  the ROBINFUN data untouched, the new key is empty (so it can never load
+  into state again), and the wallet/settings/tx keys all survived
+  byte-for-byte.
 
 ### Buy stats + wallet levels (airdrop-ready)
 - `app/api/buy/route.ts`: POST verifies the tx on-chain, dedupes by hash,

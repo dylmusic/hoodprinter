@@ -138,7 +138,13 @@ function reportWalletCreated(addr: string) {
     /* telemetry is best-effort */
   });
 }
-const RECENTS_STORAGE_KEY = "hoodprint_recent_tokens";
+// Bumped to _v2 on 2026-07-26 to force a one-time reset of every user's
+// saved recents row (stale entries like ROBINFUN, removed from the app's
+// own DEFAULT_RECENTS earlier, were still showing up per-user from their
+// own old saved list). Old key is left alone, just no longer read/written
+// -- this does NOT touch hoodprint_burner_pk (the wallet key), hoodprint_
+// settings, or hoodprint_txs, which are all separate keys entirely.
+const RECENTS_STORAGE_KEY = "hoodprint_recent_tokens_v2";
 
 type RecentToken = { ca: string; sym: string };
 type LogLevel = "info" | "ok" | "err";
