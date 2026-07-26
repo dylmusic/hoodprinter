@@ -498,6 +498,12 @@ export default function PrintBot() {
     saveSettings({ token: ca });
   }
 
+  // Which pinned/recent/default pill (if any) matches the currently
+  // selected token — lights that one up so it's clear what's active.
+  function isSameToken(ca: string) {
+    return ca.trim().toLowerCase() === token.trim().toLowerCase();
+  }
+
   function openAddToken() {
     if (runningRef.current)
       return showAlert(
@@ -1789,16 +1795,6 @@ export default function PrintBot() {
             </div>
 
             <div className="pb-balrow">
-              <div>
-                <div className="pb-balnum">{ethBal == null ? "…" : fmtBal(ethBal)}</div>
-                <div className="pb-ballabel">ETH</div>
-                <button
-                  className="pb-tile-wd"
-                  onClick={() => quickWithdraw("eth")}
-                >
-                  Withdraw
-                </button>
-              </div>
               <div className="pb-print-tile">
                 <button
                   className="pb-help"
@@ -1829,12 +1825,26 @@ export default function PrintBot() {
                   </div>
                 )}
               </div>
+              {/* Only shown when the selected token isn't $PRINT itself --
+                  otherwise this would just duplicate the tile above. */}
+              {!isPrintToken(token) && (
+                <div>
+                  <div className="pb-balnum">{tokBal == null ? "0" : fmtBal(tokBal)}</div>
+                  <div className="pb-ballabel">{tokSym}</div>
+                  <button
+                    className="pb-tile-wd"
+                    onClick={() => quickWithdraw("tok")}
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              )}
               <div>
-                <div className="pb-balnum">{tokBal == null ? "0" : fmtBal(tokBal)}</div>
-                <div className="pb-ballabel">{tokSym}</div>
+                <div className="pb-balnum">{ethBal == null ? "…" : fmtBal(ethBal)}</div>
+                <div className="pb-ballabel">ETH</div>
                 <button
                   className="pb-tile-wd"
-                  onClick={() => quickWithdraw("tok")}
+                  onClick={() => quickWithdraw("eth")}
                 >
                   Withdraw
                 </button>
@@ -1845,7 +1855,7 @@ export default function PrintBot() {
               {PINNED_TOKENS.filter((t) => ethers.isAddress(t.ca)).map((t) => (
                 <button
                   key={t.ca}
-                  className="pb-recent pinned"
+                  className={`pb-recent pinned${isSameToken(t.ca) ? " active" : ""}`}
                   title={t.ca}
                   onClick={() => pickToken(t.ca)}
                   disabled={running}
@@ -1856,7 +1866,7 @@ export default function PrintBot() {
               {recents.map((r) => (
                 <button
                   key={r.ca}
-                  className="pb-recent"
+                  className={`pb-recent${isSameToken(r.ca) ? " active" : ""}`}
                   title={r.ca}
                   onClick={() => pickToken(r.ca)}
                   disabled={running}
@@ -1867,7 +1877,7 @@ export default function PrintBot() {
               {defaultsToShow.map((r) => (
                 <button
                   key={r.ca}
-                  className="pb-recent"
+                  className={`pb-recent${isSameToken(r.ca) ? " active" : ""}`}
                   title={r.ca}
                   onClick={() => pickToken(r.ca)}
                   disabled={running}

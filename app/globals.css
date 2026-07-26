@@ -2697,6 +2697,21 @@ footer {
   border-color: var(--green);
 }
 
+/* The currently-selected token pill "lights up" -- solid green fill,
+   same dark-on-green treatment as .btn-primary, so it reads unmistakably
+   as "this one's active" against the outlined/transparent siblings. */
+.pb-recents .pb-recent.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #04140a;
+  box-shadow: 0 0 10px var(--green-glow);
+}
+
+.pb-recents .pb-recent.active:hover {
+  color: #04140a;
+  border-color: var(--green);
+}
+
 .pb-recents .pb-recent.pb-addtoken {
   color: var(--green);
   border-color: rgba(0, 200, 5, 0.4);

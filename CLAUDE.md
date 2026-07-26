@@ -167,6 +167,21 @@ this). Key never leaves the browser; txs go straight to RPC.
   the ROBINFUN data untouched, the new key is empty (so it can never load
   into state again), and the wallet/settings/tx keys all survived
   byte-for-byte.
+- **Selected-token pill lights up** (Dylan: "the buy bot needs to light
+  up the currency you currently selected") — pinned/recents/defaults
+  pills in `.pb-recents` had no active-state styling at all before this;
+  `isSameToken(ca)` (case-insensitive compare against `token`) adds an
+  `active` class (`.pb-recent.active` — solid green fill, `#04140a` text,
+  same dark-on-green treatment as `.btn-primary`) to whichever pill
+  matches. **Balance-tile order** (Dylan: "PRINT balance should be on the
+  left with the currently selected token in the middle") — was ETH/PRINT/
+  selected-token, now PRINT/selected-token/ETH. Since PRINT defaults to
+  the selected token now (see above), the middle "selected token" tile
+  only renders `!isPrintToken(token)` — otherwise it'd be a literal
+  duplicate of the PRINT tile immediately to its left. Verified live both
+  ways: PRINT-selected shows a clean 2-tile row (PRINT, ETH) with the
+  PRINT pill lit; picking CASHCAT expands to 3 tiles (PRINT, CASHCAT,
+  ETH) with the CASHCAT pill lit instead.
 
 ### Buy stats + wallet levels (airdrop-ready)
 - `app/api/buy/route.ts`: POST verifies the tx on-chain, dedupes by hash,
