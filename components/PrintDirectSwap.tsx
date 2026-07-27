@@ -12,6 +12,7 @@ import {
   darkTheme,
   useConnectModal,
   type Wallet,
+  type WalletList,
 } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import type { Chain } from "viem";
@@ -133,9 +134,15 @@ const robinhoodChain: Chain = {
 // Wallet" (verified live, not guessed): native deep-link scheme is
 // `robinhood-wallet://`, no universal link. The `wc?uri=` suffix is
 // WalletConnect's own documented mobile-linking convention for wallets
-// that don't register a more specific path. Icon downloaded from that
-// same Explorer listing and self-hosted (public/brand/robinhood-wallet.png)
-// rather than hotlinked, same practice as the MetaMask fox icon.
+// that don't register a more specific path. **Icon is NOT WalletConnect's
+// own registered icon for the wallet app (that one's purple/pink)** --
+// Dylan: "you used the wrong logo everyones doing the neon green for
+// robinhood chain." Uses the same neon-green Robinhood feather mark
+// already self-hosted for the chain picker (`lib/robinhoodTokens.ts`
+// `CHAINS`, sourced from Relay's own chain-icon CDN for chain 4663),
+// downloaded once as `public/brand/robinhood-wallet.webp` (really WebP
+// bytes under a `.png`-looking source URL -- saved with the correct
+// extension so it's served with the right content-type).
 const robinhoodWallet = ({
   projectId,
   walletConnectParameters,
@@ -145,8 +152,8 @@ const robinhoodWallet = ({
 }): Wallet => ({
   id: "robinhood",
   name: "Robinhood Wallet",
-  iconUrl: "/brand/robinhood-wallet.png",
-  iconBackground: "#000000",
+  iconUrl: "/brand/robinhood-wallet.webp",
+  iconBackground: "#c8fb00",
   downloadUrls: {
     android: "https://play.google.com/store/apps/details?id=com.robinhood.gateway",
     ios: "https://robinhood.com/web3-wallet/",
@@ -161,6 +168,28 @@ const robinhoodWallet = ({
   createConnector: getWalletConnectConnector({ projectId, walletConnectParameters }),
 });
 
+// Slotted in right after MetaMask within its own existing group (Dylan:
+// "dont put it in reccomended just put it under metamask") rather than
+// getting its own featured group above everything else.
+// Matched by `.id === "metaMask"` (RainbowKit's own stable identifier),
+// not function reference -- the imported `metaMaskWallet` isn't the same
+// object identity `getDefaultWallets()` builds its list from internally,
+// so a plain `.indexOf(metaMaskWallet)` silently matches nothing and the
+// button vanishes instead of erroring. Calling each factory to check its
+// `.id` is cheap/safe -- `getDefaultConfig` already does this same thing
+// internally to build its full connector list.
+const dummyWalletParams = {
+  projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
+  appName: "HOODPrinter",
+};
+const walletsWithRobinhood: WalletList = getDefaultWallets().wallets.map((group) => {
+  const metaMaskIndex = group.wallets.findIndex((w) => w(dummyWalletParams).id === "metaMask");
+  if (metaMaskIndex === -1) return group;
+  const wallets = [...group.wallets];
+  wallets.splice(metaMaskIndex + 1, 0, robinhoodWallet);
+  return { ...group, wallets };
+});
+
 const wagmiConfig = getDefaultConfig({
   appName: "HOODPrinter",
   appUrl: siteConfig.url,
@@ -169,9 +198,7 @@ const wagmiConfig = getDefaultConfig({
   projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
   chains: [robinhoodChain],
   transports: { [robinhoodChain.id]: http() },
-  // Robinhood Wallet featured first, ahead of RainbowKit's own default
-  // groups -- the obvious pick for a Robinhood Chain dapp specifically.
-  wallets: [{ groupName: "Recommended", wallets: [robinhoodWallet] }, ...getDefaultWallets().wallets],
+  wallets: walletsWithRobinhood,
 });
 
 const rainbowTheme = darkTheme({
