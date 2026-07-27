@@ -550,6 +550,35 @@ and is background for if that ever happens, not the current live page.
   — the `swap-waiting` two-leg overlay only ever applies to the four
   plans that actually split into two of *our own* legs, so it correctly
   never shows here.
+- **Robinhood Wallet gets its own featured connect button** (Dylan:
+  "add a button specifically for Robinhood Wallet"). Not in RainbowKit's
+  built-in wallet list (`@rainbow-me/rainbowkit@2.2.11` — checked, no
+  `robinhoodWallet` export), so defined by hand in `PrintDirectSwap.tsx`
+  per RainbowKit's own documented "Custom Wallets" pattern
+  (`getWalletConnectConnector` + a `Wallet` object). WalletConnect-only —
+  no browser-extension identity flag found for it, and it's mobile-app +
+  in-app-browser focused. Built from real, verified data, not guessed:
+  native deep-link scheme (`robinhood-wallet://`, no universal link),
+  store URLs, and icon all pulled live from WalletConnect's own public
+  Explorer API (`explorer-api.walletconnect.com/v3/wallets?search=
+  Robinhood`) — confirmed via a live query, not assumed. The `wc?uri=`
+  suffix on the deep link is WalletConnect's own documented mobile-
+  linking convention (`docs.walletconnect.network`) for wallets that
+  don't register a more specific path — verified against their docs
+  directly rather than guessing the format other wallets use. Icon
+  downloaded once and self-hosted at `public/brand/robinhood-wallet.png`
+  rather than hotlinked from WalletConnect's CDN (same practice as the
+  MetaMask fox icon on the homepage). Wired in via `getDefaultConfig`'s
+  `wallets` param: a new `"Recommended"` group containing just Robinhood
+  Wallet, placed ahead of `getDefaultWallets()`'s own default groups —
+  the obvious first pick for a Robinhood Chain dapp specifically.
+  Verified live: shows up as its own labeled, real-icon button under
+  "Recommended" at the top of the connect modal, clicking it behaves
+  identically to the stock "WalletConnect" button (both currently stop
+  at wallet-selection without producing a QR code, since
+  `WALLETCONNECT_PROJECT_ID` is still the placeholder — see the gotcha
+  below — not a bug specific to this button; confirmed by comparing
+  against the stock button's identical behavior side by side).
 - **Exact-amount approvals, not unlimited** (`buildErc20ApproveTx`/
   `buildPermit2ApproveTx` in `lib/printDirectSwap.ts`, `...For` variants in
   `lib/curatedPoolSwap.ts` — all now take an `amountWei` param instead of

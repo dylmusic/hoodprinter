@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, http, useAccount, useBalance, useDisconnect, useWalletClient } from "wagmi";
-import { getDefaultConfig, RainbowKitProvider, darkTheme, useConnectModal } from "@rainbow-me/rainbowkit";
+import {
+  getDefaultConfig,
+  getDefaultWallets,
+  getWalletConnectConnector,
+  RainbowKitProvider,
+  darkTheme,
+  useConnectModal,
+  type Wallet,
+} from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import type { Chain } from "viem";
 import { siteConfig, WALLETCONNECT_PROJECT_ID } from "@/site.config";
@@ -118,6 +126,41 @@ const robinhoodChain: Chain = {
   blockExplorers: { default: { name: "Explorer", url: siteConfig.chain.explorerUrl } },
 };
 
+// Robinhood Wallet isn't in RainbowKit's built-in wallet list, so it's
+// defined by hand per RainbowKit's documented "Custom Wallets" pattern.
+// WalletConnect-only (no browser-extension identity flag found for it) --
+// built from WalletConnect's own public Explorer listing for "Robinhood
+// Wallet" (verified live, not guessed): native deep-link scheme is
+// `robinhood-wallet://`, no universal link. The `wc?uri=` suffix is
+// WalletConnect's own documented mobile-linking convention for wallets
+// that don't register a more specific path. Icon downloaded from that
+// same Explorer listing and self-hosted (public/brand/robinhood-wallet.png)
+// rather than hotlinked, same practice as the MetaMask fox icon.
+const robinhoodWallet = ({
+  projectId,
+  walletConnectParameters,
+}: {
+  projectId: string;
+  walletConnectParameters?: Parameters<typeof getWalletConnectConnector>[0]["walletConnectParameters"];
+}): Wallet => ({
+  id: "robinhood",
+  name: "Robinhood Wallet",
+  iconUrl: "/brand/robinhood-wallet.png",
+  iconBackground: "#000000",
+  downloadUrls: {
+    android: "https://play.google.com/store/apps/details?id=com.robinhood.gateway",
+    ios: "https://robinhood.com/web3-wallet/",
+    qrCode: "https://robinhood.com/web3-wallet/",
+  },
+  mobile: {
+    getUri: (uri: string) => `robinhood-wallet://wc?uri=${encodeURIComponent(uri)}`,
+  },
+  qrCode: {
+    getUri: (uri: string) => uri,
+  },
+  createConnector: getWalletConnectConnector({ projectId, walletConnectParameters }),
+});
+
 const wagmiConfig = getDefaultConfig({
   appName: "HOODPrinter",
   appUrl: siteConfig.url,
@@ -126,6 +169,9 @@ const wagmiConfig = getDefaultConfig({
   projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
   chains: [robinhoodChain],
   transports: { [robinhoodChain.id]: http() },
+  // Robinhood Wallet featured first, ahead of RainbowKit's own default
+  // groups -- the obvious pick for a Robinhood Chain dapp specifically.
+  wallets: [{ groupName: "Recommended", wallets: [robinhoodWallet] }, ...getDefaultWallets().wallets],
 });
 
 const rainbowTheme = darkTheme({
