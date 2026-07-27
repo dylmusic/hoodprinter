@@ -29,14 +29,16 @@ export const GA_MEASUREMENT_ID = "G-YM2PTVBGS5";
 // Empty = meta tag not rendered. Not needed if verifying via DNS or GA.
 export const GOOGLE_SITE_VERIFICATION = "";
 
-// WalletConnect Project ID for the /swap page's "WalletConnect" connect
-// option (mobile wallets, Coinbase Wallet, Rainbow, etc. — anything besides
-// a browser-injected wallet like MetaMask). Empty = that connect option is
-// disabled with an explanatory message; MetaMask/injected connect still
-// works either way. Get a free ID at https://cloud.reown.com (Reown is the
-// WalletConnect Cloud dashboard's current name) — create a project, copy
-// its Project ID, paste it here.
-export const WALLETCONNECT_PROJECT_ID = "";
+// WalletConnect Project ID for /swap's wallet-connect flow — needed for
+// ANY WalletConnect-based option (Robinhood Wallet, the plain
+// "WalletConnect" button, mobile wallets generally), not just one of
+// them. Without a real ID, the app falls back to a dummy placeholder and
+// WalletConnect's servers silently refuse to issue a real pairing
+// session — those buttons appear but don't actually connect anything.
+// Real ID set 2026-07-27 from https://cloud.reown.com (Reown is the
+// WalletConnect Cloud dashboard's current name). MetaMask/injected
+// connect never depended on this either way.
+export const WALLETCONNECT_PROJECT_ID = "fd51ab18ab89f8b0a1d9cb90623c5563";
 
 // /swap embeds Relay's own SwapWidget — every swap collects a 0.85% app fee
 // (Relay's native `appFees` mechanism, set client-side in

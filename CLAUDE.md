@@ -589,6 +589,35 @@ and is background for if that ever happens, not the current live page.
   connector list), which is the actually-robust way to find a specific
   built-in wallet in that array. Verified live both times (after each
   fix) via real screenshots, not just re-reading the code.
+- **A real WalletConnect Project ID uncovered a genuine, previously-
+  hidden QR-rendering crash** — Dylan: "theyre saying the robinhood
+  button doesnt successfully open robinhood wallet." Root cause was the
+  placeholder project ID above (fixed there), but fixing it exposed a
+  SECOND, real bug: clicking Robinhood Wallet (or, confirmed live, the
+  stock "WalletConnect" button too — not specific to the new button) now
+  got far enough to try rendering a QR code and crashed the whole page
+  (`Application error: a client-side exception has occurred`). Console
+  showed `Error: invalid border=0` from the `qr` npm package. Traced
+  precisely: `cuer@0.0.3` (the small QR-rendering package RainbowKit uses
+  internally, last published Aug 2025, no newer version exists) hardcodes
+  `border: 0` as its own default and depends on `qr: ~0` — an
+  intentionally wide range covering any 0.x release. Diffed `qr`'s actual
+  published versions directly (fetched each `unpkg.com/qr@<version>/
+  index.js` and grepped the border-validation logic) to find the exact
+  break: **0.4.0 through 0.5.5 only checked
+  `!Number.isSafeInteger(border)`** (0 passes fine); **0.6.0** (released
+  ~3 months before this session) added `|| border <= 0` to that check,
+  which `border: 0` fails. `cuer` was never updated to account for this
+  and never will be pinned correctly by its own loose `~0` range, so this
+  broke silently the moment `qr` cut a new release — completely
+  independent of anything in this codebase, and completely hidden until
+  today because the placeholder project ID had prevented ANY wallet from
+  ever reaching the QR-render step before. Fixed with an `overrides` entry
+  in `package.json` (`"qr": "0.5.5"`, the last version before the
+  breaking change) pinning the transitive dependency regardless of what
+  `cuer` itself declares — verified live afterward: real QR code renders
+  correctly, feather icon centered in it, no crash, for both the
+  Robinhood Wallet button and the stock WalletConnect button.
 - **Exact-amount approvals, not unlimited** (`buildErc20ApproveTx`/
   `buildPermit2ApproveTx` in `lib/printDirectSwap.ts`, `...For` variants in
   `lib/curatedPoolSwap.ts` — all now take an `amountWei` param instead of
@@ -833,12 +862,18 @@ in one step), not just same-chain ETH swaps.
   `useWalletClient()`.
 - **WalletConnect Project ID gotcha**: `getDefaultConfig` requires a non-empty
   `projectId` string. A genuinely empty string **crashes it outright**
-  (tested). Until `WALLETCONNECT_PROJECT_ID` (site.config.ts) is set to a
-  real ID from cloud.reown.com, we pass a dummy placeholder
-  (`"00000000...")` — this works but spams harmless 403s against Reown's
-  remote-config endpoint (falls back to local defaults). Injected/browser
-  wallets work fully either way; only WC-based wallets in the modal need the
-  real ID.
+  (tested). A dummy placeholder (`"00000000...")`) avoids that crash but
+  silently no-ops every WalletConnect-based wallet — WalletConnect's own
+  servers just refuse to issue a real pairing session for an unrecognized
+  project, so those buttons sit there looking normal and do nothing.
+  Injected/browser wallets (MetaMask etc.) work fully either way; only
+  WC-based wallets needed the real ID. **A real ID was set 2026-07-27**
+  (`WALLETCONNECT_PROJECT_ID` in `site.config.ts`, from cloud.reown.com)
+  after Dylan reported the new Robinhood Wallet button "doesn't
+  successfully open Robinhood Wallet" — root cause traced to this exact
+  placeholder, confirmed by showing the stock "WalletConnect" button had
+  the identical dead-end behavior (not something specific to the new
+  button).
 - **Chain list**: wagmi's `chains`/`transports` config AND `RelayKitProvider`'s
   `options.chains` are both built dynamically from Relay's live `/chains` API
   (`lib/relayChains.ts`, `fetchRelayEvmChains()`) — every EVM chain Relay
