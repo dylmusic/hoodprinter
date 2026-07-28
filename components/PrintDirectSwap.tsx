@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, http, useAccount, useBalance, useDisconnect, useSwitchChain, useWalletClient } from "wagmi";
+import { WagmiProvider, http, useAccount, useBalance, useDisconnect, useSwitchChain, useWalletClient, ConnectorChainMismatchError } from "wagmi";
 import { base, mainnet } from "wagmi/chains";
 import { getWalletClient } from "wagmi/actions";
 import {
@@ -39,7 +39,7 @@ import {
   NATIVE_ETH,
 } from "@/lib/printDirectSwap";
 import { ETH_TOKEN, PRINT_TOKEN, NATIVE_SOL, isSolanaChain, tokenKey, type RhToken } from "@/lib/robinhoodTokens";
-import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount } from "@/lib/relayLeg";
+import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount, relayTransactionUrl } from "@/lib/relayLeg";
 import { useSolanaWallet, getSolanaBalance } from "@/lib/solanaWallet";
 import {
   isKnownV2Token,
@@ -295,6 +295,7 @@ type SwapTxRow = {
   toSym: string;
   status: "pending" | "ok" | "fail";
   t: string;
+  relayUrl?: string | null; // set whenever a leg of this swap was Relay-routed — links to Relay's own tx status page so the bridge itself is checkable, not just our own chain's side of it
 };
 
 // `total` is no longer always exactly 2 — Relay silently splits some
@@ -324,6 +325,7 @@ type PendingResume = {
   slippage: number;
   preBalanceWei: string; // Robinhood-chain ETH balance right before leg 1 started
   startedAt: number;
+  relayUrl?: string | null; // relay-to-print's leg 1 quote, captured when the record is written — leg 1's own quote object won't exist anymore by the time a resumed leg 2 finishes
 };
 
 function loadPendingResumes(): PendingResume[] {
@@ -693,9 +695,23 @@ function InnerDirectSwap() {
   // fetches a brand new client scoped to the chain just switched to; that
   // is what must be used for every send after any switch, never the plain
   // `walletClient` hook value once a plan needs more than one chain.
+  // Real live bug (mainnet ETH -> $PRINT): switchChainAsync's promise can
+  // resolve slightly BEFORE the injected wallet's own eth_chainId actually
+  // reflects the new chain — getWalletClient re-queries the connector live
+  // and throws ConnectorChainMismatchError ("current chain of the connector
+  // does not match the connection's chain") the instant that gap is hit.
+  // Not a code bug in our switch logic, a genuine extension-side timing
+  // lag — retry briefly instead of failing the whole swap on it.
   async function ensureEvmChain(chainId: number) {
     await switchChainAsync({ chainId });
-    return getWalletClient(wagmiConfig, { chainId });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await getWalletClient(wagmiConfig, { chainId });
+      } catch (e) {
+        if (attempt >= 5 || !(e instanceof ConnectorChainMismatchError)) throw e;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
   }
 
   // Leg 2 of relay-to-print — ETH -> $PRINT via our own pool. Shared
@@ -704,7 +720,7 @@ function InnerDirectSwap() {
   // one place. Assumes the caller has already confirmed `ethWei` actually
   // arrived (a real balance-delta check, not a guess) and the wallet is
   // already on Robinhood Chain.
-  async function runPrintBuyLeg2(client: Awaited<ReturnType<typeof ensureEvmChain>>, ethWei: bigint, fromAmt: string, fromSym: string) {
+  async function runPrintBuyLeg2(client: Awaited<ReturnType<typeof ensureEvmChain>>, ethWei: bigint, fromAmt: string, fromSym: string, relayUrl?: string | null) {
     if (!rate || !address) throw new Error("Missing rate or address.");
     const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(ethWei, 0n), address, ethUsd);
     const leg2InputWei = ethWei > gasReserveWei ? ethWei - gasReserveWei : 0n;
@@ -719,7 +735,7 @@ function InnerDirectSwap() {
     const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
     setTxHash(swapHash);
     setLastSwapped({ amt: fromAmt, sym: fromSym });
-    addTx({ hash: swapHash, fromAmt, fromSym, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
+    addTx({ hash: swapHash, fromAmt, fromSym, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString(), relayUrl });
     setLegProgress(null);
     setStep("Confirming on-chain…");
     const receipt = await readProvider.waitForTransaction(swapHash);
@@ -758,6 +774,7 @@ function InnerDirectSwap() {
     });
     const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) => setLegProgress({ part: 2, total: 2, label: p.label }));
     const hash2 = quoteLastTxHash(result2, CHAIN.id);
+    const relayUrl2 = relayTransactionUrl(result2);
     setTxHash(hash2);
     setLastSwapped({ amt: fromAmt, sym: "PRINT" });
     const outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted;
@@ -773,6 +790,7 @@ function InnerDirectSwap() {
         toSym: toToken.symbol,
         status: "ok",
         t: new Date().toLocaleTimeString(),
+        relayUrl: relayUrl2,
       });
     }
     return !!hash2;
@@ -1040,6 +1058,7 @@ function InnerDirectSwap() {
         );
         setLegProgress(null);
         const hash = quoteLastTxHash(result, fromToken.chainId);
+        const relayUrl = relayTransactionUrl(result);
         finalOk = !!hash;
         setTxHash(hash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
@@ -1056,6 +1075,7 @@ function InnerDirectSwap() {
             toSym: toToken.symbol,
             status: "ok",
             t: new Date().toLocaleTimeString(),
+            relayUrl,
           });
         }
       } else if (plan === "curated-to-print") {
@@ -1152,6 +1172,7 @@ function InnerDirectSwap() {
           recipientAddress: address,
           chargeFee: false,
         });
+        const relayUrl = relayTransactionUrl(quote1); // requestId is on the quote itself, present before execute() ever runs
         let leg1Wallet;
         if (fromIsSolana) {
           const provider = sol.getProvider();
@@ -1182,7 +1203,7 @@ function InnerDirectSwap() {
         // the tab closes anywhere from here until leg 2 actually fires,
         // "Resume swap" (Transactions section) can still pick this up
         // using this same preBalance.
-        addPendingResume({ address, plan: "relay-to-print", fromToken, toToken, amount, slippage, preBalanceWei: preBalance.toString(), startedAt });
+        addPendingResume({ address, plan: "relay-to-print", fromToken, toToken, amount, slippage, preBalanceWei: preBalance.toString(), startedAt, relayUrl });
         setPendingResumes(loadPendingResumes().filter((r) => r.address.toLowerCase() === address.toLowerCase()));
 
         // Dylan: "check for this balance to come in and then initiate the
@@ -1197,9 +1218,12 @@ function InnerDirectSwap() {
           throw new Error(`Didn't receive any ETH from ${fromToken.symbol} yet — it may still be on the way. Check "Resume swap" in Transactions in a bit.`);
         }
 
-        const ok = await runPrintBuyLeg2(leg2Client, receivedWei, amount, fromToken.symbol);
+        const ok = await runPrintBuyLeg2(leg2Client, receivedWei, amount, fromToken.symbol, relayUrl);
         finalOk = ok;
-        if (ok) removePendingResume(startedAt);
+        if (ok) {
+          removePendingResume(startedAt);
+          setPendingResumes((prev) => prev.filter((r) => r.startedAt !== startedAt));
+        }
       } else if (plan === "print-to-relay") {
         if (!rate) return;
         const client = await ensureEvmChain(CHAIN.id); // leg 1 is our own pool, always Robinhood Chain regardless of toToken's chain
@@ -1248,7 +1272,10 @@ function InnerDirectSwap() {
 
         const ok2 = await runRelayToTokenLeg2(client, receivedWei, toToken, amount);
         finalOk = ok2;
-        if (ok2) removePendingResume(startedAt);
+        if (ok2) {
+          removePendingResume(startedAt);
+          setPendingResumes((prev) => prev.filter((r) => r.startedAt !== startedAt));
+        }
       } else if (plan === "print-to-curated") {
         if (!rate) return;
         const client = await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
@@ -1378,7 +1405,7 @@ function InnerDirectSwap() {
         if (receivedWei <= 0n) {
           throw new Error(`Still haven't received any ETH from ${pending.fromToken.symbol} — it may still be on the way. Try resuming again shortly.`);
         }
-        finalOk = await runPrintBuyLeg2(client, receivedWei, pending.amount, pending.fromToken.symbol);
+        finalOk = await runPrintBuyLeg2(client, receivedWei, pending.amount, pending.fromToken.symbol, pending.relayUrl);
       } else {
         // print-to-relay: leg 1 (ours) already fully landed by definition of
         // how this got persisted — no polling needed, just re-derive the
@@ -1679,48 +1706,38 @@ function InnerDirectSwap() {
 
       <section className="pb-card">
         <h2>Transactions</h2>
-        {pendingResumes.length > 0 && (
-          <div className="swap-pending-list">
-            {pendingResumes.map((p) => (
-              <div key={p.startedAt} className="swap-pending-row">
-                <span className="swap-pending-text">
-                  {p.fromToken.symbol} → {p.toToken.symbol} · {p.amount} {p.fromToken.symbol}
-                  <em>leg 1 sent, leg 2 not finished — started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago</em>
-                </span>
-                <button
-                  type="button"
-                  className="swap-pending-resume"
-                  disabled={swapping}
-                  onClick={() => resumeSwap(p)}
-                >
-                  {resuming === p.startedAt ? "Resuming…" : "Resume swap"}
-                </button>
-                <button
-                  type="button"
-                  className="swap-pending-dismiss"
-                  disabled={swapping}
-                  aria-label="Dismiss"
-                  onClick={() => {
-                    removePendingResume(p.startedAt);
-                    setPendingResumes((prev) => prev.filter((r) => r.startedAt !== p.startedAt));
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
         <div className="pb-txs">
-          {txs.length === 0 && <div className="pb-log-empty">No swaps yet — your recent swaps will land here.</div>}
+          {txs.length === 0 && pendingResumes.length === 0 && (
+            <div className="pb-log-empty">No swaps yet — your recent swaps will land here.</div>
+          )}
+          {pendingResumes.map((p) => (
+            <div key={p.startedAt} className="pb-tx pending">
+              <span className="pb-tx-status" />
+              <span className="pb-tx-amt">
+                {p.amount} {p.fromToken.symbol}
+              </span>
+              <span className="pb-tx-hash">
+                {p.fromToken.symbol} → {p.toToken.symbol} · leg 2 not finished, started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago
+              </span>
+              <button type="button" className="pb-tx-resume" disabled={swapping} onClick={() => resumeSwap(p)}>
+                {resuming === p.startedAt ? "Resuming…" : "Resume"}
+              </button>
+              <button
+                type="button"
+                className="pb-tx-link pb-tx-dismiss"
+                disabled={swapping}
+                aria-label="Dismiss"
+                onClick={() => {
+                  removePendingResume(p.startedAt);
+                  setPendingResumes((prev) => prev.filter((r) => r.startedAt !== p.startedAt));
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
           {txs.map((tx) => (
-            <a
-              key={tx.hash}
-              className={`pb-tx ${tx.status}`}
-              href={`${CHAIN.explorer}/tx/${tx.hash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <div key={tx.hash} className={`pb-tx ${tx.status}`}>
               <span className="pb-tx-status" />
               <span className="pb-tx-amt">
                 {tx.fromAmt} {tx.fromSym}
@@ -1729,8 +1746,15 @@ function InnerDirectSwap() {
                 {tx.toAmt ? `→ ${tx.toAmt} ${tx.toSym}` : `${tx.hash.slice(0, 10)}…${tx.hash.slice(-6)}`}
               </span>
               <span className="pb-tx-t">{tx.t}</span>
-              <span className="pb-tx-arrow">↗</span>
-            </a>
+              {tx.relayUrl && (
+                <a className="pb-tx-link pb-tx-relay" href={tx.relayUrl} target="_blank" rel="noopener noreferrer">
+                  Relay ↗
+                </a>
+              )}
+              <a className="pb-tx-link" href={`${CHAIN.explorer}/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer">
+                ↗
+              </a>
+            </div>
           ))}
         </div>
       </section>

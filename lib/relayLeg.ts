@@ -182,6 +182,16 @@ export function quoteStepCount(quote: Execute): number {
   return quote.steps?.length ?? 1;
 }
 
+// Same URL pattern Relay's own SwapWidget links to on its success screen
+// (relay-kit-ui's SwapSuccessStep.js: `${baseTransactionUrl}/transaction/${requestId}`)
+// — the requestId is already present on the quote's own steps as soon as
+// getQuote() returns, before execute() ever runs (relay-kit-ui's own
+// extractQuoteId() reads it the same way pre-execution).
+export function relayTransactionUrl(quote: Execute): string | null {
+  const requestId = quote.steps?.find((s) => s.requestId)?.requestId;
+  return requestId ? `https://relay.link/transaction/${requestId}` : null;
+}
+
 /** Pulls the estimated output amount (base units, as a string) off a quote for chained-leg previews. */
 export function quoteOutputAmount(quote: Execute): string | null {
   const details = (quote as any)?.details;

@@ -1277,6 +1277,85 @@ around it.
     the earlier fix above) was hoisted from a local `const` inside
     `doSwap()` to a component-level function so `resumeSwap()` can share
     it too — same reasoning as the leg-2 runners.
+- **Relay tx link on every Relay-touching row** (Dylan: "make an easy link
+  to the relay txn on the relay site... so they can see the bridge tx").
+  `lib/relayLeg.ts` `relayTransactionUrl(quote)` reads `steps[].requestId`
+  off the Execute object (present as soon as `getQuote()` returns, before
+  `execute()` ever runs — the exact same field relay-kit-ui's own
+  `extractQuoteId()`/`SwapSuccessStep.js` build their own "view transaction"
+  link from: `https://relay.link/transaction/<requestId>`) — this is
+  Relay's own real transaction-status page, not something invented.
+  `SwapTxRow`/`PendingResume` both gained an optional `relayUrl` field.
+  `relay-only` and `runRelayToTokenLeg2` (print-to-relay's leg 2) capture
+  it from their own just-executed quote's result; `relay-to-print` reads
+  it off `quote1` right after fetching it (before execute, since a Solana
+  leg-1 timeout is swallowed and there's no post-execute result object in
+  that path) and threads it through both `addPendingResume` (so a later
+  *resumed* leg 2 still has it — leg 1's original quote object is long
+  gone by the time a resume fires, possibly a different session) and
+  `runPrintBuyLeg2`. Same-chain self-routed plans (print-buy/print-sell/
+  curated-to-print/print-to-curated) never touch Relay, so never get one.
+- **The "Resume swap" UI redesign that actually shipped broke on first
+  render** — Dylan's screenshot showed a giant broken block: the row's
+  text wrapped one word per line down a tall column while the "Resume
+  swap" button rendered full-bleed-width, overlapping everything. Root
+  cause: `.pb-card button { width:100%; margin-top:14px; padding:12px;
+  border-radius:9px; font-size:0.9rem; border:1px solid var(--border); }`
+  (an existing generic rule for the Buy Bot's own big block-style buttons)
+  has higher CSS specificity (class+type) than a single class selector
+  like `.swap-pending-resume` — so its `width:100%` won outright,
+  ballooning the button and squeezing the sibling text span (`flex:1;
+  min-width:0`) down to near-zero width, wrapping every word. Same
+  category as the "Mobile CSS gotcha" documented lower in this file
+  (later/higher-specificity base rule silently wins over an intended
+  override) — confirmed by reading the cascade, not guessed.
+  **Fixed by redesigning, not just patching specificity**, per Dylan's
+  follow-up ("Resume swap needs to go away automatically after success,
+  also... The resume swap button should be really small within the line,
+  same with the Relay Tx button... very small, within the small recent tx
+  line"): pending-resume rows now render as compact single-line entries
+  *inside* `.pb-txs` itself (reusing `.pb-tx`'s own row/dot/amount/hash
+  layout, `pending` status for the amber blinking dot) rather than a
+  separate full-width card block above it, with small inline `Resume`/`✕`
+  chips at the end of the line. The real tx rows changed from one
+  whole-row `<a>` to a `<div>` with small trailing `.pb-tx-link` chips
+  (`↗` to the chain explorer, plus `Relay ↗` when `relayUrl` is set) —
+  same reasoning: a single small link/button per action, not one giant
+  click target. New button/link selectors are scoped `.pb-txs
+  .pb-tx-resume`/`.pb-txs .pb-tx-dismiss` (two classes, specificity
+  (0,2,0)) specifically to out-rank `.pb-card button`'s (0,1,1) rather
+  than repeat the same silent-override bug; verified by rendering the
+  real compiled CSS output (`/_next/static/css/*.css` from a live `npm
+  run start`) against the actual row markup via CDP and measuring real
+  `getBoundingClientRect()` heights — each row is a genuine single line
+  (~38px tall) with all text/buttons flowing inline, not stacked.
+  **Auto-clear bug, separately real**: `doSwap()`'s own two success paths
+  (`relay-to-print`/`print-to-relay`) called `removePendingResume()`
+  (localStorage) on success but never called `setPendingResumes()` to
+  update the component's own React state — so a pending row could still
+  be showing stale after a *successful* swap completed in the same tab
+  until something else (an address change) happened to re-trigger the
+  loader effect. `resumeSwap()` itself already did this correctly; the
+  two `doSwap()` success branches were missing the matching
+  `setPendingResumes((prev) => prev.filter(...))` call, now added.
+- **Mainnet ETH → $PRINT failed outright, a genuine third chain-mismatch
+  bug** (Dylan: "SOL works now, but ETH totally doesnt work at all"),
+  distinct from the two chain-mismatch bugs fixed earlier the same day —
+  `ConnectorChainMismatchError: The current chain of the connector (id:
+  4663) does not match the connection's chain (id: 1)`. Root cause, this
+  time inside `@wagmi/core` itself (`getConnectorClient.js`): after
+  `switchChainAsync({chainId})` resolves, `getWalletClient` re-queries the
+  injected wallet's LIVE `getChainId()` and throws if it doesn't already
+  match the target — but `switchChainAsync`'s own promise can resolve
+  slightly *before* the extension's `eth_chainId` has actually caught up
+  to the new network, a real timing gap in the wallet/extension itself,
+  not a bug in this codebase's switch logic (confirmed by reading
+  `@wagmi/core`'s source directly, not guessed). `ensureEvmChain()` now
+  retries `getWalletClient` up to 5 times with a 250ms backoff,
+  specifically (and only) when the thrown error is a real
+  `ConnectorChainMismatchError` (imported from `wagmi` itself and checked
+  via `instanceof`, not string-matched) — any other error still fails the
+  swap immediately as before.
 
 ---
 
