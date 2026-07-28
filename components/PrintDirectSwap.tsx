@@ -306,7 +306,13 @@ type SwapTxRow = {
 // on 3 different chains in the same list. Plain CSS :hover popup, not the
 // native browser `title` tooltip, to match the site's own look.
 function ChainTag({ chainId, children }: { chainId?: number; children: React.ReactNode }) {
-  const chain = CHAINS.find((c) => c.id === chainId) ?? CHAINS[0];
+  // No silent guess when chainId is missing (rows persisted before this
+  // field existed) — a real live SOL->PRINT row from an earlier test this
+  // same session showed "Robinhood" for the SOL leg, which is flatly
+  // wrong, not just imprecise. Better to show no tag at all than a
+  // specific, confidently-wrong answer.
+  const chain = CHAINS.find((c) => c.id === chainId);
+  if (!chain) return <>{children}</>;
   return (
     <span className="pb-chain-tag">
       {children}
@@ -399,6 +405,15 @@ async function waitForBalanceIncrease(
   if (opts.onTick) {
     opts.onTick(0);
     tickTimer = setInterval(() => opts.onTick?.(Date.now() - start), 1000);
+    // A real Base-ETH and a real mainnet-ETH bridge both settled so fast
+    // that the very first balance check below already found the funds
+    // arrived — the counter flashed "0s" (or nothing, pre-fix) and
+    // vanished before Dylan could actually see it counting. Guaranteeing
+    // one full visible second here means every bridge, however fast,
+    // shows at least "0s" then "1s" before moving on — matching "just
+    // make it keep counting... to show its counting and active" even
+    // when there's genuinely nothing left to wait for.
+    await new Promise((r) => setTimeout(r, 1000));
   }
   try {
     for (;;) {

@@ -1372,8 +1372,15 @@ around it.
   (curated-to-print's own leg 2 doesn't call it, so this only affects the
   two callers that do: `doSwap()`'s relay-to-print branch and
   `resumeSwap()`). Rows persisted before this field existed simply have no
-  chainId — `ChainTag` falls back to `CHAINS[0]` (Robinhood), correct for
-  every pre-cross-chain row since they were all Robinhood-only anyway.
+  chainId — `ChainTag` renders the plain symbol with no tag/popup at all
+  in that case, rather than guessing. **This was originally written to
+  default to `CHAINS[0]` (Robinhood)**, reasoned as "correct for every
+  pre-cross-chain row since they were all Robinhood-only anyway" — wrong,
+  caught immediately by a real live SOL→PRINT row from earlier the same
+  session (predates this feature, so genuinely has no `fromChainId`)
+  showing "Robinhood" on its SOL leg. Confidently guessing wrong is worse
+  than showing nothing, so the fallback is now "no tag" instead of "best
+  guess."
   **Truncation vs. popup clipping**: `.pb-tx-hash` used to have
   `overflow:hidden;text-overflow:ellipsis` directly on it (needed for the
   raw-hash fallback text when a leg's output isn't known yet) — an
@@ -1390,6 +1397,14 @@ around it.
   CDP: rows stay single-line (~38-39px tall) with the popup unaffected,
   and hovering a chain tag renders it with `opacity:1`/`visibility:visible`
   showing the correct chain name.
+  **Shipped with the popup opening upward by default** (`bottom: calc(100%
+  + 6px)`) — broke immediately on the very first row (Dylan: "chain hover
+  popup doesnt show on first row, its under the border"), exactly the
+  top-edge clipping risk already flagged above, just hit sooner than
+  expected since the first row is the one everyone's most likely to hover
+  first. Flipped to open downward (`top: calc(100% + 6px)`) instead — same
+  theoretical clipping risk now sits at the last visible row of a
+  scrolled list instead of the first, a much less likely thing to hit.
 - **Bridge-wait counter fixes, from two real live reports the same day**
   (Dylan: "ETH works now, however the loading screen doesnt show waiting
   for bridge. also, the sol waiting screen shows waiting for bridge but
@@ -1408,6 +1423,23 @@ around it.
   second after, independent of the underlying 3s poll loop — cleared in a
   `finally` block so it can't keep firing after the wait resolves either
   way (success or timeout).
+  **Still not enough, per two more real live reports the same day**
+  ("theres no counting timer for the bridge when u do base ETH to print"
+  / "same problem with ETH, no bridge counting timer") — both a real Base
+  and a real mainnet ETH→$PRINT bridge settled so fast that the very
+  first balance check inside the poll loop already found the funds had
+  arrived, returning before the counter had been visibly on screen long
+  enough to register as "counting" at all (the immediate `onTick(0)` call
+  from the fix above technically fired, but for a fraction of a second —
+  not what "0s 1s 2s 3s... to show its counting and active" was actually
+  asking for). Fixed with a deliberate minimum: after the immediate tick
+  and starting the 1s ticker, `waitForBalanceIncrease` now always awaits
+  one full second before ever checking the balance for the first time —
+  guaranteeing at least "0s" then "1s" are genuinely visible on every
+  bridge, however fast, before it's ever allowed to resolve. A slower
+  bridge (Solana) is unaffected beyond that one extra second up front —
+  the same 1s ticker and 3s poll loop continue exactly as already fixed
+  above.
 - **Phantom "Connect Phantom" showed even when already connected**
   (Dylan: "every time i switch to Solana, it says connect phantom at the
   bottom. but my phantom is already connected, because i click the button
