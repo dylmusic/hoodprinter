@@ -1,0 +1,55 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+
+/**
+ * Lightweight direct-Phantom connect (window.solana), same pattern proven
+ * live in the dylmusic project's own Solana swap page — deliberately not
+ * the full @solana/wallet-adapter-react stack (multi-wallet UI, adapter
+ * registry) for a first pass. Swap for the full adapter later if
+ * multi-Solana-wallet support matters; Phantom alone covers the large
+ * majority of Solana users today.
+ */
+interface PhantomProvider {
+  isPhantom?: boolean;
+  publicKey?: { toString(): string } | null;
+  connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString(): string } }>;
+  disconnect: () => Promise<void>;
+  // Phantom's own documented method for signing + broadcasting a
+  // transaction in one prompt — this is exactly the shape
+  // @reservoir0x/relay-svm-wallet-adapter's adaptSolanaWallet needs.
+  signAndSendTransaction: (transaction: unknown, options?: unknown) => Promise<{ signature: string }>;
+}
+
+function getPhantom(): PhantomProvider | undefined {
+  if (typeof window === "undefined") return undefined;
+  const anyWindow = window as unknown as { solana?: PhantomProvider };
+  return anyWindow.solana?.isPhantom ? anyWindow.solana : undefined;
+}
+
+export function useSolanaWallet() {
+  const [address, setAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    const provider = getPhantom();
+    if (provider?.publicKey) setAddress(provider.publicKey.toString());
+  }, []);
+
+  const connect = useCallback(async () => {
+    const provider = getPhantom();
+    if (!provider) {
+      window.open("https://phantom.app/download", "_blank");
+      return;
+    }
+    const res = await provider.connect();
+    setAddress(res.publicKey.toString());
+  }, []);
+
+  const disconnect = useCallback(async () => {
+    const provider = getPhantom();
+    if (provider) await provider.disconnect();
+    setAddress(null);
+  }, []);
+
+  return { address, connect, disconnect, hasPhantom: !!getPhantom(), getProvider: getPhantom };
+}

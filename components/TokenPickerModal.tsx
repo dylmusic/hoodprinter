@@ -1,35 +1,41 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ALL_RWA_TOKENS, CHAINS, CURATED_TOKENS, PINNED_TOKENS, resolveCustomToken, type RhToken } from "@/lib/robinhoodTokens";
+import { CHAINS, PINNED_TOKENS, isSolanaChain, resolveCustomToken, tokenKey, tokensForChain, type RhToken } from "@/lib/robinhoodTokens";
 
 // Styled after Relay's own "Select Token" modal (search box + result list,
 // icon/symbol/name/truncated-address rows) so switching between this and
 // the Relay-embedded parts of the site feels like one product.
 //
-// Chain picker (top pill row, lib/robinhoodTokens.ts CHAINS): UI/layout
-// only for now, shipped ahead of the actual cross-chain routing + wallet
-// work (Dylan, 2026-07-25). Robinhood is the only enabled/selectable
-// chain — Base and Solana render but are inert ("Soon" badge, no click
-// handler) until that work lands. This replaces the OLD static
-// `.tp-chain-side` left sidebar, which was truly dead weight (a single
-// hardcoded "Robinhood Chain" row with zero switching logic, already
-// `display:none` below 520px because it cost real width on mobile for
-// nothing) — Dylan preferred a top pill row to that sidebar outright, not
-// just as a mobile fix. See components/PrintDirectSwap.tsx route-planner
-// comments for why the actual swap flow is still Robinhood-only: the
-// router only needs Relay for legs that don't touch $PRINT, and this
-// phase is same-chain only. Wiring a real chain switch here must NOT
-// touch that flow while Robinhood is selected — see PrintDirectSwap.tsx
-// for the guardrail this modal's `onSelect` still assumes.
+// Chain picker (top pill row, lib/robinhoodTokens.ts CHAINS): shipped
+// 2026-07-25 as layout-only (Base/Solana rendered but inert, "Soon" badge)
+// ahead of the actual cross-chain routing + wallet work. That work shipped
+// 2026-07-28 (Dylan: "enable base, SOL, ETH") — all four chains are now
+// real, clickable, and change which token list is shown (`browseChainId`
+// below), same pattern proven in the dylmusic project's own multi-chain
+// token picker. See components/PrintDirectSwap.tsx route-planner comments
+// for how a non-Robinhood-chain pick actually routes: any leg touching
+// $PRINT still always goes through our own pool, never Relay, no matter
+// which chain the other side of the swap is on.
 type Props = {
   open: boolean;
+  chainId: number; // the side's current token chain — seeds browseChainId when the modal opens
   onClose: () => void;
   onSelect: (token: RhToken) => void;
 };
 
 function shortAddr(a: string) {
+  if (a.length <= 12) return a;
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+// Custom-paste detection: EVM chains look for a "0x..." address (existing
+// pattern); Solana mint addresses are base58 (no 0/O/I/l), typically
+// 32-44 chars, with no distinguishing prefix — length+charset is the best
+// available heuristic short of attempting a resolve on every keystroke.
+function looksLikeAddress(chainId: number, q: string): boolean {
+  if (isSolanaChain(chainId)) return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q);
+  return q.length >= 8 && /^0x/i.test(q);
 }
 
 // `size` lets this render both inside the modal's row list (bigger) and
@@ -77,14 +83,25 @@ export function TokenIcon({ token, size = 28 }: { token: RhToken; size?: number 
   );
 }
 
-export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
+export default function TokenPickerModal({ open, chainId, onClose, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [customToken, setCustomToken] = useState<RhToken | null>(null);
   const [customLoading, setCustomLoading] = useState(false);
   // "RWAs" pinned pill is a category filter, not a direct token pick — toggles
   // the results list to the tokenized-stock roster (our own /rwa pools first,
   // then the broader Robinhood-issued market list) instead of picking one.
+  // RWA tokens only exist on Robinhood Chain — switching chains while this
+  // filter is active correctly shows an empty list (tokensForChain), not a
+  // stale Robinhood-only list under a different chain's pill.
   const [rwaFilter, setRwaFilter] = useState(false);
+  // Which chain's tokens are currently being browsed — seeded from the
+  // side's current token on open, then freely switchable via the pills
+  // without affecting the OTHER side's token/chain at all.
+  const [browseChainId, setBrowseChainId] = useState(chainId);
+
+  useEffect(() => {
+    if (open) setBrowseChainId(chainId);
+  }, [open, chainId]);
 
   useEffect(() => {
     if (!open) {
@@ -97,24 +114,26 @@ export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
   useEffect(() => {
     const q = query.trim();
     setCustomToken(null);
-    if (q.length < 8 || !/^0x/i.test(q)) return; // only try to resolve address-looking input
+    if (!looksLikeAddress(browseChainId, q)) return;
     setCustomLoading(true);
     const timer = setTimeout(() => {
-      resolveCustomToken(q)
+      resolveCustomToken(browseChainId, q)
         .then((t) => setCustomToken(t))
         .finally(() => setCustomLoading(false));
     }, 400);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, browseChainId]);
+
+  const pool = useMemo(() => tokensForChain(browseChainId, rwaFilter), [browseChainId, rwaFilter]);
+  const pinned = useMemo(() => PINNED_TOKENS[browseChainId] ?? [], [browseChainId]);
 
   const results = useMemo(() => {
-    const pool = rwaFilter ? ALL_RWA_TOKENS : CURATED_TOKENS;
     const q = query.trim().toLowerCase();
     if (!q) return pool;
     return pool.filter(
       (t) => t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q) || t.address.toLowerCase() === q
     );
-  }, [query, rwaFilter]);
+  }, [query, pool]);
 
   if (!open) return null;
 
@@ -136,9 +155,14 @@ export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
                 <button
                   key={c.id}
                   type="button"
-                  className={`tp-chain-pill${c.enabled ? " active" : ""}${c.enabled ? "" : " disabled"}`}
+                  className={`tp-chain-pill${c.id === browseChainId ? " active" : ""}${c.enabled ? "" : " disabled"}`}
                   disabled={!c.enabled}
-                  aria-current={c.enabled ? "true" : undefined}
+                  aria-current={c.id === browseChainId ? "true" : undefined}
+                  onClick={() => {
+                    setBrowseChainId(c.id);
+                    setQuery("");
+                    if (rwaFilter && c.id !== CHAINS[0].id) setRwaFilter(false);
+                  }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img className="tp-chain-pill-icon" src={c.icon} alt="" />
@@ -160,9 +184,9 @@ export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
             />
 
             <div className="tp-pinned-row">
-              {PINNED_TOKENS.map((t) => (
+              {pinned.map((t) => (
                 <button
-                  key={t.address}
+                  key={tokenKey(t)}
                   type="button"
                   className="tp-pinned-pill"
                   onClick={() => {
@@ -174,17 +198,20 @@ export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
                   {t.symbol}
                 </button>
               ))}
-              <button
-                type="button"
-                className={`tp-pinned-pill tp-pinned-pill-rwa${rwaFilter ? " active" : ""}`}
-                onClick={() => {
-                  setRwaFilter((v) => !v);
-                  setQuery("");
-                }}
-              >
-                RWAs
-                <span className="tp-pinned-badge">NEW</span>
-              </button>
+              {/* RWA tokens only exist on Robinhood Chain — the toggle is only shown while browsing it. */}
+              {browseChainId === CHAINS[0].id && (
+                <button
+                  type="button"
+                  className={`tp-pinned-pill tp-pinned-pill-rwa${rwaFilter ? " active" : ""}`}
+                  onClick={() => {
+                    setRwaFilter((v) => !v);
+                    setQuery("");
+                  }}
+                >
+                  RWAs
+                  <span className="tp-pinned-badge">NEW</span>
+                </button>
+              )}
             </div>
 
             <div className="tp-results">
@@ -212,7 +239,7 @@ export default function TokenPickerModal({ open, onClose, onSelect }: Props) {
               )}
               {results.map((t) => (
                 <button
-                  key={t.address}
+                  key={tokenKey(t)}
                   type="button"
                   className="tp-row"
                   onClick={() => {

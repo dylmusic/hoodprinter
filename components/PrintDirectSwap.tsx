@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, http, useAccount, useBalance, useDisconnect, useWalletClient } from "wagmi";
+import { WagmiProvider, http, useAccount, useBalance, useDisconnect, useSwitchChain, useWalletClient } from "wagmi";
+import { base, mainnet } from "wagmi/chains";
 import {
   getDefaultConfig,
   getDefaultWallets,
@@ -36,8 +37,9 @@ import {
   POOL_TAX_PCT,
   NATIVE_ETH,
 } from "@/lib/printDirectSwap";
-import { ETH_TOKEN, PRINT_TOKEN, type RhToken } from "@/lib/robinhoodTokens";
-import { getRelayLegQuote, executeRelayLeg, quoteLastTxHash } from "@/lib/relayLeg";
+import { ETH_TOKEN, PRINT_TOKEN, NATIVE_SOL, isSolanaChain, tokenKey, type RhToken } from "@/lib/robinhoodTokens";
+import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash } from "@/lib/relayLeg";
+import { useSolanaWallet } from "@/lib/solanaWallet";
 import {
   isKnownV2Token,
   quoteV2TokenToEth,
@@ -190,14 +192,20 @@ const walletsWithRobinhood: WalletList = getDefaultWallets().wallets.map((group)
   return { ...group, wallets };
 });
 
+// Base + Ethereum mainnet added 2026-07-28 (Dylan: "enable base, SOL, ETH")
+// as real EVM origin/destination chains for cross-chain swaps — same
+// MetaMask/RainbowKit connection already working for Robinhood Chain works
+// unchanged for these, wagmi just needs them registered. Solana isn't a
+// wagmi/viem chain at all (it's not EVM) — that side is handled separately
+// via lib/solanaWallet.ts's lightweight Phantom hook, not through wagmi.
 const wagmiConfig = getDefaultConfig({
   appName: "HOODPrinter",
   appUrl: siteConfig.url,
   appIcon: `${siteConfig.url}/logo.png`,
   // See components/SwapEmbed.tsx for why this placeholder (not empty string).
   projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
-  chains: [robinhoodChain],
-  transports: { [robinhoodChain.id]: http() },
+  chains: [robinhoodChain, base, mainnet],
+  transports: { [robinhoodChain.id]: http(), [base.id]: http(), [mainnet.id]: http() },
   wallets: walletsWithRobinhood,
 });
 
@@ -339,19 +347,33 @@ type PlanKind =
   | "invalid";
 
 function isPrintToken(t: RhToken) {
-  return t.address.toLowerCase() === PRINT_TOKEN.address.toLowerCase();
+  return t.chainId === CHAIN.id && t.address.toLowerCase() === PRINT_TOKEN.address.toLowerCase();
 }
+// Address alone collides across chains (every EVM chain's native ETH shares
+// the NATIVE_ETH sentinel address) — identity must include chainId.
 function isSameToken(a: RhToken, b: RhToken) {
-  return a.address.toLowerCase() === b.address.toLowerCase();
+  return a.chainId === b.chainId && a.address.toLowerCase() === b.address.toLowerCase();
 }
+// Cross-chain (Base/Solana/Ethereum mainnet), added 2026-07-28. $PRINT only
+// exists on Robinhood Chain (isPrintToken already requires that), so
+// fromPrint/toPrint branches are unaffected by chain — they're print-buy/
+// print-sell/print-to-relay/relay-to-print exactly as before whenever the
+// OTHER side happens to also be Robinhood Chain, and automatically become
+// the cross-chain variant of the same plan (relay-to-print/print-to-relay)
+// the instant the other side isn't, since getRelayLegQuote's chainId/
+// toChainId params are what actually vary, not the plan kind itself. The
+// two curated-pool plans stay chain-guarded to Robinhood<->Robinhood only
+// (defensive — KNOWN_V2_TOKENS addresses are all real Robinhood Chain
+// contracts, so this never actually fires today, but removes any
+// theoretical cross-chain address-collision risk for free).
 function planRoute(from: RhToken, to: RhToken): PlanKind {
   if (isSameToken(from, to)) return "invalid";
   const fromPrint = isPrintToken(from);
   const toPrint = isPrintToken(to);
-  if (from.isNative && toPrint) return "print-buy";
-  if (fromPrint && to.isNative) return "print-sell";
-  if (fromPrint) return isKnownV2Token(to.address) ? "print-to-curated" : "print-to-relay";
-  if (toPrint) return isKnownV2Token(from.address) ? "curated-to-print" : "relay-to-print";
+  if (from.isNative && from.chainId === CHAIN.id && toPrint) return "print-buy";
+  if (fromPrint && to.isNative && to.chainId === CHAIN.id) return "print-sell";
+  if (fromPrint) return to.chainId === CHAIN.id && isKnownV2Token(to.address) ? "print-to-curated" : "print-to-relay";
+  if (toPrint) return from.chainId === CHAIN.id && isKnownV2Token(from.address) ? "curated-to-print" : "relay-to-print";
   return "relay-only";
 }
 
@@ -360,20 +382,32 @@ function InnerDirectSwap() {
   const { disconnect } = useDisconnect();
   const { data: walletClient } = useWalletClient();
   const { openConnectModal } = useConnectModal();
+  const { switchChainAsync } = useSwitchChain();
+  // Lightweight direct-Phantom connection (lib/solanaWallet.ts) — separate
+  // from wagmi/RainbowKit entirely, since Solana isn't an EVM chain. Only
+  // consulted at all when a Solana token is actually on one side of the
+  // swap (see fromIsSolana/toIsSolana below) — connecting Phantom is never
+  // required or prompted for a Robinhood/Base/Ethereum-only swap.
+  const sol = useSolanaWallet();
 
   const [fromToken, setFromToken] = useState<RhToken>(ETH_TOKEN);
   const [toToken, setToToken] = useState<RhToken>(PRINT_TOKEN);
   const [pickerSide, setPickerSide] = useState<"from" | "to" | null>(null);
 
+  const fromIsSolana = isSolanaChain(fromToken.chainId);
+  const toIsSolana = isSolanaChain(toToken.chainId);
+
   const { data: fromBalanceData } = useBalance({
     address,
-    chainId: robinhoodChain.id,
+    chainId: fromToken.chainId,
     token: fromToken.isNative ? undefined : (fromToken.address as `0x${string}`),
+    query: { enabled: !!address && !fromIsSolana },
   });
   const { data: toBalanceData } = useBalance({
     address,
-    chainId: robinhoodChain.id,
+    chainId: toToken.chainId,
     token: toToken.isNative ? undefined : (toToken.address as `0x${string}`),
+    query: { enabled: !!address && !toIsSolana },
   });
 
   const [amount, setAmount] = useState("0.01");
@@ -463,7 +497,7 @@ function InnerDirectSwap() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromToken.address, toToken.address, rate, ethUsd]);
+  }, [fromToken.chainId, fromToken.address, toToken.chainId, toToken.address, rate, ethUsd]);
 
   // 7/10/15 only makes sense when clearing $PRINT's 5% tax — "7 as default
   // is too high for regular tokens, 2 should be default on most tokens."
@@ -558,7 +592,12 @@ function InnerDirectSwap() {
     // be real for a read-only quote (verified live) — a placeholder lets
     // the estimate show up before connecting a wallet. Never used for
     // execution: doSwap() below still requires a real connected address.
-    const previewAddress = address || PREVIEW_QUOTE_ADDRESS;
+    // Chain-aware since 2026-07-28: a Solana-shaped placeholder for a
+    // Solana-origin/destination leg, an EVM-shaped one otherwise — Relay
+    // validates address format per chain, an EVM zero-address "user" isn't
+    // valid for an SVM quote.
+    const previewAddressFor = (chainId: number) => (isSolanaChain(chainId) ? sol.address || NATIVE_SOL : address || PREVIEW_QUOTE_ADDRESS);
+    const previewAddress = previewAddressFor(fromToken.chainId);
 
     let cancelled = false;
     setRelayPreviewLoading(true);
@@ -577,11 +616,13 @@ function InnerDirectSwap() {
         } else if (plan === "relay-only") {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
           const quote = await getRelayLegQuote({
-            chainId: CHAIN.id,
+            chainId: fromToken.chainId,
+            toChainId: toToken.chainId,
             fromCurrency: fromToken.address,
             toCurrency: toToken.address,
             amountWei,
             userAddress: previewAddress,
+            recipientAddress: previewAddressFor(toToken.chainId),
             chargeFee: true,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
@@ -589,11 +630,13 @@ function InnerDirectSwap() {
         } else if (plan === "relay-to-print") {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
           const quote = await getRelayLegQuote({
-            chainId: CHAIN.id,
+            chainId: fromToken.chainId,
+            toChainId: CHAIN.id,
             fromCurrency: fromToken.address,
             toCurrency: NATIVE_ETH,
             amountWei,
             userAddress: previewAddress,
+            recipientAddress: previewAddressFor(CHAIN.id),
             chargeFee: false,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
@@ -605,10 +648,12 @@ function InnerDirectSwap() {
           const amountWei = ethers.parseEther(ethOut.toFixed(18)).toString();
           const quote = await getRelayLegQuote({
             chainId: CHAIN.id,
+            toChainId: toToken.chainId,
             fromCurrency: NATIVE_ETH,
             toCurrency: toToken.address,
             amountWei,
-            userAddress: previewAddress,
+            userAddress: previewAddressFor(CHAIN.id),
+            recipientAddress: previewAddressFor(toToken.chainId),
             chargeFee: false,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
@@ -625,11 +670,19 @@ function InnerDirectSwap() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, fromToken.address, toToken.address, amount, address, rate]);
+  }, [plan, fromToken.chainId, fromToken.address, toToken.chainId, toToken.address, amount, address, sol.address, rate]);
 
   async function doSwap() {
     if (!walletClient || !address) return;
     if (!amt || amt <= 0) return;
+    // Cross-chain (added 2026-07-28): the EVM wallet is always required
+    // (every plan's Robinhood-chain leg needs it — that's unchanged from
+    // before this feature existed), and Phantom is ADDITIONALLY required
+    // only when a Solana token is actually selected on either side.
+    if ((fromIsSolana || toIsSolana) && !sol.address) {
+      setError("Connect Phantom to swap with Solana.");
+      return;
+    }
 
     setSwapping(true);
     setError(null);
@@ -701,19 +754,39 @@ function InnerDirectSwap() {
         setReceivedSym("ETH");
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: ok ? `~${fmt(expectedOut)}` : null });
       } else if (plan === "relay-only") {
+        // Cross-chain (Base/Solana/Ethereum mainnet), added 2026-07-28 —
+        // neither side touches $PRINT, so this is a single plain Relay leg
+        // exactly as before, just with real chainId/toChainId instead of
+        // both hardcoded to Robinhood Chain. Signer is whichever wallet
+        // matches the ORIGIN chain (Phantom for a Solana fromToken, the
+        // connected EVM wallet otherwise — switching chain first if the
+        // EVM wallet isn't already on fromToken's chain); recipient is
+        // whichever wallet matches the DESTINATION chain.
         setStep("Confirm in wallet…");
         legContext = `${fromToken.symbol} → ${toToken.symbol} (via Relay)`;
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
+        const recipientAddress = toIsSolana ? sol.address! : address;
         const quote = await getRelayLegQuote({
-          chainId: CHAIN.id,
+          chainId: fromToken.chainId,
+          toChainId: toToken.chainId,
           fromCurrency: fromToken.address,
           toCurrency: toToken.address,
           amountWei,
-          userAddress: address,
+          userAddress: fromIsSolana ? sol.address! : address,
+          recipientAddress,
           chargeFee: true,
         });
-        const { data: result } = await executeRelayLeg(quote, walletClient, (label) => setStep(label));
-        const hash = quoteLastTxHash(result, CHAIN.id);
+        let relayWallet;
+        if (fromIsSolana) {
+          const provider = sol.getProvider();
+          if (!provider) throw new Error("Phantom wallet not found.");
+          relayWallet = adaptPrintSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
+        } else {
+          if (walletClient.chain?.id !== fromToken.chainId) await switchChainAsync({ chainId: fromToken.chainId });
+          relayWallet = adaptEvmWallet(walletClient);
+        }
+        const { data: result } = await executeRelayLeg(quote, relayWallet, (label) => setStep(label));
+        const hash = quoteLastTxHash(result, fromToken.chainId);
         finalOk = !!hash;
         setTxHash(hash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
@@ -804,21 +877,38 @@ function InnerDirectSwap() {
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
       } else if (plan === "relay-to-print") {
         // Leg 1/2 — fromToken -> ETH on Robinhood Chain via Relay. Fee-free:
-        // our 0.85% is taken once, on leg 2 below.
+        // our 0.85% is taken once, on leg 2 below. Cross-chain (added
+        // 2026-07-28): fromToken's own chain is the leg's origin (signed by
+        // Phantom if it's Solana, else the EVM wallet, switching chain
+        // first if needed) — the destination is ALWAYS Robinhood Chain ETH
+        // into our own EVM `address`, exactly as before, since leg 2 below
+        // (our own pool) only ever exists on Robinhood Chain.
         legContext = `Step 1/2 (${fromToken.symbol} → ETH via Relay)`;
         setLegProgress({ part: 1, total: 2, label: `Confirm ${fromToken.symbol} → ETH` });
         const preBalance = await readProvider.getBalance(address);
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
         const quote1 = await getRelayLegQuote({
-          chainId: CHAIN.id,
+          chainId: fromToken.chainId,
+          toChainId: CHAIN.id,
           fromCurrency: fromToken.address,
           toCurrency: NATIVE_ETH,
           amountWei,
-          userAddress: address,
+          userAddress: fromIsSolana ? sol.address! : address,
+          recipientAddress: address,
           chargeFee: false,
         });
+        let leg1Wallet;
+        if (fromIsSolana) {
+          const provider = sol.getProvider();
+          if (!provider) throw new Error("Phantom wallet not found.");
+          leg1Wallet = adaptPrintSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
+        } else {
+          if (walletClient.chain?.id !== fromToken.chainId) await switchChainAsync({ chainId: fromToken.chainId });
+          leg1Wallet = adaptEvmWallet(walletClient);
+        }
         const feeDataPromise = readProvider.getFeeData(); // resolves while Relay's own leg runs, not after
-        await executeRelayLeg(quote1, walletClient, (label) => setLegProgress({ part: 1, total: 2, label }));
+        await executeRelayLeg(quote1, leg1Wallet, (label) => setLegProgress({ part: 1, total: 2, label }));
+        if (!fromIsSolana && walletClient.chain?.id !== CHAIN.id) await switchChainAsync({ chainId: CHAIN.id });
 
         const postBalance = await readProvider.getBalance(address);
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
@@ -904,17 +994,23 @@ function InnerDirectSwap() {
         }
 
         // Leg 2/2 — ETH -> toToken via Relay. Fee-free (already taken above).
+        // Cross-chain (added 2026-07-28): origin is always Robinhood Chain
+        // ETH (our own leg 1 output, signed by the same EVM wallet that
+        // just sent leg 1 — no chain switch needed), destination is
+        // toToken's own chain (Phantom's address if it's Solana).
         legContext = `Step 2/2 (ETH → ${toToken.symbol} via Relay)`;
         setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
         const quote2 = await getRelayLegQuote({
           chainId: CHAIN.id,
+          toChainId: toToken.chainId,
           fromCurrency: NATIVE_ETH,
           toCurrency: toToken.address,
           amountWei: leg2InputWei.toString(),
           userAddress: address,
+          recipientAddress: toIsSolana ? sol.address! : address,
           chargeFee: false,
         });
-        const { data: result2 } = await executeRelayLeg(quote2, walletClient, (label) =>
+        const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(walletClient), (label) =>
           setLegProgress({ part: 2, total: 2, label })
         );
         const hash2 = quoteLastTxHash(result2, CHAIN.id);
@@ -1081,6 +1177,7 @@ function InnerDirectSwap() {
     <>
       <TokenPickerModal
         open={pickerSide !== null}
+        chainId={pickerSide === "to" ? toToken.chainId : fromToken.chainId}
         onClose={() => setPickerSide(null)}
         onSelect={(t) => pickerSide && selectToken(pickerSide, t)}
       />
@@ -1215,6 +1312,13 @@ function InnerDirectSwap() {
           <button type="button" className="btn btn-primary swap-cta" onClick={() => openConnectModal?.()}>
             Connect Wallet
           </button>
+        ) : (fromIsSolana || toIsSolana) && !sol.address ? (
+          // Solana (added 2026-07-28) needs a second, separate wallet
+          // connection — Phantom, not RainbowKit/wagmi — only prompted at
+          // all once a Solana token is actually selected on either side.
+          <button type="button" className="btn btn-primary swap-cta" onClick={() => sol.connect()}>
+            Connect Phantom
+          </button>
         ) : (
           <>
             {swapping && legProgress && (
@@ -1272,6 +1376,14 @@ function InnerDirectSwap() {
           <p className="swap-address">
             Connected: {address.slice(0, 6)}…{address.slice(-4)} ·{" "}
             <button type="button" className="swap-disconnect" onClick={() => disconnect()}>
+              Disconnect
+            </button>
+          </p>
+        )}
+        {sol.address && (
+          <p className="swap-address">
+            Phantom: {sol.address.slice(0, 4)}…{sol.address.slice(-4)} ·{" "}
+            <button type="button" className="swap-disconnect" onClick={() => sol.disconnect()}>
               Disconnect
             </button>
           </p>

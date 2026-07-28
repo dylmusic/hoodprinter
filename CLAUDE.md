@@ -941,84 +941,153 @@ in one step), not just same-chain ETH swaps.
   integration entirely (LI.FI had no sell-side route for $PRINT at all;
   Relay routes both directions).
 
-### Cross-chain swap — scoped 2026-07-25, NOT built yet (except the chain picker below)
+### Cross-chain swap — shipped 2026-07-28 (Base, Solana, Ethereum mainnet all live)
 
-Dylan asked to scope (explicitly: "do not execute") letting `/swap` accept
-Solana and Base wallets, routed cross-chain via Relay into $PRINT. Full
-scope discussion lives in conversation history; the load-bearing
-conclusions, so a future session doesn't re-derive them:
+Scoped 2026-07-25 ("do not execute" — see git history / old CLAUDE.md
+revisions for that discussion), built 2026-07-28 after Dylan asked
+directly: "build solana connection (we already have it in our wallet
+connector) and then enable cross chain and show the top tokens on those
+chains... let them enter any CA and route it thru relay." The
+`dylmusic` sibling project (same account, `@reservoir0x` scope, already
+has a live Solana-inclusive Relay swap page) was the reference
+implementation — pointed to directly by Dylan ("Look into the Dylmusic
+project. It has a great solana connection") and used to de-risk the two
+biggest open questions from the 2026-07-25 scoping before writing any
+code:
 
-- **The architecture is: any origin (Base, Solana, anything Relay
-  supports) → Relay's `recipient` param (distinct from `user`, confirmed
-  via Relay's own API docs) delivers native ETH to the user's Robinhood-
-  Chain EVM wallet address → that ETH feeds the EXACT leg-2 logic
-  `relay-to-print`/`print-to-relay` already use today** (measure balance
-  delta, feed into our own hardcoded pool). Non-$PRINT cross-chain swaps
-  can be pure Relay end-to-end, no pool involved — same as `relay-only`
-  today, different origin chain. This means the $PRINT-bound half of
-  cross-chain reuses proven code almost as-is; it's not a rebuild.
-- **Base** (EVM): straightforward — reuses the existing wagmi/RainbowKit
-  MetaMask connection unchanged. Needs registering as an origin chain
-  with both wagmi's `chains` array (`PrintDirectSwap.tsx` currently hard-
-  codes `chains: [robinhoodChain]`, just one entry) and Relay's client
-  (`ensureRelayClient()` in `lib/relayLeg.ts` currently only registers
-  Robinhood Chain — same "Unable to find chain" bug class already fixed
-  once would recur for any chain left unregistered).
-- **Solana**: genuinely bigger, but more concrete than first assumed.
-  Relay's own recommended pattern is `adaptSolanaWallet` from
-  `@relayprotocol/relay-solana-wallet-adapter`, used alongside
-  `adaptViemWallet` — **but both live under the `@relayprotocol` scope**,
-  not the `@reservoir0x` scope this repo currently pins (`@reservoir0x/
-  relay-sdk@2.4.0`, `@reservoir0x/relay-kit-ui@2.17.2` — see the main
-  Swap section above for why that scope was chosen originally). Verified
-  via Relay's own SDK getting-started docs: the *headless* `@relayprotocol/
-  relay-sdk` only peer-depends on `viem` + Node 18+ + TS 5.0.4+ — **no
-  React requirement at all**. The React 19 lock-in documented elsewhere
-  in this file is specific to `@relayprotocol/relay-kit-ui` (the pre-built
-  widget), which `/swap`'s headless flow never used anyway (that's
-  `SwapEmbed.tsx`, currently dead code). So migrating just the headless
-  SDK import to get `adaptSolanaWallet` should NOT force a React/Next
-  upgrade — `createClient`/`convertViemChainToRelayChain` have matching
-  shapes across both scopes, reads like a compatible rename rather than a
-  breaking rewrite, though this wasn't hands-on verified.
-  Confirmed independently (Relay's own blog): **"if routing to or from
-  Solana, you need to connect both your EVM wallet and Solana wallet"** —
-  dual-wallet UX is a real, unavoidable requirement per Relay's own model
-  (window.solana/Phantom and window.ethereum/MetaMask are separate
-  provider namespaces, no technical conflict, but it's a second wallet
-  stack — `@solana/wallet-adapter-react` + UI — with its own connect
-  surface, not a config flip). Only mount/prompt that stack when the
-  Solana chain pill is actually selected, never on page load — this is
-  what keeps the default Robinhood-only path untouched (see below).
-- **Guardrail, non-negotiable**: Dylan repeated this every message —
-  "make sure this works and DO NOT break our current functionality which
-  is great" / "prioritize not messing with the current Robinhood chain
-  only swap so that stays as is and functions while we build." The
-  planned approach is to treat cross-chain as a NEW, additive path
-  alongside the existing same-chain branches in `doSwap()`, not a
-  modification of them — new chain state, new wallet state, existing
-  print-buy/print-sell/curated/relay-only logic untouched unless a
-  non-Robinhood chain is actively selected.
+- **The `@relayprotocol` package-scope migration flagged as the big
+  Solana risk in the 2026-07-25 scoping turned out to be unnecessary.**
+  dylmusic uses `@reservoir0x/relay-svm-wallet-adapter@^11.0.0` — the
+  Solana wallet adapter DOES exist under the same `@reservoir0x` scope
+  this repo already pins, no migration needed. Installed alongside
+  `@solana/web3.js@^1.98.4` (peer dep for `Connection`/transaction types).
+- **Solana wallet connection is a lightweight direct-Phantom hook**
+  (`lib/solanaWallet.ts`, copied from dylmusic's own `lib/solana.ts`
+  near-verbatim), not the full `@solana/wallet-adapter-react` stack —
+  `window.solana` (Phantom's injected provider), `connect()`/
+  `disconnect()`/`signAndSendTransaction()`. Proven live in production on
+  dylmusic's own swap page. Only mounted/consulted when a Solana token is
+  actually selected on either side of the swap — never prompted on page
+  load, matching the non-negotiable guardrail from the 2026-07-25 scoping
+  ("prioritize not messing with the current Robinhood chain only swap").
 
-**Chain picker (shipped 2026-07-25, layout only — this part IS built)**:
-`TokenPickerModal.tsx`'s old dead-weight left sidebar (see "A sidebar
-with zero function on mobile" above) is gone, replaced with a "Select
-Chain" pill row at the top of the modal, above the untouched "Select
-Token" search/pinned-pills/results — Dylan preferred this outright over
-the sidebar, not just as a mobile fix. `lib/robinhoodTokens.ts` exports
-`CHAINS: RhChain[]` (Robinhood/Base/Solana), icons sourced from Relay's
-own hosted chain-icon CDN (`assets.relay.link/icons/<chainId>/light.png`
-— same trusted-source pattern already used for token logos via Relay's
-`/currencies/v2` API, verified live via curl before using: 200s, real
-image bytes, not guessed URLs). **Only Robinhood is `enabled`** — Base
-and Solana pills render with a "Soon" badge, `disabled` attribute, no
-click handler at all (verified live: clicking a disabled pill fires
-nothing, active chain stays Robinhood, zero console errors). Selecting a
-token from the list still calls the exact same `onSelect`/`onClose` path
-as before — verified live by picking CASHCAT post-change and confirming
-the swap card's pay-side pill updated correctly, matching pre-change
-behavior exactly. This is deliberately the ONLY piece of the cross-chain
-work actually shipped so far — everything else above is scope, not code.
+**Architecture — exactly what was scoped, now built:**
+`lib/robinhoodTokens.ts`'s `RhToken` gained a `chainId` field (every
+token is now chain-scoped, not implicitly Robinhood-only); `CHAINS` all
+four entries (Robinhood/Base/Solana/Ethereum) are `enabled: true` now,
+Ethereum mainnet added as a 4th chain at the same time (wasn't in the
+original Base/Solana-only scoping, but free once Base's EVM pattern
+existed — same `wagmi` registration, same Relay registration, zero extra
+wallet work since RainbowKit/MetaMask already work on any EVM chain).
+`components/PrintDirectSwap.tsx`'s `planRoute()` is UNCHANGED in
+structure — the same 7 plan kinds, decided the same way — because
+`isPrintToken()` already implicitly requires the Robinhood-chain side
+(PRINT only exists there), so `fromPrint`/`toPrint` branches were already
+chain-correct. The only real change: `getRelayLegQuote()` calls
+(`lib/relayLeg.ts`) now pass real `chainId`/`toChainId` per leg instead
+of both hardcoded to `CHAIN.id` — `relay-only` uses `fromToken.chainId`→
+`toToken.chainId` (a single plain cross-chain Relay leg, pure Relay
+end-to-end, exactly "all other non-print cross chain swaps can be pure
+relay" per Dylan's framing); `relay-to-print`'s leg 1 uses
+`fromToken.chainId`→Robinhood (any origin chain's token → native ETH on
+Robinhood Chain, landing in the same EVM `address` leg 2 already reads
+its balance-delta from — unchanged); `print-to-relay`'s leg 2 mirrors
+that in reverse (Robinhood→`toToken.chainId`). **The $PRINT-pool
+invariant is untouched**: any leg touching $PRINT still always goes
+through our own hardcoded pool (`buildBuySwapTx`/`buildSellSwapTx`),
+never Relay, no matter which chain the other side is on — that logic
+didn't need to change at all, only the Relay quote's chain parameters
+around it.
+- **Signer selection per leg**: whichever wallet matches that leg's own
+  origin chain — Phantom (`adaptPrintSolanaWallet`, wrapping
+  `@reservoir0x/relay-svm-wallet-adapter`'s `adaptSolanaWallet` around
+  Phantom's `signAndSendTransaction`) if the origin is Solana, else the
+  connected EVM wallet (`adaptEvmWallet`, a thin `adaptViemWallet`
+  wrapper), switching chain first via wagmi's `useSwitchChain` if the
+  EVM wallet isn't already on that leg's chain (and switching BACK to
+  Robinhood before a print-touching plan's own pool leg, if leg 1 moved
+  it elsewhere — e.g. `relay-to-print` from a Base origin). Recipient
+  selection is symmetric — whichever wallet matches the leg's
+  destination chain.
+- **EVM wallet connection stays the primary, always-required gate**
+  (`!isConnected` → "Connect Wallet", byte-for-byte the same UI as
+  before this feature existed) — every plan still has at least one
+  Robinhood-chain (EVM) leg by construction, print-buy/print-sell/
+  curated-to-print/print-to-curated are Robinhood-chain-only exactly as
+  before and never touch Solana at all. Phantom is an ADDITIONAL,
+  separate requirement, only surfaced (`(fromIsSolana || toIsSolana) &&
+  !sol.address` → "Connect Phantom" button, replacing the swap button
+  until connected) once a Solana token is actually selected on either
+  side — confirms the "if routing to or from Solana, you need to connect
+  both your EVM wallet and Solana wallet" dual-wallet requirement flagged
+  in the 2026-07-25 scoping, now actually wired up rather than assumed.
+- **Curated self-routed V2 plans (`curated-to-print`/`print-to-curated`)
+  gained a defensive `chainId === CHAIN.id` guard** in `planRoute()` —
+  `KNOWN_V2_TOKENS` (`lib/curatedPoolSwap.ts`) are all real Robinhood
+  Chain contract addresses so this never actually fires today, but it
+  closes off the (already near-impossible) theoretical risk of a
+  same-address token on a different chain being misrouted through our
+  self-built V2 calldata.
+- **Cross-chain address-collision fix**: every EVM chain's native ETH
+  shares the exact same `NATIVE_ETH` sentinel address
+  (`0x0000...0000`) — `isSameToken()`/React list keys/`resolveCustomToken`'s
+  "already known" check all switched from address-only comparison to a
+  compound `chainId:address` identity (`tokenKey()` in
+  `lib/robinhoodTokens.ts`) so Robinhood ETH, Base ETH, and mainnet ETH
+  are never treated as the same token.
+- **Token lists per chain** (`lib/robinhoodTokens.ts`): Base gets
+  ETH/WETH/USDC, Solana gets SOL/USDC/USDG, Ethereum mainnet gets ETH —
+  same "native + a couple of verified pairs" shape as the original
+  Robinhood-chain curated list, not full parity (deliberately small — any
+  other token reaches the picker via paste-a-CA). Addresses are the exact
+  same ones already verified live in the dylmusic project (Relay's own
+  `/currencies/v2` API), not re-derived. `PINNED_TOKENS` became
+  `Record<chainId, RhToken[]>`; `tokensForChain(chainId, rwaFilter)`
+  is the one place that decides what the picker shows for a given chain
+  (RWA tokens stay Robinhood-only — the "RWAs" pill itself is hidden
+  while browsing any other chain, since it would otherwise show an
+  always-empty list).
+- **Paste-any-CA now works across chains, including Solana**
+  (`resolveCustomToken(chainId, address)`, `TokenPickerModal.tsx`'s
+  `looksLikeAddress()`) — EVM chains (Robinhood/Base/mainnet) read
+  symbol/name/decimals directly on-chain via a small per-chain public-RPC
+  map (`mainnet.base.org`, `eth.llamarpc.com`, alongside the existing
+  Robinhood RPC), same "add by CA" pattern PrintBot already uses. Solana
+  has no on-chain symbol/name standard to read the same way (that's
+  Metaplex metadata, a separate program) — mirrors dylmusic's own
+  approach exactly: trusts Relay's `/currencies/v2` lookup alone for SVM
+  mints, returns nothing (curated-list-only) if Relay doesn't recognize
+  it, rather than guessing. Base58 mint addresses (32-44 chars, no
+  0/O/I/l) are detected separately from the existing `0x...` EVM
+  heuristic.
+- **Chain picker in `TokenPickerModal.tsx`** now actually switches which
+  token list is shown (`browseChainId` local state, seeded from
+  whichever token is currently on that side when the modal opens, freely
+  switchable via the pills without touching the OTHER side) — the
+  2026-07-25 version's pills were real UI but inert (`disabled`, no
+  `onClick`) ahead of this work; that part didn't change, just gained a
+  working handler.
+- **USD pricing extended per chain** (`lib/tokenUsdPrice.ts`) — DexScreener
+  queries now use the right chain slug (`robinhood`/`base`/`ethereum`/
+  `solana`) instead of hardcoded `"robinhood"`; native SOL was pulled out
+  of the "native ETH shortcut" (SOL's price isn't ETH's price) and priced
+  via DexScreener using the real indexed wrapped-SOL mint
+  (`So1111...1112`), since Relay's own `NATIVE_SOL` sentinel isn't an
+  indexed DexScreener pair.
+- **Verified live** (headless CDP, same methodology used throughout this
+  file): all 4 chain pills clickable with correct per-chain pinned/result
+  lists (Base → ETH/WETH/USDC, Solana → SOL/USDC/USDG); picking SOL as
+  the "from" token correctly computes `relay-to-print` and renders
+  "Routed as SOL → ETH → $PRINT · 2 wallet confirmations"; picking a
+  cross-chain non-PRINT pair (SOL → Base USDC) correctly computes
+  `relay-only` with no crash; switching back to Robinhood Chain
+  reproduces the exact original pinned list (PRINT/ETH/WETH/USDG + RWAs)
+  byte-for-byte; homepage/`/print`/`/swap` all load with zero console
+  errors before and after. Not verified in this session (no funded
+  Phantom/MetaMask wallets available): an actual signed end-to-end
+  cross-chain transaction — the round-trip-decode/dylmusic-parity
+  discipline is what stands in for that, same gap already noted
+  elsewhere in this file for other unfundable-wallet cases.
 
 ---
 

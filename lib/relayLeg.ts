@@ -1,6 +1,18 @@
-import { createClient, getQuote, execute, adaptViemWallet, convertViemChainToRelayChain, type Execute } from "@reservoir0x/relay-sdk";
+import {
+  createClient,
+  getQuote,
+  execute,
+  adaptViemWallet,
+  convertViemChainToRelayChain,
+  type Execute,
+  type AdaptedWallet,
+} from "@reservoir0x/relay-sdk";
+import { adaptSolanaWallet } from "@reservoir0x/relay-svm-wallet-adapter";
+import { Connection, type VersionedTransaction, type SendOptions } from "@solana/web3.js";
 import type { Chain, WalletClient } from "viem";
+import { base, mainnet } from "viem/chains";
 import { siteConfig, RELAY_FEE_RECIPIENT } from "@/site.config";
+import { SOLANA_CHAIN_ID } from "@/lib/robinhoodTokens";
 
 /**
  * Headless Relay SDK usage — same package (@reservoir0x/relay-sdk) that
@@ -20,10 +32,7 @@ const APP_FEE_BPS = "85";
 // live CASHCAT->PRINT attempt with "Unable to find chain: Chain id 4663" —
 // the SDK's baked-in chain defaults don't include Robinhood Chain, and
 // getQuote/execute both need it registered locally (for RPC calls, gas
-// estimation, etc.), not just reachable over Relay's own API. SwapEmbed.tsx
-// hit the same class of issue for chain *labeling* and fixed it by passing
-// an explicit chains array — same fix here, just for one chain instead of
-// the full fetched list, since this router is same-chain only today.
+// estimation, etc.), not just reachable over Relay's own API.
 const ROBINHOOD_VIEM_CHAIN: Chain = {
   id: siteConfig.chain.chainId,
   name: siteConfig.chain.name,
@@ -32,20 +41,55 @@ const ROBINHOOD_VIEM_CHAIN: Chain = {
   blockExplorers: { default: { name: "Explorer", url: siteConfig.chain.explorerUrl } },
 };
 
-let clientReady = false;
-function ensureRelayClient() {
-  if (clientReady) return;
-  createClient({ source: "hoodprinter.xyz", chains: [convertViemChainToRelayChain(ROBINHOOD_VIEM_CHAIN)] });
-  clientReady = true;
+const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com";
+
+// Cross-chain (Base/Solana/Ethereum mainnet), added 2026-07-28 — Base and
+// Ethereum mainnet come from viem's own built-in chain list (no need to
+// hand-roll metadata the way Robinhood Chain needed above); Solana isn't a
+// viem `Chain` at all, so its entry is fetched live from Relay's own
+// `/chains` API instead of hand-authored, same approach proven in the
+// dylmusic project's own cross-chain Relay integration (SVM chain shapes
+// come from `RelayChain`, not `viem/Chain` — Relay's API is the only
+// correct source for that shape).
+let clientReadyPromise: Promise<void> | null = null;
+function ensureRelayClient(): Promise<void> {
+  if (!clientReadyPromise) {
+    clientReadyPromise = (async () => {
+      let solanaChain: Awaited<ReturnType<typeof fetchSolanaChain>> = undefined;
+      try {
+        solanaChain = await fetchSolanaChain();
+      } catch {
+        // fall through — createClient still works for the EVM chains below
+      }
+      createClient({
+        source: "hoodprinter.xyz",
+        chains: [
+          convertViemChainToRelayChain(ROBINHOOD_VIEM_CHAIN),
+          convertViemChainToRelayChain(base),
+          convertViemChainToRelayChain(mainnet),
+          ...(solanaChain ? [solanaChain] : []),
+        ],
+      });
+    })();
+  }
+  return clientReadyPromise;
+}
+
+async function fetchSolanaChain() {
+  const res = await fetch("https://api.relay.link/chains");
+  const data = await res.json();
+  return (data?.chains as Array<{ id: number }> | undefined)?.find((c) => c.id === SOLANA_CHAIN_ID) as any;
 }
 
 /**
- * Quote for a single Relay-routed leg (same-chain today; `chainId`/`toChainId`
- * are separate params so a future cross-chain leg is just different values,
- * not different code). `chargeFee` should be true ONLY when this leg is the
- * entire swap (neither side touches $PRINT) — when it's paired with a $PRINT
- * leg, our 0.85% is taken once on that leg instead (lib/printDirectSwap.ts
- * PAY_PORTION), so we don't double-charge across two legs of one swap.
+ * Quote for a single Relay-routed leg. `chainId`/`toChainId` are separate
+ * params specifically so a cross-chain leg (any origin chain -> native ETH
+ * on Robinhood Chain, or a pure cross-chain non-$PRINT swap) is just
+ * different values through the same code path, not different code.
+ * `chargeFee` should be true ONLY when this leg is the entire swap (neither
+ * side touches $PRINT) — when it's paired with a $PRINT leg, our 0.85% is
+ * taken once on that leg instead (lib/printDirectSwap.ts PAY_PORTION), so
+ * we don't double-charge across two legs of one swap.
  */
 export async function getRelayLegQuote(params: {
   chainId: number;
@@ -54,9 +98,10 @@ export async function getRelayLegQuote(params: {
   toCurrency: string;
   amountWei: string;
   userAddress: string;
+  recipientAddress?: string; // cross-chain: destination-chain address, if it differs from userAddress (e.g. EVM origin -> Solana destination)
   chargeFee: boolean;
 }): Promise<Execute> {
-  ensureRelayClient();
+  await ensureRelayClient();
   return getQuote({
     chainId: params.chainId,
     currency: params.fromCurrency,
@@ -65,23 +110,35 @@ export async function getRelayLegQuote(params: {
     tradeType: "EXACT_INPUT",
     amount: params.amountWei,
     user: params.userAddress,
-    recipient: params.userAddress,
+    recipient: params.recipientAddress ?? params.userAddress,
     options: params.chargeFee
       ? { appFees: [{ recipient: RELAY_FEE_RECIPIENT.toLowerCase(), fee: APP_FEE_BPS }] }
       : undefined,
   });
 }
 
-/** Executes a previously-fetched quote, surfacing each of Relay's own internal steps via onProgress. */
-export async function executeRelayLeg(
-  quote: Execute,
-  walletClient: WalletClient,
-  onProgress?: (label: string) => void
-) {
-  ensureRelayClient();
+/** Adapts a connected EVM wallet client for Relay's `execute()`. */
+export function adaptEvmWallet(walletClient: WalletClient): AdaptedWallet {
+  return adaptViemWallet(walletClient);
+}
+
+// Phantom's own signAndSendTransaction (see lib/solanaWallet.ts) matches
+// the shape adaptSolanaWallet expects exactly — one prompt, sign + broadcast
+// together. Same wrapper proven live in the dylmusic project.
+export function adaptPrintSolanaWallet(
+  address: string,
+  signAndSendTransaction: (transaction: VersionedTransaction, options?: SendOptions) => Promise<{ signature: string }>
+): AdaptedWallet {
+  const connection = new Connection(SOLANA_RPC_URL);
+  return adaptSolanaWallet(address, SOLANA_CHAIN_ID, connection, signAndSendTransaction);
+}
+
+/** Executes a previously-fetched quote against an already-adapted wallet (EVM or Solana), surfacing Relay's own internal steps via onProgress. */
+export async function executeRelayLeg(quote: Execute, wallet: AdaptedWallet, onProgress?: (label: string) => void) {
+  await ensureRelayClient();
   return execute({
     quote,
-    wallet: adaptViemWallet(walletClient),
+    wallet,
     onProgress: (data) => {
       const desc = data?.currentStep?.description || data?.currentStep?.action;
       if (desc) onProgress?.(desc);
