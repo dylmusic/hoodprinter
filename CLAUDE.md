@@ -1106,6 +1106,33 @@ around it.
   `WALLETCONNECT_PROJECT_ID` needed. dylmusic likely has this exact same
   latent issue (same hardcoded endpoint) — not fixed there, out of scope
   for this session.
+- **Second real live attempt (same day) failed leg 2 with a genuine chain-
+  mismatch bug**: `The current chain of the wallet (id: 8453) does not
+  match the target chain for the transaction (id: 4663 – Robinhood
+  Chain)` — hit on both a Solana-origin and a Base-origin attempt. Root
+  cause: the code that switched the EVM wallet back to Robinhood Chain
+  before a plan's own pool-leg (`relay-to-print` leg 2, plus every
+  Robinhood-only plan's first tx) was gated on `walletClient.chain?.id !==
+  CHAIN.id` — but `walletClient` is a plain object captured once when
+  `doSwap()` starts; it is NOT reactive, so its `.chain` field never
+  reflects a `switchChainAsync()` call made earlier in the SAME function
+  invocation. That stale check silently evaluated as "already on the
+  right chain" and skipped the switch-back entirely, while the wallet's
+  REAL active chain (verified live by the wallet/viem itself, which is
+  where this error message actually comes from) had genuinely moved to
+  Base/Solana's ETH landing chain. **Fix**: replaced every conditional
+  `if (walletClient.chain?.id !== X) await switchChainAsync(...)` with an
+  unconditional `await switchChainAsync({chainId: X})` (wrapped as
+  `ensureEvmChain()`) — wagmi/wallets no-op this instantly with no extra
+  prompt if already on the target chain, so calling it unconditionally
+  everywhere a plan's next raw `walletClient.sendTransaction` assumes a
+  specific chain (added to print-buy/print-sell/curated-to-print/
+  print-to-curated/print-to-relay's leg 1 too, all of which silently
+  assumed the wallet was still on Robinhood Chain and had no explicit
+  switch at all before this fix — a real gap the moment cross-chain
+  shipped, not just the `relay-to-print` leg-2 case that actually got
+  reported) is both correct and safe, with no reliance on any locally
+  cached "what chain is the wallet on" value.
 
 ---
 

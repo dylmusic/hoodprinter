@@ -683,6 +683,19 @@ function InnerDirectSwap() {
       setError("Connect Phantom to swap with Solana.");
       return;
     }
+    // Cross-chain (added 2026-07-28): ALWAYS switch, never conditionally —
+    // a real live attempt crashed leg 2 with "The current chain of the
+    // wallet (id: 8453) does not match the target chain for the
+    // transaction (id: 4663)" because the check that gated the switch
+    // compared against `walletClient.chain?.id`, which is baked into the
+    // WalletClient object at the render that created it and does NOT
+    // update for the rest of this function after switchChainAsync
+    // resolves (that's a plain JS reference, not reactive state) — so the
+    // switch-back before leg 2 was silently skipped. wagmi/most wallets
+    // no-op switchChainAsync instantly (no prompt) if already on the
+    // target chain, so calling it unconditionally is safe and avoids
+    // trusting any locally-cached "current chain" value at all.
+    const ensureEvmChain = (chainId: number) => switchChainAsync({ chainId });
 
     setSwapping(true);
     setError(null);
@@ -694,6 +707,7 @@ function InnerDirectSwap() {
     try {
       if (plan === "print-buy") {
         if (!rate) return;
+        await ensureEvmChain(CHAIN.id);
         const totalWei = ethers.parseEther(amount);
         const { swapWei } = splitFee(totalWei);
         const expectedOut = Number(ethers.formatEther(swapWei)) * rate * (1 - POOL_TAX_PCT / 100);
@@ -718,6 +732,7 @@ function InnerDirectSwap() {
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
       } else if (plan === "print-sell") {
         if (!rate) return;
+        await ensureEvmChain(CHAIN.id);
         const totalPrintWei = ethers.parseUnits(amount, 18);
 
         if (await needsErc20Approval(address, totalPrintWei)) {
@@ -782,7 +797,7 @@ function InnerDirectSwap() {
           if (!provider) throw new Error("Phantom wallet not found.");
           relayWallet = adaptPrintSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
         } else {
-          if (walletClient.chain?.id !== fromToken.chainId) await switchChainAsync({ chainId: fromToken.chainId });
+          await ensureEvmChain(fromToken.chainId);
           relayWallet = adaptEvmWallet(walletClient);
         }
         const { data: result } = await executeRelayLeg(quote, relayWallet, (label) => setStep(label));
@@ -810,6 +825,7 @@ function InnerDirectSwap() {
         // against fromToken's known V2 pool (lib/curatedPoolSwap.ts) — no
         // Relay involved for this token at all. Conditional one-time
         // Permit2 approvals, same pattern as PRINT's own sell flow.
+        await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
         const totalTokenWei = ethers.parseUnits(amount, fromToken.decimals);
         if (await needsErc20ApprovalFor(fromToken.address, address, totalTokenWei)) {
           setStep(`Approve ${fromToken.symbol}…`);
@@ -903,12 +919,12 @@ function InnerDirectSwap() {
           if (!provider) throw new Error("Phantom wallet not found.");
           leg1Wallet = adaptPrintSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
         } else {
-          if (walletClient.chain?.id !== fromToken.chainId) await switchChainAsync({ chainId: fromToken.chainId });
+          await ensureEvmChain(fromToken.chainId);
           leg1Wallet = adaptEvmWallet(walletClient);
         }
         const feeDataPromise = readProvider.getFeeData(); // resolves while Relay's own leg runs, not after
         await executeRelayLeg(quote1, leg1Wallet, (label) => setLegProgress({ part: 1, total: 2, label }));
-        if (!fromIsSolana && walletClient.chain?.id !== CHAIN.id) await switchChainAsync({ chainId: CHAIN.id });
+        await ensureEvmChain(CHAIN.id); // leg 2 below is our own Robinhood-chain tx — switch back unconditionally (see doSwap's top-of-function note on why this can't be a conditional check)
 
         const postBalance = await readProvider.getBalance(address);
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
@@ -949,6 +965,7 @@ function InnerDirectSwap() {
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
       } else if (plan === "print-to-relay") {
         if (!rate) return;
+        await ensureEvmChain(CHAIN.id); // leg 1 is our own pool, always Robinhood Chain regardless of toToken's chain
         const totalPrintWei = ethers.parseUnits(amount, 18);
 
         if (await needsErc20Approval(address, totalPrintWei)) {
@@ -1034,6 +1051,7 @@ function InnerDirectSwap() {
         }
       } else if (plan === "print-to-curated") {
         if (!rate) return;
+        await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
         const totalPrintWei = ethers.parseUnits(amount, 18);
 
         if (await needsErc20Approval(address, totalPrintWei)) {
