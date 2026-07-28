@@ -64,6 +64,15 @@ const FALLBACK_GAS_RESERVE_ETH = 0.0004;
 const PRICE_POLL_MS = 15000;
 const RELAY_QUOTE_DEBOUNCE_MS = 500;
 const TXS_STORAGE_KEY = "hoodprint_swap_txs"; // separate feed from the Buy Bot's own hoodprint_txs
+const PENDING_RESUME_KEY = "hoodprint_swap_pending"; // interrupted 2-leg swaps waiting on leg 1's output to arrive
+// How often/long to poll a bridge leg's output balance before giving up —
+// a real live cross-chain attempt (SOL -> ETH) needed noticeably longer
+// than a fixed short timeout: Dylan, after watching one land late: "check
+// every 3 seconds or something... it should be easy if the user waits on
+// the loading screen." 5 minutes covers real bridge settlement times
+// without holding the UI hostage forever on a genuinely dead swap.
+const BALANCE_POLL_INTERVAL_MS = 3000;
+const BALANCE_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 // Relay's getQuote requires a `user` field but doesn't validate it belongs
 // to anyone real for a read-only quote (verified live) — used ONLY to let
 // the preview estimate work before a wallet is connected, never for
@@ -99,6 +108,17 @@ const fmtUsd = (n: number) => {
     : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
+// @reservoir0x/relay-svm-wallet-adapter's own confirm step throws exactly
+// this the instant a Solana blockhash's ~60-90s validity window closes —
+// whether or not the signed tx actually landed (it often does land right
+// after this fires; confirmed live 2026-07-28, see the recovery logic in
+// doSwap's relay-to-print branch, which verifies the real on-chain balance
+// instead of trusting this error as definitive).
+function isSolanaBlockheightTimeout(e: unknown): boolean {
+  const msg = (e as any)?.message ?? (e as any)?.shortMessage ?? String(e);
+  return typeof msg === "string" && (msg.includes("TransactionExpiredBlockheightExceededError") || msg.includes("block height exceeded"));
+}
+
 // Wallet/viem errors, Relay SDK errors, and our own thrown Errors all shape
 // their message differently — try every field we've actually seen used
 // before falling back to a raw dump, so a failure is diagnosable from the
@@ -113,13 +133,7 @@ function describeError(e: any): string {
     e?.response?.data?.message ||
     e?.message;
   if (msg && typeof msg === "string") {
-    // Solana's blockhash is only valid ~60-90s — a real signed tx that
-    // took too long to confirm (wallet-popup delay, network latency, a
-    // slow public RPC) surfaces as this specific error. It DID reach the
-    // network (there's a real signature in the raw message) — it just
-    // expired before landing, so "try again" is genuinely the fix, not a
-    // routing/code problem. Confirmed live 2026-07-28.
-    if (msg.includes("TransactionExpiredBlockheightExceededError") || msg.includes("block height exceeded")) {
+    if (isSolanaBlockheightTimeout(e)) {
       return "Solana network took too long to confirm this transaction (it may have been sent, but expired before landing). Please try again.";
     }
     return msg;
@@ -289,6 +303,76 @@ type SwapTxRow = {
 // is only known once the relevant quote(s) are in hand (see
 // `lib/relayLeg.ts`'s `quoteStepCount`/`RelayLegProgress`).
 type LegProgress = { part: number; total: number; label: string } | null;
+
+/**
+ * An interrupted 2-leg swap whose leg 1 is done (or in flight) but whose
+ * leg 2 never fired — either because the tab closed while waiting for a
+ * bridge to settle, or because `doSwap()` gave up waiting. Persisted so
+ * "Resume swap" (Transactions section) can pick it back up later without
+ * re-doing leg 1. Only `relay-to-print` (leg 1 is the slow/unpredictable
+ * cross-chain bridge) and `print-to-relay` (leg 2 is) are ever recorded —
+ * the other 2-leg plans (curated-to-print/print-to-curated) are same-chain
+ * and settle in normal EVM block time, so there's nothing meaningful to
+ * resume there.
+ */
+type PendingResume = {
+  address: string; // only ever shown/resumable while this wallet is the connected one
+  plan: "relay-to-print" | "print-to-relay";
+  fromToken: RhToken;
+  toToken: RhToken;
+  amount: string;
+  slippage: number;
+  preBalanceWei: string; // Robinhood-chain ETH balance right before leg 1 started
+  startedAt: number;
+};
+
+function loadPendingResumes(): PendingResume[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_RESUME_KEY) || "[]");
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+function savePendingResumes(rows: PendingResume[]) {
+  try {
+    localStorage.setItem(PENDING_RESUME_KEY, JSON.stringify(rows.slice(0, 10)));
+  } catch {
+    /* storage blocked / full */
+  }
+}
+function addPendingResume(row: PendingResume) {
+  savePendingResumes([row, ...loadPendingResumes().filter((r) => r.startedAt !== row.startedAt)]);
+}
+function removePendingResume(startedAt: number) {
+  savePendingResumes(loadPendingResumes().filter((r) => r.startedAt !== startedAt));
+}
+
+/**
+ * Polls a Robinhood-chain ETH balance until it rises above `preBalance` or
+ * `timeoutMs` elapses — the "let the loading screen wait for the bridge"
+ * mechanism Dylan asked for after a real cross-chain swap settled well
+ * after our own polling had already given up. `onTick` fires every
+ * `intervalMs` with elapsed time so the caller can show a live counter
+ * instead of a static "please wait."
+ */
+async function waitForBalanceIncrease(
+  address: string,
+  preBalance: bigint,
+  opts: { intervalMs?: number; timeoutMs?: number; onTick?: (elapsedMs: number) => void } = {}
+): Promise<bigint> {
+  const interval = opts.intervalMs ?? BALANCE_POLL_INTERVAL_MS;
+  const timeout = opts.timeoutMs ?? BALANCE_POLL_TIMEOUT_MS;
+  const start = Date.now();
+  for (;;) {
+    const balance = await readProvider.getBalance(address);
+    if (balance > preBalance) return balance - preBalance;
+    const elapsed = Date.now() - start;
+    if (elapsed >= timeout) return 0n;
+    opts.onTick?.(elapsed);
+    await new Promise((r) => setTimeout(r, interval));
+  }
+}
 
 // Mirrors lib/stats.ts's SwapStats — basic framework, room to grow (top
 // pairs, per-route breakdown, etc.) without changing this shape's callers.
@@ -483,6 +567,20 @@ function InnerDirectSwap() {
   const [receivedSym, setReceivedSym] = useState<string>("");
   const [txs, setTxs] = useState<SwapTxRow[]>([]);
   const txsRestoredRef = useRef(false);
+  // Interrupted 2-leg swaps (relay-to-print / print-to-relay) whose leg 2
+  // never fired — see PendingResume above and "Resume swap" in the
+  // Transactions section below. Loaded on mount and whenever the
+  // connected wallet changes (only ever shown for the wallet that started
+  // them — a different wallet's pending swap isn't actionable here).
+  const [pendingResumes, setPendingResumes] = useState<PendingResume[]>([]);
+  const [resuming, setResuming] = useState<number | null>(null); // startedAt of whichever pending resume is currently running, if any
+  useEffect(() => {
+    if (!address) {
+      setPendingResumes([]);
+      return;
+    }
+    setPendingResumes(loadPendingResumes().filter((r) => r.address.toLowerCase() === address.toLowerCase()));
+  }, [address]);
 
   // Platform-wide swap stats (basic framework — see lib/stats.ts recordSwap
   // / readSwapStats). Fetched on mount and refreshed after each swap this
@@ -583,6 +681,101 @@ function InnerDirectSwap() {
   }
   function updateTx(hash: string, patch: Partial<SwapTxRow>) {
     setTxs((prev) => prev.map((r) => (r.hash === hash ? { ...r, ...patch } : r)));
+  }
+
+  // Component-level (not nested in doSwap) so `resumeSwap()` below can
+  // share it too. `switchChainAsync` changes the real wallet's active
+  // chain, but the plain `walletClient` object from `useWalletClient()`
+  // does NOT reflect that for the rest of whichever call is in flight —
+  // it's a captured reference, not reactive state, and viem validates a
+  // send against THIS object's own baked-in `.chain`. `getWalletClient`
+  // (an imperative wagmi/core action, not a hook — safe to call here)
+  // fetches a brand new client scoped to the chain just switched to; that
+  // is what must be used for every send after any switch, never the plain
+  // `walletClient` hook value once a plan needs more than one chain.
+  async function ensureEvmChain(chainId: number) {
+    await switchChainAsync({ chainId });
+    return getWalletClient(wagmiConfig, { chainId });
+  }
+
+  // Leg 2 of relay-to-print — ETH -> $PRINT via our own pool. Shared
+  // between doSwap()'s normal flow and resumeSwap() (Transactions
+  // section's "Resume swap") so this fund-moving logic exists in exactly
+  // one place. Assumes the caller has already confirmed `ethWei` actually
+  // arrived (a real balance-delta check, not a guess) and the wallet is
+  // already on Robinhood Chain.
+  async function runPrintBuyLeg2(client: Awaited<ReturnType<typeof ensureEvmChain>>, ethWei: bigint, fromAmt: string, fromSym: string) {
+    if (!rate || !address) throw new Error("Missing rate or address.");
+    const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(ethWei, 0n), address, ethUsd);
+    const leg2InputWei = ethWei > gasReserveWei ? ethWei - gasReserveWei : 0n;
+    if (leg2InputWei <= 0n) {
+      throw new Error(`Received ${ethers.formatEther(ethWei)} ETH — not enough left over to also cover gas for the $PRINT swap. Try a larger amount.`);
+    }
+    setLegProgress({ part: 2, total: 2, label: "Confirm ETH → $PRINT" });
+    const expectedOut = Number(ethers.formatEther(leg2InputWei)) * (1 - 0.0085) * rate * (1 - POOL_TAX_PCT / 100);
+    const minOut = expectedOut * (1 - slippage / 100);
+    const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
+    const { to, data, value } = buildBuySwapTx(leg2InputWei, minAmountOutWei);
+    const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+    setTxHash(swapHash);
+    setLastSwapped({ amt: fromAmt, sym: fromSym });
+    addTx({ hash: swapHash, fromAmt, fromSym, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
+    setLegProgress(null);
+    setStep("Confirming on-chain…");
+    const receipt = await readProvider.waitForTransaction(swapHash);
+    const ok = receipt?.status === 1;
+    const received = ok ? parseReceivedPrint(receipt!, address) : null;
+    setReceivedAmt(received);
+    setReceivedIsExact(true);
+    setReceivedSym("PRINT");
+    updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
+    return ok;
+  }
+
+  // Leg 2 of print-to-relay — ETH -> toToken via Relay. Same sharing
+  // rationale as runPrintBuyLeg2 above. Takes `fromAmt` explicitly (not
+  // the live `amount` input state) so a resumed swap reports the
+  // ORIGINAL amount it was for, even if the input field has since
+  // changed; same reasoning for computing Solana-ness from the passed
+  // `toToken` param rather than the live `toIsSolana` closure value.
+  async function runRelayToTokenLeg2(client: Awaited<ReturnType<typeof ensureEvmChain>>, ethWei: bigint, toToken: RhToken, fromAmt: string) {
+    if (!address) throw new Error("Missing address.");
+    const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
+    const leg2InputWei = ethWei > gasReserveWei ? ethWei - gasReserveWei : 0n;
+    if (leg2InputWei <= 0n) {
+      throw new Error(`$PRINT → ETH landed (${ethers.formatEther(ethWei)} ETH), but not enough was left over to also cover gas for the ${toToken.symbol} swap. Try a larger amount.`);
+    }
+    setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
+    const quote2 = await getRelayLegQuote({
+      chainId: CHAIN.id,
+      toChainId: toToken.chainId,
+      fromCurrency: NATIVE_ETH,
+      toCurrency: toToken.address,
+      amountWei: leg2InputWei.toString(),
+      userAddress: address,
+      recipientAddress: isSolanaChain(toToken.chainId) ? sol.address! : address,
+      chargeFee: false,
+    });
+    const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) => setLegProgress({ part: 2, total: 2, label: p.label }));
+    const hash2 = quoteLastTxHash(result2, CHAIN.id);
+    setTxHash(hash2);
+    setLastSwapped({ amt: fromAmt, sym: "PRINT" });
+    const outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted;
+    setReceivedAmt(outFormatted ? Number(outFormatted) : null);
+    setReceivedIsExact(false);
+    setReceivedSym(toToken.symbol);
+    if (hash2) {
+      addTx({
+        hash: hash2,
+        fromAmt,
+        fromSym: "PRINT",
+        toAmt: outFormatted ? `~${fmt(Number(outFormatted))}` : null,
+        toSym: toToken.symbol,
+        status: "ok",
+        t: new Date().toLocaleTimeString(),
+      });
+    }
+    return !!hash2;
   }
 
   function flip() {
@@ -729,28 +922,6 @@ function InnerDirectSwap() {
       setError("Connect Phantom to swap with Solana.");
       return;
     }
-    // Cross-chain (added 2026-07-28, fixed twice): a real live attempt
-    // crashed leg 2 with a viem chain-mismatch error TWICE, in both
-    // directions — once because the switch was skipped entirely (a stale
-    // `walletClient.chain?.id` check gated it and never fired), and again
-    // AFTER fixing that, because `switchChainAsync` alone isn't enough:
-    // the `walletClient` object from `useWalletClient()` is captured once
-    // per render and does NOT update for the rest of THIS function call
-    // just because the underlying wallet switched chains mid-call — it's a
-    // plain object reference, not reactive state, and viem's
-    // `sendTransaction` validates the wallet's real live chain against
-    // THIS object's own baked-in `.chain`, not against whatever chain the
-    // wallet is actually sitting on now. `getWalletClient` (an imperative
-    // wagmi/core action, not a hook — safe to call here) fetches a BRAND
-    // NEW client scoped to the chain we just switched to, which is what
-    // must actually be used for every send after this point; the plain
-    // `walletClient` hook value is now only good for the very first
-    // action of a plan, before any switch.
-    const ensureEvmChain = async (chainId: number) => {
-      await switchChainAsync({ chainId });
-      return getWalletClient(wagmiConfig, { chainId });
-    };
-
     setSwapping(true);
     setError(null);
     setTxHash(null);
@@ -969,6 +1140,7 @@ function InnerDirectSwap() {
         legContext = `Step 1/2 (${fromToken.symbol} → ETH via Relay)`;
         setLegProgress({ part: 1, total: 2, label: `Confirm ${fromToken.symbol} → ETH` });
         const preBalance = await readProvider.getBalance(address);
+        const startedAt = Date.now();
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
         const quote1 = await getRelayLegQuote({
           chainId: fromToken.chainId,
@@ -989,47 +1161,45 @@ function InnerDirectSwap() {
           const leg1Client = await ensureEvmChain(fromToken.chainId);
           leg1Wallet = adaptEvmWallet(leg1Client);
         }
-        const feeDataPromise = readProvider.getFeeData(); // resolves while Relay's own leg runs, not after
-        await executeRelayLeg(quote1, leg1Wallet, (p) => setLegProgress({ part: 1, total: 2, label: p.label }));
-        const leg2Client = await ensureEvmChain(CHAIN.id); // leg 2 below is our own Robinhood-chain tx — switch back unconditionally (see doSwap's top-of-function note on why this can't be a conditional check)
+        try {
+          await executeRelayLeg(quote1, leg1Wallet, (p) => setLegProgress({ part: 1, total: 2, label: p.label }));
+        } catch (e) {
+          // A real signed Solana tx can still land AFTER Relay's own
+          // confirm-step gives up on it — Solana blockhashes are only
+          // valid ~60-90s, and @reservoir0x/relay-svm-wallet-adapter
+          // throws this exact error the instant that window closes,
+          // whether or not the tx actually made it (confirmed live: a
+          // real ETH delivery landed several minutes after this fired).
+          // The balance-poll below is real on-chain proof either way —
+          // don't fail the whole swap on a client-side polling timeout
+          // alone, wait and check the chain instead.
+          if (!fromIsSolana || !isSolanaBlockheightTimeout(e)) throw e;
+        }
+        const leg2Client = await ensureEvmChain(CHAIN.id); // leg 2 below is our own Robinhood-chain tx — switch back unconditionally (see ensureEvmChain's own comment for why this can't be a conditional check)
 
-        const postBalance = await readProvider.getBalance(address);
-        const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
+        // Persist BEFORE the wait, not after — this is exactly the window
+        // Dylan flagged ("in case the user loses the loading screen"): if
+        // the tab closes anywhere from here until leg 2 actually fires,
+        // "Resume swap" (Transactions section) can still pick this up
+        // using this same preBalance.
+        addPendingResume({ address, plan: "relay-to-print", fromToken, toToken, amount, slippage, preBalanceWei: preBalance.toString(), startedAt });
+        setPendingResumes(loadPendingResumes().filter((r) => r.address.toLowerCase() === address.toLowerCase()));
+
+        // Dylan: "check for this balance to come in and then initiate the
+        // 2nd part of the txn, check every 3 seconds... it should be easy
+        // if the user waits on the loading screen." Bridges can genuinely
+        // take a while to settle — up to 5 minutes before this gives up
+        // and leaves the pending-resume record for later instead.
+        const receivedWei = await waitForBalanceIncrease(address, preBalance, {
+          onTick: (ms) => setLegProgress({ part: 1, total: 2, label: `Checking for bridge… (${Math.round(ms / 1000)}s)` }),
+        });
         if (receivedWei <= 0n || !rate) {
-          throw new Error(`Didn't receive any ETH from ${fromToken.symbol} — the swap may not have gone through.`);
-        }
-        // Probe leg 2's real gas cost (leg 2 is our own tx, so this is estimable even though leg 1 was Relay's).
-        const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(receivedWei, 0n), address, ethUsd, feeDataPromise);
-        const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
-        if (leg2InputWei <= 0n) {
-          throw new Error(
-            `Received ${ethers.formatEther(receivedWei)} ETH from ${fromToken.symbol} — not enough left over to also cover gas for the $PRINT swap. Try a larger amount.`
-          );
+          throw new Error(`Didn't receive any ETH from ${fromToken.symbol} yet — it may still be on the way. Check "Resume swap" in Transactions in a bit.`);
         }
 
-        // Leg 2/2 — ETH -> $PRINT via our own designated pool. Our fee is
-        // taken here (see buildBuySwapTx's internal splitFee call).
-        legContext = "Step 2/2 (ETH → $PRINT)";
-        setLegProgress({ part: 2, total: 2, label: "Confirm ETH → $PRINT" });
-        const expectedOut = Number(ethers.formatEther(leg2InputWei)) * (1 - 0.0085) * rate * (1 - POOL_TAX_PCT / 100);
-        const minOut = expectedOut * (1 - slippage / 100);
-        const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
-        const { to, data, value } = buildBuySwapTx(leg2InputWei, minAmountOutWei);
-        const swapHash = await leg2Client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
-        setTxHash(swapHash);
-        setLastSwapped({ amt: amount, sym: fromToken.symbol });
-        addTx({ hash: swapHash, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
-
-        setLegProgress(null);
-        setStep("Confirming on-chain…");
-        const receipt = await readProvider.waitForTransaction(swapHash);
-        const ok = receipt?.status === 1;
+        const ok = await runPrintBuyLeg2(leg2Client, receivedWei, amount, fromToken.symbol);
         finalOk = ok;
-        const received = ok ? parseReceivedPrint(receipt!, address) : null;
-        setReceivedAmt(received);
-        setReceivedIsExact(true);
-        setReceivedSym("PRINT");
-        updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
+        if (ok) removePendingResume(startedAt);
       } else if (plan === "print-to-relay") {
         if (!rate) return;
         const client = await ensureEvmChain(CHAIN.id); // leg 1 is our own pool, always Robinhood Chain regardless of toToken's chain
@@ -1056,6 +1226,7 @@ function InnerDirectSwap() {
         const minOut = expectedEthOut * (1 - slippage / 100);
         const minAmountOutWei = ethers.parseEther(minOut.toFixed(18));
         const preBalance = await readProvider.getBalance(address);
+        const startedAt = Date.now();
         const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
         const hash1 = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(hash1);
@@ -1063,59 +1234,21 @@ function InnerDirectSwap() {
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
 
-        // Leg 2 here is Relay's own tx, not ours — its exact gas cost isn't
-        // estimable ahead of a quote (which itself needs this amount), so
-        // this reserve stays a flat heuristic rather than the dynamic
-        // estimate used where leg 2 is our own transaction.
+        // Leg 1 (ours) just landed, but leg 2 (the Relay bridge send) is
+        // still ahead — persist a resume point now, same as relay-to-print,
+        // in case the tab closes in the gap before it fires.
+        addPendingResume({ address, plan: "print-to-relay", fromToken, toToken, amount, slippage, preBalanceWei: preBalance.toString(), startedAt });
+        setPendingResumes(loadPendingResumes().filter((r) => r.address.toLowerCase() === address.toLowerCase()));
+
         const postBalance = await readProvider.getBalance(address);
-        const gasReserveWei = ethers.parseEther((ethUsd ? 1 / ethUsd : FALLBACK_GAS_RESERVE_ETH).toFixed(18));
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
-        const leg2InputWei = receivedWei > gasReserveWei ? receivedWei - gasReserveWei : 0n;
-        if (leg2InputWei <= 0n) {
-          throw new Error(
-            `$PRINT → ETH landed (${ethers.formatEther(receivedWei)} ETH), but not enough was left over to also cover gas for the ${toToken.symbol} swap. Try a larger amount.`
-          );
+        if (receivedWei <= 0n) {
+          throw new Error("$PRINT → ETH didn't land — the swap may not have gone through.");
         }
 
-        // Leg 2/2 — ETH -> toToken via Relay. Fee-free (already taken above).
-        // Cross-chain (added 2026-07-28): origin is always Robinhood Chain
-        // ETH (our own leg 1 output, signed by the same EVM wallet that
-        // just sent leg 1 — no chain switch needed), destination is
-        // toToken's own chain (Phantom's address if it's Solana).
-        legContext = `Step 2/2 (ETH → ${toToken.symbol} via Relay)`;
-        setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
-        const quote2 = await getRelayLegQuote({
-          chainId: CHAIN.id,
-          toChainId: toToken.chainId,
-          fromCurrency: NATIVE_ETH,
-          toCurrency: toToken.address,
-          amountWei: leg2InputWei.toString(),
-          userAddress: address,
-          recipientAddress: toIsSolana ? sol.address! : address,
-          chargeFee: false,
-        });
-        const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) =>
-          setLegProgress({ part: 2, total: 2, label: p.label })
-        );
-        const hash2 = quoteLastTxHash(result2, CHAIN.id);
-        finalOk = !!hash2;
-        setTxHash(hash2);
-        setLastSwapped({ amt: amount, sym: "PRINT" });
-        const outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted;
-        setReceivedAmt(outFormatted ? Number(outFormatted) : null);
-        setReceivedIsExact(false);
-        setReceivedSym(toToken.symbol);
-        if (hash2) {
-          addTx({
-            hash: hash2,
-            fromAmt: amount,
-            fromSym: "PRINT",
-            toAmt: outFormatted ? `~${fmt(Number(outFormatted))}` : null,
-            toSym: toToken.symbol,
-            status: "ok",
-            t: new Date().toLocaleTimeString(),
-          });
-        }
+        const ok2 = await runRelayToTokenLeg2(client, receivedWei, toToken, amount);
+        finalOk = ok2;
+        if (ok2) removePendingResume(startedAt);
       } else if (plan === "print-to-curated") {
         if (!rate) return;
         const client = await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
@@ -1215,6 +1348,71 @@ function InnerDirectSwap() {
       setLegProgress(null);
     } finally {
       setSwapping(false);
+    }
+  }
+
+  // "Resume swap" (Transactions section) — Dylan: "in case the user loses
+  // the loading screen, make a 'resume swap' button... if they havent
+  // completed the final leg." Doesn't re-do leg 1 (already sent/confirmed)
+  // — just re-checks for its output and fires leg 2, reusing the exact
+  // same runPrintBuyLeg2/runRelayToTokenLeg2 functions doSwap() itself
+  // calls, so this fund-moving logic only exists in one place.
+  async function resumeSwap(pending: PendingResume) {
+    if (!walletClient || !address || address.toLowerCase() !== pending.address.toLowerCase() || swapping) return;
+    setSwapping(true);
+    setResuming(pending.startedAt);
+    setError(null);
+    setTxHash(null);
+    setReceivedAmt(null);
+    setLegProgress(null);
+    const preBalance = BigInt(pending.preBalanceWei);
+    let finalOk = false;
+    try {
+      const client = await ensureEvmChain(CHAIN.id);
+      if (pending.plan === "relay-to-print") {
+        if (!rate) throw new Error("Price not loaded yet — try again in a moment.");
+        setLegProgress({ part: 1, total: 2, label: "Checking for bridge…" });
+        const receivedWei = await waitForBalanceIncrease(pending.address, preBalance, {
+          onTick: (ms) => setLegProgress({ part: 1, total: 2, label: `Checking for bridge… (${Math.round(ms / 1000)}s)` }),
+        });
+        if (receivedWei <= 0n) {
+          throw new Error(`Still haven't received any ETH from ${pending.fromToken.symbol} — it may still be on the way. Try resuming again shortly.`);
+        }
+        finalOk = await runPrintBuyLeg2(client, receivedWei, pending.amount, pending.fromToken.symbol);
+      } else {
+        // print-to-relay: leg 1 (ours) already fully landed by definition of
+        // how this got persisted — no polling needed, just re-derive the
+        // delta and fire leg 2 fresh (a new quote, since the old one may
+        // be stale).
+        const currentBalance = await readProvider.getBalance(pending.address);
+        const receivedWei = currentBalance > preBalance ? currentBalance - preBalance : 0n;
+        if (receivedWei <= 0n) {
+          throw new Error("Didn't find the expected ETH from leg 1 — it may not have gone through.");
+        }
+        finalOk = await runRelayToTokenLeg2(client, receivedWei, pending.toToken, pending.amount);
+      }
+      if (finalOk) {
+        removePendingResume(pending.startedAt);
+        setPendingResumes((prev) => prev.filter((r) => r.startedAt !== pending.startedAt));
+        fetch("/api/swap", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ wallet: address, plan: pending.plan, fromSym: pending.fromToken.symbol, toSym: pending.toToken.symbol, ethValue: 0 }),
+        })
+          .then(() => refreshSwapStats())
+          .catch(() => {});
+      }
+      setStep(null);
+      setLegProgress(null);
+      refreshPrice();
+    } catch (e: any) {
+      console.error("Resume swap failed", pending, e);
+      setError(describeError(e));
+      setStep(null);
+      setLegProgress(null);
+    } finally {
+      setSwapping(false);
+      setResuming(null);
     }
   }
 
@@ -1481,6 +1679,38 @@ function InnerDirectSwap() {
 
       <section className="pb-card">
         <h2>Transactions</h2>
+        {pendingResumes.length > 0 && (
+          <div className="swap-pending-list">
+            {pendingResumes.map((p) => (
+              <div key={p.startedAt} className="swap-pending-row">
+                <span className="swap-pending-text">
+                  {p.fromToken.symbol} → {p.toToken.symbol} · {p.amount} {p.fromToken.symbol}
+                  <em>leg 1 sent, leg 2 not finished — started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago</em>
+                </span>
+                <button
+                  type="button"
+                  className="swap-pending-resume"
+                  disabled={swapping}
+                  onClick={() => resumeSwap(p)}
+                >
+                  {resuming === p.startedAt ? "Resuming…" : "Resume swap"}
+                </button>
+                <button
+                  type="button"
+                  className="swap-pending-dismiss"
+                  disabled={swapping}
+                  aria-label="Dismiss"
+                  onClick={() => {
+                    removePendingResume(p.startedAt);
+                    setPendingResumes((prev) => prev.filter((r) => r.startedAt !== p.startedAt));
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="pb-txs">
           {txs.length === 0 && <div className="pb-log-empty">No swaps yet — your recent swaps will land here.</div>}
           {txs.map((tx) => (

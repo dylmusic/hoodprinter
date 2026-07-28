@@ -1217,6 +1217,66 @@ around it.
   it recurs again, the fix is the same one already flagged: a real
   dedicated Solana RPC provider (Helius/QuickNode/Triton, free tiers
   exist) with an API key, not another free public endpoint swap.
+- **A REAL fund-location scare, investigated and cleared**: Dylan, after
+  the above — "It looks like the SOL actually went thru but its unclear
+  where it went it didnt land in my Robinhood wallet." Given two Solana
+  transaction signatures, looked this up properly instead of guessing:
+  both confirmed `"finalized"` on-chain (`getSignatureStatuses`), and
+  Relay's own request-status API (`api.relay.link/requests/v2?hash=<sig>`
+  — a real, documented endpoint, not assumed) showed both `"status":
+  "success"` with `recipient` matching the exact wallet address shown as
+  "Connected: 0x9e01…35b5" in the swap card. Cross-checked independently
+  on-chain via `eth_getBalance` and Blockscout's tx-history API for that
+  address: a real, non-zero balance and four separate inbound transfers
+  timestamped right around the test attempts. **The funds landed exactly
+  where they were supposed to — the code was correct.** The address in
+  question is also `RELAY_FEE_RECIPIENT` in `site.config.ts`, which is
+  presumably Dylan testing with his own fee-collection wallet; flagged
+  this explicitly rather than assuming, in case that overlap is
+  unintentional. No code change from this one — it's here so a future
+  session doesn't re-litigate "are cross-chain funds actually landing
+  correctly" without first checking `api.relay.link/requests/v2` and the
+  destination chain directly, which settled it conclusively in minutes.
+- **The waiting UX itself, redesigned (2026-07-28)** — Dylan, after
+  watching a real bridge settle well after the old short retry window
+  gave up: "check for this balance to come in and then initiate the 2nd
+  part of the txn, check every 3 seconds... it should be easy if the user
+  waits on the loading screen," plus a "resume swap" button "in case the
+  user loses the loading screen." Both shipped:
+  - `waitForBalanceIncrease()` replaces the old fixed-count retry loop —
+    polls the Robinhood-chain ETH balance every 3s for up to 5 minutes
+    (`BALANCE_POLL_INTERVAL_MS`/`BALANCE_POLL_TIMEOUT_MS`), used for BOTH
+    `relay-to-print`'s leg 1→2 handoff (a real cross-chain bridge, timing
+    genuinely unpredictable) and as the recovery path when Solana's own
+    blockhash-timeout error fires (see above) — one mechanism covers
+    both, not two separate ad-hoc retry loops. The loading overlay's
+    label ticks a live "Checking for bridge… (Ns)" counter each poll
+    (Dylan: "with a 3 second counter and loading thing it would feel
+    engaging while they wait") rather than sitting on static text.
+  - **"Resume swap"**: right when leg 1 lands (before waiting on its
+    output, or before firing leg 2), a `PendingResume` record — plan,
+    both tokens, amount, slippage, and the pre-leg-1 balance needed to
+    compute leg 2's real input — is written to `localStorage`
+    (`hoodprint_swap_pending`, `lib` pattern mirrors the existing
+    `hoodprint_swap_txs` feed). If the tab closes before leg 2 fires, the
+    Transactions section shows a "Resume swap" row (filtered to the
+    currently-connected wallet only) on next visit. Clicking it calls the
+    SAME leg-2 logic doSwap() itself uses — `runPrintBuyLeg2()`/
+    `runRelayToTokenLeg2()` were extracted out of `doSwap()`'s
+    `relay-to-print`/`print-to-relay` branches into component-level
+    functions specifically so this fund-moving code exists in exactly one
+    place, called from both `doSwap()` and the new `resumeSwap()`, rather
+    than being duplicated (and risking the two copies drifting apart).
+    Only these two plans are ever recorded — `curated-to-print`/
+    `print-to-curated` are same-chain and settle in normal EVM block
+    time, nothing meaningful to resume there. The record is removed on a
+    successful leg 2, or via an explicit "✕" dismiss; a failed/timed-out
+    wait leaves it in place on purpose so it's still there to resume
+    later.
+  - `ensureEvmChain()` (the chain-switch-then-fresh-client helper from
+    the earlier fix above) was hoisted from a local `const` inside
+    `doSwap()` to a component-level function so `resumeSwap()` can share
+    it too — same reasoning as the leg-2 runners.
 
 ---
 
