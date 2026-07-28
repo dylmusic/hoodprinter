@@ -139,21 +139,47 @@ export function adaptPrintSolanaWallet(
   address: string,
   signAndSendTransaction: (transaction: VersionedTransaction, options?: SendOptions) => Promise<{ signature: string }>
 ): AdaptedWallet {
-  const connection = new Connection(SOLANA_RPC_URL);
+  // "confirmed" (not the default "finalized") — a real live attempt
+  // expired ("TransactionExpiredBlockheightExceededError") before landing,
+  // and Solana blockhashes are only valid ~60-90s; "confirmed" shaves a
+  // meaningful chunk off the round-trip vs waiting for full finality on
+  // every read this Connection makes.
+  const connection = new Connection(SOLANA_RPC_URL, "confirmed");
   return adaptSolanaWallet(address, SOLANA_CHAIN_ID, connection, signAndSendTransaction);
 }
 
-/** Executes a previously-fetched quote against an already-adapted wallet (EVM or Solana), surfacing Relay's own internal steps via onProgress. */
-export async function executeRelayLeg(quote: Execute, wallet: AdaptedWallet, onProgress?: (label: string) => void) {
+export type RelayLegProgress = { label: string; part: number; total: number };
+
+/**
+ * Executes a previously-fetched quote against an already-adapted wallet
+ * (EVM or Solana), surfacing Relay's own internal steps via onProgress.
+ * Relay silently splits some quotes into multiple steps we don't control
+ * (e.g. an ERC20 origin needing an approve step before its swap step —
+ * real live bug: a Base cbBTC->ETH swap needed exactly this and the old
+ * flat-text progress made it look broken/stuck between the two wallet
+ * prompts) — `part`/`total` here are read directly off the quote's own
+ * `steps` array (present on the quote before execute() ever runs, same
+ * shape ProgressData.steps uses during execution) so the caller can render
+ * a real "Confirmation X/Y" indicator instead of just changing text.
+ */
+export async function executeRelayLeg(quote: Execute, wallet: AdaptedWallet, onProgress?: (p: RelayLegProgress) => void) {
   await ensureRelayClient();
+  const totalSteps = quote.steps?.length ?? 1;
   return execute({
     quote,
     wallet,
     onProgress: (data) => {
-      const desc = data?.currentStep?.description || data?.currentStep?.action;
-      if (desc) onProgress?.(desc);
+      const label = data?.currentStep?.description || data?.currentStep?.action;
+      if (!label) return;
+      const idx = data.steps && data.currentStep ? data.steps.findIndex((s) => s.id === data.currentStep!.id) : -1;
+      onProgress?.({ label, part: idx >= 0 ? idx + 1 : 1, total: data.steps?.length ?? totalSteps });
     },
   });
+}
+
+/** Number of discrete wallet confirmations a fetched quote will need (approve + swap, etc.) — read before execute() runs. */
+export function quoteStepCount(quote: Execute): number {
+  return quote.steps?.length ?? 1;
 }
 
 /** Pulls the estimated output amount (base units, as a string) off a quote for chained-leg previews. */

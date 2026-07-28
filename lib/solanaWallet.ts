@@ -1,6 +1,51 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { getAssociatedTokenAddress, getAccount, TokenAccountNotFoundError, TokenInvalidAccountOwnerError } from "@solana/spl-token";
+import { NATIVE_SOL } from "@/lib/robinhoodTokens";
+
+// Same public RPC used for the swap wallet adapter (lib/relayLeg.ts) —
+// see the comment there for why Solana's own public endpoint was swapped
+// out (403s under real traffic).
+const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
+let cachedConnection: Connection | null = null;
+function getConnection(): Connection {
+  if (!cachedConnection) cachedConnection = new Connection(SOLANA_RPC_URL);
+  return cachedConnection;
+}
+
+/**
+ * Balance for the swap card's "You pay"/"You receive" top-right pill —
+ * added after Dylan flagged it was missing for Solana tokens ("solana
+ * balance doesnt show in the top right where it should"). Native SOL is a
+ * plain lamports balance; SPL tokens (USDC/USDG on Solana) need their
+ * Associated Token Account, which may not exist yet for a wallet that's
+ * never held that token — a missing ATA is a normal "balance: 0" state,
+ * not an error, so both known not-found cases resolve to 0 rather than
+ * throwing.
+ */
+export async function getSolanaBalance(ownerAddress: string, tokenAddress: string, decimals: number): Promise<number | null> {
+  try {
+    const connection = getConnection();
+    const owner = new PublicKey(ownerAddress);
+    if (tokenAddress === NATIVE_SOL) {
+      const lamports = await connection.getBalance(owner);
+      return lamports / 10 ** decimals;
+    }
+    const mint = new PublicKey(tokenAddress);
+    const ata = await getAssociatedTokenAddress(mint, owner);
+    try {
+      const account = await getAccount(connection, ata);
+      return Number(account.amount) / 10 ** decimals;
+    } catch (e) {
+      if (e instanceof TokenAccountNotFoundError || e instanceof TokenInvalidAccountOwnerError) return 0;
+      throw e;
+    }
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Lightweight direct-Phantom connect (window.solana), same pattern proven

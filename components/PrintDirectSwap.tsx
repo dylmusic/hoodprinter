@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, http, useAccount, useBalance, useDisconnect, useSwitchChain, useWalletClient } from "wagmi";
 import { base, mainnet } from "wagmi/chains";
+import { getWalletClient } from "wagmi/actions";
 import {
   getDefaultConfig,
   getDefaultWallets,
@@ -38,8 +39,8 @@ import {
   NATIVE_ETH,
 } from "@/lib/printDirectSwap";
 import { ETH_TOKEN, PRINT_TOKEN, NATIVE_SOL, isSolanaChain, tokenKey, type RhToken } from "@/lib/robinhoodTokens";
-import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash } from "@/lib/relayLeg";
-import { useSolanaWallet } from "@/lib/solanaWallet";
+import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount } from "@/lib/relayLeg";
+import { useSolanaWallet, getSolanaBalance } from "@/lib/solanaWallet";
 import {
   isKnownV2Token,
   quoteV2TokenToEth,
@@ -111,7 +112,18 @@ function describeError(e: any): string {
     e?.data?.message ||
     e?.response?.data?.message ||
     e?.message;
-  if (msg && typeof msg === "string") return msg;
+  if (msg && typeof msg === "string") {
+    // Solana's blockhash is only valid ~60-90s — a real signed tx that
+    // took too long to confirm (wallet-popup delay, network latency, a
+    // slow public RPC) surfaces as this specific error. It DID reach the
+    // network (there's a real signature in the raw message) — it just
+    // expired before landing, so "try again" is genuinely the fix, not a
+    // routing/code problem. Confirmed live 2026-07-28.
+    if (msg.includes("TransactionExpiredBlockheightExceededError") || msg.includes("block height exceeded")) {
+      return "Solana network took too long to confirm this transaction (it may have been sent, but expired before landing). Please try again.";
+    }
+    return msg;
+  }
   try {
     return JSON.stringify(e)?.slice(0, 300) || "Swap failed.";
   } catch {
@@ -271,7 +283,12 @@ type SwapTxRow = {
   t: string;
 };
 
-type LegProgress = { part: 1 | 2; total: 2; label: string } | null;
+// `total` is no longer always exactly 2 — Relay silently splits some
+// quotes into more than one step itself (an ERC20 origin needing an
+// approve step before its swap step), so a plan's real confirmation count
+// is only known once the relevant quote(s) are in hand (see
+// `lib/relayLeg.ts`'s `quoteStepCount`/`RelayLegProgress`).
+type LegProgress = { part: number; total: number; label: string } | null;
 
 // Mirrors lib/stats.ts's SwapStats — basic framework, room to grow (top
 // pairs, per-route breakdown, etc.) without changing this shape's callers.
@@ -409,6 +426,35 @@ function InnerDirectSwap() {
     token: toToken.isNative ? undefined : (toToken.address as `0x${string}`),
     query: { enabled: !!address && !toIsSolana },
   });
+
+  // wagmi's useBalance can't fetch a Solana balance (not an EVM chain) —
+  // fetched separately here, added after Dylan flagged it missing from the
+  // "You pay"/"You receive" panels ("solana balance doesnt show in the top
+  // right where it should"). `solBalanceNonce` (bumped right after any
+  // swap involving a Solana side confirms — see doSwap) forces a refetch
+  // post-swap the same way wagmi's own block-watching keeps EVM balances
+  // fresh without an explicit dependency here.
+  const [solFromBalance, setSolFromBalance] = useState<number | null>(null);
+  const [solToBalance, setSolToBalance] = useState<number | null>(null);
+  const [solBalanceNonce, setSolBalanceNonce] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setSolFromBalance(null);
+    if (!sol.address || !fromIsSolana) return;
+    getSolanaBalance(sol.address, fromToken.address, fromToken.decimals).then((b) => !cancelled && setSolFromBalance(b));
+    return () => {
+      cancelled = true;
+    };
+  }, [sol.address, fromIsSolana, fromToken.address, fromToken.decimals, solBalanceNonce]);
+  useEffect(() => {
+    let cancelled = false;
+    setSolToBalance(null);
+    if (!sol.address || !toIsSolana) return;
+    getSolanaBalance(sol.address, toToken.address, toToken.decimals).then((b) => !cancelled && setSolToBalance(b));
+    return () => {
+      cancelled = true;
+    };
+  }, [sol.address, toIsSolana, toToken.address, toToken.decimals, solBalanceNonce]);
 
   const [amount, setAmount] = useState("0.01");
   const [slippage, setSlippage] = useState(DEFAULT_SLIPPAGE_PCT);
@@ -683,19 +729,27 @@ function InnerDirectSwap() {
       setError("Connect Phantom to swap with Solana.");
       return;
     }
-    // Cross-chain (added 2026-07-28): ALWAYS switch, never conditionally —
-    // a real live attempt crashed leg 2 with "The current chain of the
-    // wallet (id: 8453) does not match the target chain for the
-    // transaction (id: 4663)" because the check that gated the switch
-    // compared against `walletClient.chain?.id`, which is baked into the
-    // WalletClient object at the render that created it and does NOT
-    // update for the rest of this function after switchChainAsync
-    // resolves (that's a plain JS reference, not reactive state) — so the
-    // switch-back before leg 2 was silently skipped. wagmi/most wallets
-    // no-op switchChainAsync instantly (no prompt) if already on the
-    // target chain, so calling it unconditionally is safe and avoids
-    // trusting any locally-cached "current chain" value at all.
-    const ensureEvmChain = (chainId: number) => switchChainAsync({ chainId });
+    // Cross-chain (added 2026-07-28, fixed twice): a real live attempt
+    // crashed leg 2 with a viem chain-mismatch error TWICE, in both
+    // directions — once because the switch was skipped entirely (a stale
+    // `walletClient.chain?.id` check gated it and never fired), and again
+    // AFTER fixing that, because `switchChainAsync` alone isn't enough:
+    // the `walletClient` object from `useWalletClient()` is captured once
+    // per render and does NOT update for the rest of THIS function call
+    // just because the underlying wallet switched chains mid-call — it's a
+    // plain object reference, not reactive state, and viem's
+    // `sendTransaction` validates the wallet's real live chain against
+    // THIS object's own baked-in `.chain`, not against whatever chain the
+    // wallet is actually sitting on now. `getWalletClient` (an imperative
+    // wagmi/core action, not a hook — safe to call here) fetches a BRAND
+    // NEW client scoped to the chain we just switched to, which is what
+    // must actually be used for every send after this point; the plain
+    // `walletClient` hook value is now only good for the very first
+    // action of a plan, before any switch.
+    const ensureEvmChain = async (chainId: number) => {
+      await switchChainAsync({ chainId });
+      return getWalletClient(wagmiConfig, { chainId });
+    };
 
     setSwapping(true);
     setError(null);
@@ -707,7 +761,7 @@ function InnerDirectSwap() {
     try {
       if (plan === "print-buy") {
         if (!rate) return;
-        await ensureEvmChain(CHAIN.id);
+        const client = await ensureEvmChain(CHAIN.id);
         const totalWei = ethers.parseEther(amount);
         const { swapWei } = splitFee(totalWei);
         const expectedOut = Number(ethers.formatEther(swapWei)) * rate * (1 - POOL_TAX_PCT / 100);
@@ -716,7 +770,7 @@ function InnerDirectSwap() {
 
         setStep("Confirm in wallet…");
         const { to, data, value } = buildBuySwapTx(totalWei, minAmountOutWei);
-        const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: "ETH" });
         addTx({ hash: swapHash, fromAmt: amount, fromSym: "ETH", toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
@@ -732,19 +786,19 @@ function InnerDirectSwap() {
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
       } else if (plan === "print-sell") {
         if (!rate) return;
-        await ensureEvmChain(CHAIN.id);
+        const client = await ensureEvmChain(CHAIN.id);
         const totalPrintWei = ethers.parseUnits(amount, 18);
 
         if (await needsErc20Approval(address, totalPrintWei)) {
           setStep("Approve PRINT…");
           const approveTx = buildErc20ApproveTx(totalPrintWei);
-          const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2Approval(address, totalPrintWei)) {
           setStep("Approve router…");
           const permitTx = buildPermit2ApproveTx(totalPrintWei);
-          const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
 
@@ -755,7 +809,7 @@ function InnerDirectSwap() {
 
         setStep("Confirm in wallet…");
         const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
-        const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: "PRINT" });
         addTx({ hash: swapHash, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
@@ -797,10 +851,23 @@ function InnerDirectSwap() {
           if (!provider) throw new Error("Phantom wallet not found.");
           relayWallet = adaptPrintSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
         } else {
-          await ensureEvmChain(fromToken.chainId);
-          relayWallet = adaptEvmWallet(walletClient);
+          const client = await ensureEvmChain(fromToken.chainId);
+          relayWallet = adaptEvmWallet(client);
         }
-        const { data: result } = await executeRelayLeg(quote, relayWallet, (label) => setStep(label));
+        // Relay can silently split a quote into more than one step itself
+        // (an ERC20 origin needing an approve step before its swap step —
+        // real live bug: a same-chain Base cbBTC->ETH swap needed exactly
+        // this and the old flat-text progress made it look stuck/broken
+        // between the two wallet prompts). Only show the "Confirmation
+        // X/Y" overlay when Relay's own quote actually needs more than one
+        // — a plain single-signature swap keeps the existing flat button
+        // text, no added clutter.
+        const relaySteps = quoteStepCount(quote);
+        if (relaySteps > 1) setLegProgress({ part: 1, total: relaySteps, label: "Confirm in wallet…" });
+        const { data: result } = await executeRelayLeg(quote, relayWallet, (p) =>
+          relaySteps > 1 ? setLegProgress({ part: p.part, total: p.total, label: p.label }) : setStep(p.label)
+        );
+        setLegProgress(null);
         const hash = quoteLastTxHash(result, fromToken.chainId);
         finalOk = !!hash;
         setTxHash(hash);
@@ -825,18 +892,18 @@ function InnerDirectSwap() {
         // against fromToken's known V2 pool (lib/curatedPoolSwap.ts) — no
         // Relay involved for this token at all. Conditional one-time
         // Permit2 approvals, same pattern as PRINT's own sell flow.
-        await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
+        const client = await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
         const totalTokenWei = ethers.parseUnits(amount, fromToken.decimals);
         if (await needsErc20ApprovalFor(fromToken.address, address, totalTokenWei)) {
           setStep(`Approve ${fromToken.symbol}…`);
           const approveTx = buildErc20ApproveTxFor(fromToken.address, totalTokenWei);
-          const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2ApprovalFor(fromToken.address, address, totalTokenWei)) {
           setStep("Approve router…");
           const permitTx = buildPermit2ApproveTxFor(fromToken.address, totalTokenWei);
-          const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
 
@@ -845,7 +912,7 @@ function InnerDirectSwap() {
         const preBalance = await readProvider.getBalance(address);
         const minEthOutWei = await quoteV2TokenToEth(fromToken.address, totalTokenWei, slippage);
         const leg1 = buildV2TokenToEthTx(fromToken.address, address, totalTokenWei, minEthOutWei);
-        const hash1 = await walletClient.sendTransaction({ to: leg1.to as `0x${string}`, data: leg1.data as `0x${string}`, value: leg1.value });
+        const hash1 = await client.sendTransaction({ to: leg1.to as `0x${string}`, data: leg1.data as `0x${string}`, value: leg1.value });
         setTxHash(hash1);
         addTx({ hash: hash1, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
         const feeDataPromise = readProvider.getFeeData(); // resolves while we wait below, not after
@@ -876,7 +943,7 @@ function InnerDirectSwap() {
         const minOut = expectedOut * (1 - slippage / 100);
         const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
         const { to, data, value } = buildBuySwapTx(leg2InputWei, minAmountOutWei);
-        const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
         addTx({ hash: swapHash, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
@@ -919,12 +986,12 @@ function InnerDirectSwap() {
           if (!provider) throw new Error("Phantom wallet not found.");
           leg1Wallet = adaptPrintSolanaWallet(sol.address!, (tx, opts) => provider.signAndSendTransaction(tx, opts));
         } else {
-          await ensureEvmChain(fromToken.chainId);
-          leg1Wallet = adaptEvmWallet(walletClient);
+          const leg1Client = await ensureEvmChain(fromToken.chainId);
+          leg1Wallet = adaptEvmWallet(leg1Client);
         }
         const feeDataPromise = readProvider.getFeeData(); // resolves while Relay's own leg runs, not after
-        await executeRelayLeg(quote1, leg1Wallet, (label) => setLegProgress({ part: 1, total: 2, label }));
-        await ensureEvmChain(CHAIN.id); // leg 2 below is our own Robinhood-chain tx — switch back unconditionally (see doSwap's top-of-function note on why this can't be a conditional check)
+        await executeRelayLeg(quote1, leg1Wallet, (p) => setLegProgress({ part: 1, total: 2, label: p.label }));
+        const leg2Client = await ensureEvmChain(CHAIN.id); // leg 2 below is our own Robinhood-chain tx — switch back unconditionally (see doSwap's top-of-function note on why this can't be a conditional check)
 
         const postBalance = await readProvider.getBalance(address);
         const receivedWei = postBalance > preBalance ? postBalance - preBalance : 0n;
@@ -948,7 +1015,7 @@ function InnerDirectSwap() {
         const minOut = expectedOut * (1 - slippage / 100);
         const minAmountOutWei = ethers.parseUnits(minOut.toFixed(18), 18);
         const { to, data, value } = buildBuySwapTx(leg2InputWei, minAmountOutWei);
-        const swapHash = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        const swapHash = await leg2Client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
         addTx({ hash: swapHash, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
@@ -965,19 +1032,19 @@ function InnerDirectSwap() {
         updateTx(swapHash, { status: ok ? "ok" : "fail", toAmt: received !== null ? fmt(received) : null });
       } else if (plan === "print-to-relay") {
         if (!rate) return;
-        await ensureEvmChain(CHAIN.id); // leg 1 is our own pool, always Robinhood Chain regardless of toToken's chain
+        const client = await ensureEvmChain(CHAIN.id); // leg 1 is our own pool, always Robinhood Chain regardless of toToken's chain
         const totalPrintWei = ethers.parseUnits(amount, 18);
 
         if (await needsErc20Approval(address, totalPrintWei)) {
           setStep("Approve PRINT…");
           const approveTx = buildErc20ApproveTx(totalPrintWei);
-          const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2Approval(address, totalPrintWei)) {
           setStep("Approve router…");
           const permitTx = buildPermit2ApproveTx(totalPrintWei);
-          const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
 
@@ -990,7 +1057,7 @@ function InnerDirectSwap() {
         const minAmountOutWei = ethers.parseEther(minOut.toFixed(18));
         const preBalance = await readProvider.getBalance(address);
         const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
-        const hash1 = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        const hash1 = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(hash1);
         addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
         await readProvider.waitForTransaction(hash1);
@@ -1027,8 +1094,8 @@ function InnerDirectSwap() {
           recipientAddress: toIsSolana ? sol.address! : address,
           chargeFee: false,
         });
-        const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(walletClient), (label) =>
-          setLegProgress({ part: 2, total: 2, label })
+        const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) =>
+          setLegProgress({ part: 2, total: 2, label: p.label })
         );
         const hash2 = quoteLastTxHash(result2, CHAIN.id);
         finalOk = !!hash2;
@@ -1051,19 +1118,19 @@ function InnerDirectSwap() {
         }
       } else if (plan === "print-to-curated") {
         if (!rate) return;
-        await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
+        const client = await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
         const totalPrintWei = ethers.parseUnits(amount, 18);
 
         if (await needsErc20Approval(address, totalPrintWei)) {
           setStep("Approve PRINT…");
           const approveTx = buildErc20ApproveTx(totalPrintWei);
-          const h = await walletClient.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: approveTx.to as `0x${string}`, data: approveTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
         if (await needsPermit2Approval(address, totalPrintWei)) {
           setStep("Approve router…");
           const permitTx = buildPermit2ApproveTx(totalPrintWei);
-          const h = await walletClient.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
+          const h = await client.sendTransaction({ to: permitTx.to as `0x${string}`, data: permitTx.data as `0x${string}` });
           await readProvider.waitForTransaction(h);
         }
 
@@ -1077,7 +1144,7 @@ function InnerDirectSwap() {
         const minAmountOutWei = ethers.parseEther(minOut.toFixed(18));
         const preBalance = await readProvider.getBalance(address);
         const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
-        const hash1 = await walletClient.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
+        const hash1 = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(hash1);
         addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
         const feeDataPromise = readProvider.getFeeData(); // resolves while we wait below, not after
@@ -1105,7 +1172,7 @@ function InnerDirectSwap() {
         setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
         const minTokenOutWei = await quoteV2EthToToken(toToken.address, leg2InputWei, slippage);
         const leg2 = buildV2EthToTokenTx(toToken.address, address, leg2InputWei, minTokenOutWei);
-        const hash2 = await walletClient.sendTransaction({ to: leg2.to as `0x${string}`, data: leg2.data as `0x${string}`, value: leg2.value });
+        const hash2 = await client.sendTransaction({ to: leg2.to as `0x${string}`, data: leg2.data as `0x${string}`, value: leg2.value });
         setTxHash(hash2);
         setLastSwapped({ amt: amount, sym: "PRINT" });
         addTx({ hash: hash2, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: toToken.symbol, status: "pending", t: new Date().toLocaleTimeString() });
@@ -1139,6 +1206,7 @@ function InnerDirectSwap() {
       setStep(null);
       setLegProgress(null);
       refreshPrice(); // a PRINT-pool leg just moved the price — don't show a stale estimate
+      if (fromIsSolana || toIsSolana) setSolBalanceNonce((n) => n + 1); // wagmi's own block-watching keeps EVM balances fresh automatically; Solana needs an explicit nudge
     } catch (e: any) {
       console.error("Swap failed", legContext, e);
       const detail = describeError(e);
@@ -1171,8 +1239,8 @@ function InnerDirectSwap() {
     previewOut = relayPreviewOut;
   }
 
-  const fromBalance = fromBalanceData ? Number(ethers.formatUnits(fromBalanceData.value, fromBalanceData.decimals)) : null;
-  const toBalance = toBalanceData ? Number(ethers.formatUnits(toBalanceData.value, toBalanceData.decimals)) : null;
+  const fromBalance = fromIsSolana ? solFromBalance : fromBalanceData ? Number(ethers.formatUnits(fromBalanceData.value, fromBalanceData.decimals)) : null;
+  const toBalance = toIsSolana ? solToBalance : toBalanceData ? Number(ethers.formatUnits(toBalanceData.value, toBalanceData.decimals)) : null;
   const isTwoLeg =
     plan === "relay-to-print" || plan === "print-to-relay" || plan === "curated-to-print" || plan === "print-to-curated";
   const isCuratedRoute = plan === "curated-to-print" || plan === "print-to-curated";
@@ -1350,9 +1418,12 @@ function InnerDirectSwap() {
                 </p>
                 <p className="swap-waiting-sub">{legProgress.label}</p>
                 <div className="swap-waiting-dots">
-                  <span className={`swap-step-dot${legProgress.part >= 1 ? " active" : ""}`} />
-                  <span className={`swap-step-line${legProgress.part >= 2 ? " active" : ""}`} />
-                  <span className={`swap-step-dot${legProgress.part >= 2 ? " active" : ""}`} />
+                  {Array.from({ length: legProgress.total }, (_, i) => i + 1).map((n) => (
+                    <Fragment key={n}>
+                      {n > 1 && <span className={`swap-step-line${legProgress!.part >= n ? " active" : ""}`} />}
+                      <span className={`swap-step-dot${legProgress!.part >= n ? " active" : ""}`} />
+                    </Fragment>
+                  ))}
                 </div>
               </div>
             )}

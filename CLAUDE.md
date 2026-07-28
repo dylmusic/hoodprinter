@@ -1133,6 +1133,90 @@ around it.
   shipped, not just the `relay-to-print` leg-2 case that actually got
   reported) is both correct and safe, with no reliance on any locally
   cached "what chain is the wallet on" value.
+- **Third real live attempt (same day) proved the switchChainAsync-only
+  fix above was still incomplete** — a Base ETH → $PRINT swap failed leg
+  2 again, this time with the mismatch in the OTHER direction ("current
+  chain of the wallet (id: 8453) does not match the target chain for the
+  transaction (id: 4663 – Robinhood Chain)" — Dylan confirmed leg 1's ETH
+  genuinely bridged cross-chain first, only leg 2 broke). Root cause:
+  `switchChainAsync` changes the REAL wallet's active chain, but the
+  `walletClient` object from `useWalletClient()` is captured once per
+  render and is a plain object reference, not reactive — it does NOT
+  reflect that switch for the rest of the SAME `doSwap()` invocation.
+  viem's `sendTransaction` validates the wallet's real live chain against
+  THIS stale object's own baked-in `.chain`, not against whatever the
+  wallet is actually on now, so the mismatch persisted even after the
+  switch call itself started working correctly. **Real fix**: `wagmi/
+  actions`' `getWalletClient(wagmiConfig, {chainId})` — an imperative
+  action, not a hook, safe to call anywhere — fetches a BRAND NEW client
+  scoped to the just-switched chain; `ensureEvmChain()` now does
+  `switchChainAsync` THEN `getWalletClient` and returns that fresh
+  client, and every single `walletClient.sendTransaction`/
+  `adaptEvmWallet(walletClient)` call site in `doSwap()` (all 7 plans)
+  was changed to use the freshly-returned client instead of the outer
+  `walletClient` — the plain hook value is now only valid for a plan's
+  very first action, never after any switch. Verified live via CDP
+  (chain picker + route planning unaffected, zero console errors); a
+  full signed multi-leg cross-chain transaction still isn't verifiable
+  in this environment (no funded wallet), so this fix targets the exact
+  mechanism both real failures pointed to rather than being independently
+  confirmed end-to-end.
+- **Relay's own hidden multi-step splits got a real progress UI** —
+  Dylan, after a same-chain Base cbBTC→ETH `relay-only` swap: "it did
+  work, but it didnt handle spending cap approval the right way... make
+  sure this is handled" (1/2, 2/2, or 1/3 etc.). Relay's `getQuote()`
+  return value already carries a `steps` array (present before
+  `execute()` ever runs — an ERC20 origin silently needs an `approve`
+  step before its `swap` step, same discovery that originally motivated
+  `curated-to-print`'s self-routed V2 path). `executeRelayLeg()`
+  (`lib/relayLeg.ts`) now surfaces `{label, part, total}` per progress
+  event (`total` = `quote.steps.length`, `part` = that step's index)
+  instead of a flat label string; `quoteStepCount(quote)` exposes the
+  same count before executing at all. `relay-only` now shows the
+  existing "Waiting for Confirmation X/Y" overlay (previously built only
+  for the pre-planned 2-leg $PRINT routes) whenever Relay's own quote
+  needs more than one step — a plain single-signature swap keeps the old
+  flat button text, no added clutter. `LegProgress`'s type widened from a
+  hardcoded `1 | 2` union to plain `number`, and the dot-progress row
+  (`.swap-waiting-dots`) now maps over `total` dots instead of rendering
+  exactly two, so a 3-step flow (e.g. an ERC20 origin needing approve
+  *and* Permit2 before its swap) renders correctly too.
+- **Solana balance was missing from the "You pay"/"You receive" panels**
+  — Dylan: "solana balance doesnt show in the top right where it
+  should." The EVM balance fetch (`useBalance`) was deliberately disabled
+  for a Solana-selected side (wagmi can't query a non-EVM chain) but
+  nothing replaced it. `getSolanaBalance()` (`lib/solanaWallet.ts`) reads
+  native SOL via a plain lamports balance, or an SPL token's Associated
+  Token Account via `@solana/spl-token`'s `getAssociatedTokenAddress`/
+  `getAccount` — a wallet that's never held that token has no ATA yet,
+  which is a normal "0 balance" state (`TokenAccountNotFoundError`/
+  `TokenInvalidAccountOwnerError`), not an error, so both resolve to `0`
+  rather than surfacing a failure. Refetches on token/address change and
+  once more right after any Solana-involving swap confirms (`
+  solBalanceNonce`, an explicit bump — Solana has no equivalent to
+  wagmi's automatic block-watching here). The "MAX" click-to-fill
+  behavior is still EVM-only for now (Solana's balance now *displays*
+  correctly; tapping it to autofill isn't wired up yet — smaller, no
+  reports of it being expected).
+- **Fourth real live attempt — Solana leg1 itself can time out**: a SOL
+  → $PRINT swap failed with `TransactionExpiredBlockheightExceededError:
+  Signature ... has expired: block height exceeded` — Solana blockhashes
+  are only valid ~60-90 seconds, and the error confirms a REAL signature
+  reached the network (Dylan: "actually, it did work" was his instinct,
+  correctly) — it just didn't land before expiring, most likely wallet-
+  popup/confirmation latency plus a free public RPC's own response time
+  eating into that narrow window. `describeError()` now recognizes this
+  specific error and returns a clear "network took too long to confirm...
+  please try again" message instead of the raw exception text — this is
+  a timing issue, not a routing/code bug, so "try again" is the genuine
+  fix. The `Connection` used for the Solana wallet adapter
+  (`lib/relayLeg.ts`) was also switched from the default `"finalized"`
+  commitment to `"confirmed"` (faster to resolve, shaves real time off
+  the round-trip). **This is now the SECOND distinct Solana public-RPC
+  reliability issue in one day** (see the earlier 403 entry above) — if
+  it recurs again, the fix is the same one already flagged: a real
+  dedicated Solana RPC provider (Helius/QuickNode/Triton, free tiers
+  exist) with an API key, not another free public endpoint swap.
 
 ---
 
