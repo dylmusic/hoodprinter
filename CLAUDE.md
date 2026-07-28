@@ -1088,6 +1088,24 @@ around it.
   cross-chain transaction — the round-trip-decode/dylmusic-parity
   discipline is what stands in for that, same gap already noted
   elsewhere in this file for other unfundable-wallet cases.
+- **First real signed attempt (same day) hit exactly that gap**: a live
+  SOL → $PRINT swap failed leg 1 with `failed to get recent blockhash:
+  Error: 403 Access forbidden`. Root cause: `SOLANA_RPC_URL` in
+  `lib/relayLeg.ts` (used by `adaptPrintSolanaWallet`'s `Connection` to
+  fetch the blockhash before signing) was Solana Foundation's own public
+  endpoint (`api.mainnet-beta.solana.com`) — same one dylmusic's
+  reference implementation uses. That endpoint is explicitly not meant
+  for production traffic and rate-limits/blocks by source IP; confirmed
+  it answered fine from this server's own IP in isolated testing, which
+  narrows it to an IP-based block rather than a code bug. Swapped to
+  Allnodes' public multi-tenant endpoint (`solana-rpc.publicnode.com`,
+  no API key needed, verified live via curl) — more production-tolerant,
+  but still a shared public RPC. **If this 403s again under real load,
+  the real fix is a dedicated Solana RPC provider** (Helius/QuickNode/
+  Triton all have free tiers) with an API key — same category of fix as
+  `WALLETCONNECT_PROJECT_ID` needed. dylmusic likely has this exact same
+  latent issue (same hardcoded endpoint) — not fixed there, out of scope
+  for this session.
 
 ---
 

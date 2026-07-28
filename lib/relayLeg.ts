@@ -41,7 +41,17 @@ const ROBINHOOD_VIEM_CHAIN: Chain = {
   blockExplorers: { default: { name: "Explorer", url: siteConfig.chain.explorerUrl } },
 };
 
-const SOLANA_RPC_URL = "https://api.mainnet-beta.solana.com";
+// Solana Foundation's own public RPC (api.mainnet-beta.solana.com) is NOT
+// meant for production traffic — it aggressively rate-limits/blocks by
+// source IP, and a real live attempt hit this immediately ("failed to get
+// recent blockhash... 403 Access forbidden") even though it answered fine
+// from this server's own IP in isolated testing, confirming it's an IP-
+// based block, not a code bug. Allnodes' public multi-tenant endpoint is
+// more production-tolerant and needs no API key, but is still a shared
+// public RPC — if this 403s again under real load, the real fix is a
+// dedicated provider (Helius/QuickNode/Triton, free tiers exist) with an
+// API key, same category of fix as WALLETCONNECT_PROJECT_ID above.
+const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
 
 // Cross-chain (Base/Solana/Ethereum mainnet), added 2026-07-28 — Base and
 // Ethereum mainnet come from viem's own built-in chain list (no need to
