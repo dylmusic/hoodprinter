@@ -1356,6 +1356,73 @@ around it.
   `ConnectorChainMismatchError` (imported from `wagmi` itself and checked
   via `instanceof`, not string-matched) — any other error still fails the
   swap immediately as before.
+- **Chain-hover popup on every currency in Transactions** (Dylan: "show
+  what chain it was on in a little popup with our sites style") — cross-
+  chain means the same symbol (ETH, USDC) can legitimately appear on 3+
+  different chains in the same list, ambiguous without this. `ChainTag`
+  (`components/PrintDirectSwap.tsx`) wraps a symbol in a small `:hover`-
+  driven popup (`.pb-chain-tag`/`.pb-chain-tip` in `globals.css`) showing
+  the chain's name + icon from `CHAINS` (`lib/robinhoodTokens.ts`) — a
+  plain CSS popup styled to match the site, not the native browser
+  `title` tooltip. `SwapTxRow`/`PendingResume` both gained optional
+  `fromChainId`/`toChainId` fields, set at every `addTx`/`addPendingResume`
+  call site (same-chain plans hardcode `CHAIN.id` on both sides; cross-
+  chain ones read the real `fromToken.chainId`/`toToken.chainId`) —
+  `runPrintBuyLeg2` gained a required `fromChainId` param for this reason
+  (curated-to-print's own leg 2 doesn't call it, so this only affects the
+  two callers that do: `doSwap()`'s relay-to-print branch and
+  `resumeSwap()`). Rows persisted before this field existed simply have no
+  chainId — `ChainTag` falls back to `CHAINS[0]` (Robinhood), correct for
+  every pre-cross-chain row since they were all Robinhood-only anyway.
+  **Truncation vs. popup clipping**: `.pb-tx-hash` used to have
+  `overflow:hidden;text-overflow:ellipsis` directly on it (needed for the
+  raw-hash fallback text when a leg's output isn't known yet) — an
+  ancestor with `overflow:hidden` clips ALL descendants regardless of
+  their own `position`, which would silently clip `.pb-chain-tip`'s
+  popup too. Moved the truncation onto a new inner `.pb-tx-hash-truncate`
+  span used only for that fallback case, so the normal `→ amt <symbol>`
+  case (where the popup lives) has no clipping ancestor of its own.
+  `.pb-txs` itself is still a `overflow-y:auto` scroll container, so a
+  popup on a row right at the very top/bottom edge of the visible
+  scrolled area can still get clipped — a known, accepted minor tradeoff
+  for a plain CSS tooltip rather than a JS-positioned portal, not worth
+  the extra engineering for a small hover-info popup. Verified live via
+  CDP: rows stay single-line (~38-39px tall) with the popup unaffected,
+  and hovering a chain tag renders it with `opacity:1`/`visibility:visible`
+  showing the correct chain name.
+- **Bridge-wait counter fixes, from two real live reports the same day**
+  (Dylan: "ETH works now, however the loading screen doesnt show waiting
+  for bridge. also, the sol waiting screen shows waiting for bridge but
+  stays stuck on 0s... just make it keep counting up 0s 1s 2s 3s... until
+  it confirms"). Root cause of both: `waitForBalanceIncrease()`'s
+  `onTick` callback used to fire only once per actual balance-poll
+  iteration (every `BALANCE_POLL_INTERVAL_MS` = 3s), coupling the DISPLAY
+  cadence to the POLL cadence. For a fast mainnet-ETH bridge that already
+  landed by the very first poll, the loop returns before `onTick` ever
+  fires once — "Checking for bridge…" never appears at all. For a slower
+  Solana bridge, the counter genuinely only updates once every 3 real
+  seconds, which reads as "stuck" between ticks even though it's working.
+  Fixed by decoupling entirely: a separate `setInterval(..., 1000)` now
+  drives `onTick` once immediately (so even a bridge that resolves before
+  the first poll still shows at least a flash of "0s") and then every
+  second after, independent of the underlying 3s poll loop — cleared in a
+  `finally` block so it can't keep firing after the wait resolves either
+  way (success or timeout).
+- **Phantom "Connect Phantom" showed even when already connected**
+  (Dylan: "every time i switch to Solana, it says connect phantom at the
+  bottom. but my phantom is already connected, because i click the button
+  and it instantly populates... just populate with my balance and phantom
+  info"). Root cause in `lib/solanaWallet.ts`'s `useSolanaWallet()`: the
+  mount effect only checked `provider.publicKey` directly — but Phantom
+  doesn't populate that field on page load just because the site was
+  approved in an earlier session; it needs an explicit `connect()` call,
+  which is exactly why a real click "instantly populated" with no prompt
+  (silently already-authorized). Fixed using Phantom's own documented
+  eager-reconnect flag, `connect({ onlyIfTrusted: true })`: resolves
+  silently for a previously-approved site (populating `address` on mount,
+  no prompt), rejects silently for one that was never approved (caught,
+  ignored) — safe to fire unconditionally, no risk of an unwanted connect
+  prompt appearing on page load for a first-time visitor.
 
 ---
 

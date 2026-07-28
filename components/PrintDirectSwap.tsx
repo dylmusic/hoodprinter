@@ -38,7 +38,7 @@ import {
   POOL_TAX_PCT,
   NATIVE_ETH,
 } from "@/lib/printDirectSwap";
-import { ETH_TOKEN, PRINT_TOKEN, NATIVE_SOL, isSolanaChain, tokenKey, type RhToken } from "@/lib/robinhoodTokens";
+import { ETH_TOKEN, PRINT_TOKEN, NATIVE_SOL, isSolanaChain, tokenKey, CHAINS, type RhToken } from "@/lib/robinhoodTokens";
 import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount, relayTransactionUrl } from "@/lib/relayLeg";
 import { useSolanaWallet, getSolanaBalance } from "@/lib/solanaWallet";
 import {
@@ -296,7 +296,27 @@ type SwapTxRow = {
   status: "pending" | "ok" | "fail";
   t: string;
   relayUrl?: string | null; // set whenever a leg of this swap was Relay-routed — links to Relay's own tx status page so the bridge itself is checkable, not just our own chain's side of it
+  fromChainId?: number; // undefined on rows persisted before this field existed — ChainTag falls back to Robinhood Chain, correct for every plan except cross-chain ones (which are all new enough to always set this)
+  toChainId?: number;
 };
+
+// Hover a currency in Transactions to see which chain it was actually on
+// (Dylan: "show what chain it was on in a little popup with our sites
+// style") — cross-chain swaps mean the same symbol (ETH, USDC) can appear
+// on 3 different chains in the same list. Plain CSS :hover popup, not the
+// native browser `title` tooltip, to match the site's own look.
+function ChainTag({ chainId, children }: { chainId?: number; children: React.ReactNode }) {
+  const chain = CHAINS.find((c) => c.id === chainId) ?? CHAINS[0];
+  return (
+    <span className="pb-chain-tag">
+      {children}
+      <span className="pb-chain-tip">
+        <img src={chain.icon} alt="" className="pb-chain-tip-icon" />
+        {chain.name}
+      </span>
+    </span>
+  );
+}
 
 // `total` is no longer always exactly 2 — Relay silently splits some
 // quotes into more than one step itself (an ERC20 origin needing an
@@ -366,13 +386,30 @@ async function waitForBalanceIncrease(
   const interval = opts.intervalMs ?? BALANCE_POLL_INTERVAL_MS;
   const timeout = opts.timeoutMs ?? BALANCE_POLL_TIMEOUT_MS;
   const start = Date.now();
-  for (;;) {
-    const balance = await readProvider.getBalance(address);
-    if (balance > preBalance) return balance - preBalance;
-    const elapsed = Date.now() - start;
-    if (elapsed >= timeout) return 0n;
-    opts.onTick?.(elapsed);
-    await new Promise((r) => setTimeout(r, interval));
+  // The UI counter is driven by its own 1s ticker, decoupled from the
+  // actual balance-poll cadence below (every 3s) — a real live test showed
+  // why that coupling was wrong both ways: a fast mainnet ETH bridge could
+  // already be settled by the very first poll, so the old tick-per-poll
+  // version never called onTick at all and "Checking for bridge…" never
+  // appeared; a slower Solana one only ticked once every 3s, which read as
+  // "stuck at 0s" between updates. Firing immediately, then every second,
+  // means the counter is always visibly live the instant the wait starts,
+  // regardless of how fast or slow the bridge actually settles.
+  let tickTimer: ReturnType<typeof setInterval> | null = null;
+  if (opts.onTick) {
+    opts.onTick(0);
+    tickTimer = setInterval(() => opts.onTick?.(Date.now() - start), 1000);
+  }
+  try {
+    for (;;) {
+      const balance = await readProvider.getBalance(address);
+      if (balance > preBalance) return balance - preBalance;
+      const elapsed = Date.now() - start;
+      if (elapsed >= timeout) return 0n;
+      await new Promise((r) => setTimeout(r, interval));
+    }
+  } finally {
+    if (tickTimer) clearInterval(tickTimer);
   }
 }
 
@@ -720,7 +757,7 @@ function InnerDirectSwap() {
   // one place. Assumes the caller has already confirmed `ethWei` actually
   // arrived (a real balance-delta check, not a guess) and the wallet is
   // already on Robinhood Chain.
-  async function runPrintBuyLeg2(client: Awaited<ReturnType<typeof ensureEvmChain>>, ethWei: bigint, fromAmt: string, fromSym: string, relayUrl?: string | null) {
+  async function runPrintBuyLeg2(client: Awaited<ReturnType<typeof ensureEvmChain>>, ethWei: bigint, fromAmt: string, fromSym: string, fromChainId: number, relayUrl?: string | null) {
     if (!rate || !address) throw new Error("Missing rate or address.");
     const gasReserveWei = await estimateEthGasReserve(buildBuySwapTx(ethWei, 0n), address, ethUsd);
     const leg2InputWei = ethWei > gasReserveWei ? ethWei - gasReserveWei : 0n;
@@ -735,7 +772,7 @@ function InnerDirectSwap() {
     const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
     setTxHash(swapHash);
     setLastSwapped({ amt: fromAmt, sym: fromSym });
-    addTx({ hash: swapHash, fromAmt, fromSym, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString(), relayUrl });
+    addTx({ hash: swapHash, fromAmt, fromSym, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString(), relayUrl, fromChainId, toChainId: CHAIN.id });
     setLegProgress(null);
     setStep("Confirming on-chain…");
     const receipt = await readProvider.waitForTransaction(swapHash);
@@ -791,6 +828,8 @@ function InnerDirectSwap() {
         status: "ok",
         t: new Date().toLocaleTimeString(),
         relayUrl: relayUrl2,
+        fromChainId: CHAIN.id,
+        toChainId: toToken.chainId,
       });
     }
     return !!hash2;
@@ -962,7 +1001,7 @@ function InnerDirectSwap() {
         const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: "ETH" });
-        addTx({ hash: swapHash, fromAmt: amount, fromSym: "ETH", toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
+        addTx({ hash: swapHash, fromAmt: amount, fromSym: "ETH", toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString(), fromChainId: CHAIN.id, toChainId: CHAIN.id });
 
         setStep("Confirming on-chain…");
         const receipt = await readProvider.waitForTransaction(swapHash);
@@ -1001,7 +1040,7 @@ function InnerDirectSwap() {
         const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: "PRINT" });
-        addTx({ hash: swapHash, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        addTx({ hash: swapHash, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString(), fromChainId: CHAIN.id, toChainId: CHAIN.id });
 
         setStep("Confirming on-chain…");
         const receipt = await readProvider.waitForTransaction(swapHash);
@@ -1076,6 +1115,8 @@ function InnerDirectSwap() {
             status: "ok",
             t: new Date().toLocaleTimeString(),
             relayUrl,
+            fromChainId: fromToken.chainId,
+            toChainId: toToken.chainId,
           });
         }
       } else if (plan === "curated-to-print") {
@@ -1105,7 +1146,7 @@ function InnerDirectSwap() {
         const leg1 = buildV2TokenToEthTx(fromToken.address, address, totalTokenWei, minEthOutWei);
         const hash1 = await client.sendTransaction({ to: leg1.to as `0x${string}`, data: leg1.data as `0x${string}`, value: leg1.value });
         setTxHash(hash1);
-        addTx({ hash: hash1, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        addTx({ hash: hash1, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString(), fromChainId: CHAIN.id, toChainId: CHAIN.id });
         const feeDataPromise = readProvider.getFeeData(); // resolves while we wait below, not after
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok" });
@@ -1137,7 +1178,7 @@ function InnerDirectSwap() {
         const swapHash = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(swapHash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
-        addTx({ hash: swapHash, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString() });
+        addTx({ hash: swapHash, fromAmt: amount, fromSym: fromToken.symbol, toAmt: null, toSym: "PRINT", status: "pending", t: new Date().toLocaleTimeString(), fromChainId: CHAIN.id, toChainId: CHAIN.id });
 
         setLegProgress(null);
         setStep("Confirming on-chain…");
@@ -1218,7 +1259,7 @@ function InnerDirectSwap() {
           throw new Error(`Didn't receive any ETH from ${fromToken.symbol} yet — it may still be on the way. Check "Resume swap" in Transactions in a bit.`);
         }
 
-        const ok = await runPrintBuyLeg2(leg2Client, receivedWei, amount, fromToken.symbol, relayUrl);
+        const ok = await runPrintBuyLeg2(leg2Client, receivedWei, amount, fromToken.symbol, fromToken.chainId, relayUrl);
         finalOk = ok;
         if (ok) {
           removePendingResume(startedAt);
@@ -1254,7 +1295,7 @@ function InnerDirectSwap() {
         const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
         const hash1 = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(hash1);
-        addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString(), fromChainId: CHAIN.id, toChainId: CHAIN.id });
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
 
@@ -1306,7 +1347,7 @@ function InnerDirectSwap() {
         const { to, data, value } = buildSellSwapTx(totalPrintWei, minAmountOutWei);
         const hash1 = await client.sendTransaction({ to: to as `0x${string}`, data: data as `0x${string}`, value });
         setTxHash(hash1);
-        addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString() });
+        addTx({ hash: hash1, fromAmt: amount, fromSym: "PRINT", toAmt: null, toSym: "ETH", status: "pending", t: new Date().toLocaleTimeString(), fromChainId: CHAIN.id, toChainId: CHAIN.id });
         const feeDataPromise = readProvider.getFeeData(); // resolves while we wait below, not after
         await readProvider.waitForTransaction(hash1);
         updateTx(hash1, { status: "ok", toAmt: `~${fmt(expectedEthOut)}` });
@@ -1405,7 +1446,7 @@ function InnerDirectSwap() {
         if (receivedWei <= 0n) {
           throw new Error(`Still haven't received any ETH from ${pending.fromToken.symbol} — it may still be on the way. Try resuming again shortly.`);
         }
-        finalOk = await runPrintBuyLeg2(client, receivedWei, pending.amount, pending.fromToken.symbol, pending.relayUrl);
+        finalOk = await runPrintBuyLeg2(client, receivedWei, pending.amount, pending.fromToken.symbol, pending.fromToken.chainId, pending.relayUrl);
       } else {
         // print-to-relay: leg 1 (ours) already fully landed by definition of
         // how this got persisted — no polling needed, just re-derive the
@@ -1714,10 +1755,11 @@ function InnerDirectSwap() {
             <div key={p.startedAt} className="pb-tx pending">
               <span className="pb-tx-status" />
               <span className="pb-tx-amt">
-                {p.amount} {p.fromToken.symbol}
+                {p.amount} <ChainTag chainId={p.fromToken.chainId}>{p.fromToken.symbol}</ChainTag>
               </span>
               <span className="pb-tx-hash">
-                {p.fromToken.symbol} → {p.toToken.symbol} · leg 2 not finished, started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago
+                <ChainTag chainId={p.fromToken.chainId}>{p.fromToken.symbol}</ChainTag> → <ChainTag chainId={p.toToken.chainId}>{p.toToken.symbol}</ChainTag> · leg 2 not
+                finished, started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago
               </span>
               <button type="button" className="pb-tx-resume" disabled={swapping} onClick={() => resumeSwap(p)}>
                 {resuming === p.startedAt ? "Resuming…" : "Resume"}
@@ -1740,10 +1782,18 @@ function InnerDirectSwap() {
             <div key={tx.hash} className={`pb-tx ${tx.status}`}>
               <span className="pb-tx-status" />
               <span className="pb-tx-amt">
-                {tx.fromAmt} {tx.fromSym}
+                {tx.fromAmt} <ChainTag chainId={tx.fromChainId}>{tx.fromSym}</ChainTag>
               </span>
               <span className="pb-tx-hash">
-                {tx.toAmt ? `→ ${tx.toAmt} ${tx.toSym}` : `${tx.hash.slice(0, 10)}…${tx.hash.slice(-6)}`}
+                {tx.toAmt ? (
+                  <>
+                    → {tx.toAmt} <ChainTag chainId={tx.toChainId}>{tx.toSym}</ChainTag>
+                  </>
+                ) : (
+                  <span className="pb-tx-hash-truncate">
+                    {tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}
+                  </span>
+                )}
               </span>
               <span className="pb-tx-t">{tx.t}</span>
               {tx.relayUrl && (

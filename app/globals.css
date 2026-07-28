@@ -1892,16 +1892,72 @@ footer {
 
 .pb-tx-hash {
   flex: 1 1 auto;
+  min-width: 0;
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* Truncation lives on this inner span, not .pb-tx-hash itself, so it only
+   clips the raw-hash fallback text — an ancestor overflow:hidden would
+   also clip .pb-chain-tip's popup, which needs to escape the row. */
+.pb-tx-hash-truncate {
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 .pb-tx-t {
   flex: 0 0 auto;
   color: #5f7266;
   font-size: 0.72rem;
+}
+
+/* Hover a currency symbol in Transactions to see which chain it was on
+   (cross-chain swaps mean the same symbol shows up on 3+ different
+   chains) — plain CSS :hover popup, site-styled, not the native `title`
+   tooltip. */
+.pb-chain-tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  border-bottom: 1px dotted rgba(143, 168, 152, 0.5);
+}
+.pb-chain-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #0c1710;
+  border: 1px solid var(--border);
+  box-shadow: 0 0 12px rgba(0, 200, 5, 0.18);
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(2px);
+  transition: opacity 0.12s, transform 0.12s;
+  pointer-events: none;
+  z-index: 20;
+}
+.pb-chain-tag:hover .pb-chain-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+.pb-chain-tip-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
 }
 
 /* Small inline chips at the end of a .pb-tx row — explorer/Relay links,

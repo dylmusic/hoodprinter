@@ -77,7 +77,21 @@ export function useSolanaWallet() {
 
   useEffect(() => {
     const provider = getPhantom();
-    if (provider?.publicKey) setAddress(provider.publicKey.toString());
+    if (!provider) return;
+    if (provider.publicKey) {
+      setAddress(provider.publicKey.toString());
+      return;
+    }
+    // Phantom doesn't populate `publicKey` on page load just because the
+    // site was approved in a previous session — it needs an explicit
+    // connect() call, which is why a real click "instantly populates" with
+    // no prompt (Dylan: "my phantom is already connected... if my phantom
+    // is already connected... just populate"). `onlyIfTrusted: true` is
+    // Phantom's own documented eager-reconnect flag: it silently resolves
+    // for a previously-approved site and silently rejects (no prompt, no
+    // error surfaced) for one that was never approved, so this is safe to
+    // fire unconditionally on mount.
+    provider.connect({ onlyIfTrusted: true }).then((res) => setAddress(res.publicKey.toString())).catch(() => {});
   }, []);
 
   const connect = useCallback(async () => {
