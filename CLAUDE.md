@@ -1449,14 +1449,23 @@ around it.
   bridge can be the bulk of the actual wait. New `startElapsedLabel()`
   helper starts a live "label (Ns)" counter the INSTANT it's called
   (right before `executeRelayLeg` even fires the wallet prompt) rather
-  than only once `waitForBalanceIncrease` begins; Relay's own
-  `onProgress` still updates the text prefix (e.g. "Confirming
-  transaction…") but the counter itself never stops ticking in between
-  those events. Its `startedAt` timestamp is then reused (not a fresh
-  `Date.now()`) as the anchor for leg 2's `waitForBalanceIncrease` onTick
-  label too, so the number the user sees is ONE continuous count from the
-  moment they submitted, not a restart-to-0 when the balance-wait phase
-  begins.
+  than only once `waitForBalanceIncrease` begins — the counter itself
+  never stops ticking regardless of what's happening underneath. Its
+  `startedAt` timestamp is then reused (not a fresh `Date.now()`) as the
+  anchor for leg 2's `waitForBalanceIncrease` onTick label too, so the
+  number the user sees is ONE continuous count from the moment they
+  submitted, not a restart-to-0 when the balance-wait phase begins.
+  **Text, corrected right after**: this version initially let Relay's own
+  `onProgress` text drive the label prefix (e.g. "Confirming
+  transaction…") — Dylan caught a real one on screen, "Depositing funds
+  to the relayer to execute the swap for ETH," and said it plainly
+  "doesnt need to say" that. Relay's internal step descriptions are real
+  but too verbose/implementation-specific for this UI. Now the label is
+  hardcoded to "Checking for bridge…" the moment Relay's own progress
+  starts firing at all (`p.label`'s actual content is ignored entirely) —
+  same simple copy leg 2's wait already used, just extended to cover leg
+  1 too instead of two different phrasings for what's the same underlying
+  wait from the user's perspective.
 - **Phantom "Connect Phantom" showed even when already connected**
   (Dylan: "every time i switch to Solana, it says connect phantom at the
   bottom. but my phantom is already connected, because i click the button

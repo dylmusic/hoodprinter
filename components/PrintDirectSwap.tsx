@@ -1261,8 +1261,15 @@ function InnerDirectSwap() {
           leg1Wallet = adaptEvmWallet(leg1Client);
         }
         try {
-          await executeRelayLeg(quote1, leg1Wallet, (p) => {
-            leg1Label = p.label;
+          // Relay's own step text (e.g. "Depositing funds to the relayer
+          // to execute the swap for ETH") is real but too verbose/internal
+          // for this UI — Dylan: it "doesnt need to say" that, just needs
+          // "Checking for bridge..." with the timer, same copy leg 2's
+          // wait already uses. Ignore `p.label`'s content entirely once
+          // Relay's own progress starts firing; only the counter (driven
+          // by leg1Ticker, unaffected by this) needs to keep moving.
+          await executeRelayLeg(quote1, leg1Wallet, () => {
+            leg1Label = "Checking for bridge…";
           });
         } catch (e) {
           // A real signed Solana tx can still land AFTER Relay's own
