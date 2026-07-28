@@ -428,6 +428,23 @@ async function waitForBalanceIncrease(
   }
 }
 
+// Drives a live "label (Ns)" counter starting the INSTANT it's created —
+// Dylan, after the balance-poll counter above still didn't feel live
+// enough: "the counter is not coming up quickly enough after i submit
+// from ETH mainnet. it needs to start counting immediately after i
+// submit." That fix only covered the post-leg1 balance-wait; nothing
+// ticked during leg 1 itself (signing + Relay's own on-chain confirm),
+// which for a bridge can be the bulk of the real wait. `startedAt` is
+// exposed so a caller can later hand the SAME reference to
+// waitForBalanceIncrease's onTick, keeping one continuous count across
+// both phases instead of restarting at 0 when leg 2's wait begins.
+function startElapsedLabel(render: (elapsedMs: number) => void): { stop: () => void; startedAt: number } {
+  const startedAt = Date.now();
+  render(0);
+  const timer = setInterval(() => render(Date.now() - startedAt), 1000);
+  return { stop: () => clearInterval(timer), startedAt };
+}
+
 // Mirrors lib/stats.ts's SwapStats — basic framework, room to grow (top
 // pairs, per-route breakdown, etc.) without changing this shape's callers.
 type SwapStatsShape = {
@@ -1214,9 +1231,14 @@ function InnerDirectSwap() {
         // into our own EVM `address`, exactly as before, since leg 2 below
         // (our own pool) only ever exists on Robinhood Chain.
         legContext = `Step 1/2 (${fromToken.symbol} → ETH via Relay)`;
-        setLegProgress({ part: 1, total: 2, label: `Confirm ${fromToken.symbol} → ETH` });
         const preBalance = await readProvider.getBalance(address);
         const startedAt = Date.now();
+        // Ticks from the instant we start, through wallet-signing and
+        // Relay's own on-chain confirm — the label text still updates from
+        // Relay's real onProgress events (via leg1Label below), but the
+        // (Ns) counter itself never stops moving in between those events.
+        let leg1Label = `Confirm ${fromToken.symbol} → ETH`;
+        const leg1Ticker = startElapsedLabel((ms) => setLegProgress({ part: 1, total: 2, label: `${leg1Label} (${Math.round(ms / 1000)}s)` }));
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
         const quote1 = await getRelayLegQuote({
           chainId: fromToken.chainId,
@@ -1239,7 +1261,9 @@ function InnerDirectSwap() {
           leg1Wallet = adaptEvmWallet(leg1Client);
         }
         try {
-          await executeRelayLeg(quote1, leg1Wallet, (p) => setLegProgress({ part: 1, total: 2, label: p.label }));
+          await executeRelayLeg(quote1, leg1Wallet, (p) => {
+            leg1Label = p.label;
+          });
         } catch (e) {
           // A real signed Solana tx can still land AFTER Relay's own
           // confirm-step gives up on it — Solana blockhashes are only
@@ -1251,6 +1275,8 @@ function InnerDirectSwap() {
           // don't fail the whole swap on a client-side polling timeout
           // alone, wait and check the chain instead.
           if (!fromIsSolana || !isSolanaBlockheightTimeout(e)) throw e;
+        } finally {
+          leg1Ticker.stop();
         }
         const leg2Client = await ensureEvmChain(CHAIN.id); // leg 2 below is our own Robinhood-chain tx — switch back unconditionally (see ensureEvmChain's own comment for why this can't be a conditional check)
 
@@ -1267,8 +1293,13 @@ function InnerDirectSwap() {
         // if the user waits on the loading screen." Bridges can genuinely
         // take a while to settle — up to 5 minutes before this gives up
         // and leaves the pending-resume record for later instead.
+        // Continues the SAME counter leg1's own ticker was already running
+        // (leg1Ticker.startedAt, not a fresh Date.now() here) — the user
+        // sees one number counting up from the moment they submitted, not
+        // a restart-to-0 when this phase begins.
         const receivedWei = await waitForBalanceIncrease(address, preBalance, {
-          onTick: (ms) => setLegProgress({ part: 1, total: 2, label: `Checking for bridge… (${Math.round(ms / 1000)}s)` }),
+          onTick: () =>
+            setLegProgress({ part: 1, total: 2, label: `Checking for bridge… (${Math.round((Date.now() - leg1Ticker.startedAt) / 1000)}s)` }),
         });
         if (receivedWei <= 0n || !rate) {
           throw new Error(`Didn't receive any ETH from ${fromToken.symbol} yet — it may still be on the way. Check "Resume swap" in Transactions in a bit.`);

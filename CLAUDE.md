@@ -1440,6 +1440,23 @@ around it.
   bridge (Solana) is unaffected beyond that one extra second up front —
   the same 1s ticker and 3s poll loop continue exactly as already fixed
   above.
+  **Still one gap left, per a fourth report the same day** ("the counter
+  is not coming up quickly enough after i submit from ETH mainnet. it
+  needs to start counting immediately after i submit"): all three fixes
+  above only ever covered the POST-leg-1 balance-wait phase — nothing
+  ticked during leg 1 itself (wallet-signing + Relay's own on-chain
+  confirm before the funds even land), which for a real cross-chain
+  bridge can be the bulk of the actual wait. New `startElapsedLabel()`
+  helper starts a live "label (Ns)" counter the INSTANT it's called
+  (right before `executeRelayLeg` even fires the wallet prompt) rather
+  than only once `waitForBalanceIncrease` begins; Relay's own
+  `onProgress` still updates the text prefix (e.g. "Confirming
+  transaction…") but the counter itself never stops ticking in between
+  those events. Its `startedAt` timestamp is then reused (not a fresh
+  `Date.now()`) as the anchor for leg 2's `waitForBalanceIncrease` onTick
+  label too, so the number the user sees is ONE continuous count from the
+  moment they submitted, not a restart-to-0 when the balance-wait phase
+  begins.
 - **Phantom "Connect Phantom" showed even when already connected**
   (Dylan: "every time i switch to Solana, it says connect phantom at the
   bottom. but my phantom is already connected, because i click the button
