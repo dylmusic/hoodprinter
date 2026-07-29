@@ -1506,6 +1506,28 @@ around it.
   ignored) — safe to fire unconditionally, no risk of an unwanted connect
   prompt appearing on page load for a first-time visitor.
 
+### Swap SEO + OG image (2026-07-28)
+`/swap` previously had only a generic title/description and no OG image
+of its own — it fell through to the site-wide default `og.png`, unlike
+`/print`/`/multisend`/`/rwa`, which all had bespoke everything. Brought
+up to parity: `scripts/render-assets.mjs` gained `og-swap.png`, same
+product-card layout as those three (wordmark, feature chips, url) with
+a green **LIVE** badge instead of BETA — swap isn't beta anymore, it's
+the primary buy destination sitewide. Headline "Swap Anything," chips
+lead with the real differentiators (any token/any chain, 4 chains live,
+always the right $PRINT pool) rather than generic swap-UI copy.
+`app/swap/page.tsx` gained real `title`/`description`/`keywords`,
+`openGraph`/`twitter` cards pointing at the new image, and a
+`WebApplication` + `FAQPage` JSON-LD `@graph` (same pattern as
+`/multisend`) — backed by a real on-page `swap-about` section (own
+`.swap-about` CSS, byte-identical to `.ms-about`/`.rwa-about` per this
+codebase's convention of each page keeping its own copy rather than
+sharing) with visible `<details>` FAQ covering buying $PRINT, cross-chain
+support, why not a generic aggregator (the wrong-pool-routing story from
+the incident above), and the fee — so the structured data has real
+crawlable content behind it, not just a JSON-LD block with nothing on
+the page to back it.
+
 ---
 
 ## Site navigation
