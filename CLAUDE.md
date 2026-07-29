@@ -1047,6 +1047,30 @@ around it.
   (RWA tokens stay Robinhood-only — the "RWAs" pill itself is hidden
   while browsing any other chain, since it would otherwise show an
   always-empty list).
+  **Expanded 2026-07-28 (Dylan: "show more common tokens on base, SOL,
+  and ETH")** — the picker's PINNED row stayed small/deliberate per-chain
+  (Base: ETH/WETH/USDC; Solana: SOL/USDC/USDG; mainnet gained WETH
+  alongside ETH — it had literally nothing else pinned before this), but
+  the full scrollable list underneath was just as sparse since
+  `CROSS_CHAIN_TOKENS` only ever held the pinned tokens themselves, no
+  extras. Added `MORE_BASE_TOKENS` (USDT, cbBTC, cbETH, AERO, VIRTUAL),
+  `MORE_SOLANA_TOKENS` (USDT, PYUSD, cbBTC), `MORE_MAINNET_TOKENS` (WETH,
+  USDC, USDT, DAI, WBTC) — same sourcing discipline as Robinhood Chain's
+  own `TRENDING_TOKENS`: Relay's `/currencies/v2` `defaultList: true`
+  response per chainId, filtered to `verified: true` only (that same
+  response mixes in real junk — e.g. Base's included an unverified
+  "Wrapped PROS"). Mainnet's canonical WETH specifically confirmed via a
+  live `term: "WETH"` lookup rather than typed from memory (matches the
+  well-known `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2`).
+  **USDG on Solana, separately confirmed real** — Dylan asked directly
+  ("i dont know anything about USDG on SOL but maybe u put it there for a
+  reason"): verified live via Relay's own address-lookup endpoint
+  (`{"chainId":792703809,"address":"2u1t...","symbol":"USDG","name":
+  "Global Dollar","verified":true}`) — it's Paxos's multi-chain "Global
+  Dollar" stablecoin, the same token family as the Robinhood-chain
+  `USDG_TOKEN` and mainnet's own USDG (same CoinGecko image id 51281
+  across all three), genuinely deployed on Solana among other chains —
+  not a copy-paste mistake from the Robinhood-chain entry.
 - **Paste-any-CA now works across chains, including Solana**
   (`resolveCustomToken(chainId, address)`, `TokenPickerModal.tsx`'s
   `looksLikeAddress()`) — EVM chains (Robinhood/Base/mainnet) read

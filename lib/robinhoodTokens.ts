@@ -261,7 +261,98 @@ const USDC_BASE: RhToken = {
   logo: "https://coin-images.coingecko.com/coins/images/6319/large/usdc.png",
 };
 
+// More common Base tokens beyond the pinned row — Dylan: "show more common
+// tokens on base, SOL, and ETH." Sourced the same way as Robinhood Chain's
+// own TRENDING_TOKENS: Relay's /currencies/v2 `defaultList: true` response
+// for chainId 8453, filtered to `verified: true` (skips low-quality/
+// unverified entries mixed into that same response).
+const USDT_BASE: RhToken = {
+  chainId: BASE_CHAIN_ID,
+  address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+  symbol: "USDT",
+  name: "Tether USD",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/39963/large/usdt.png",
+};
+const CBBTC_BASE: RhToken = {
+  chainId: BASE_CHAIN_ID,
+  address: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+  symbol: "cbBTC",
+  name: "Coinbase Wrapped BTC",
+  decimals: 8,
+  logo: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp",
+};
+const CBETH_BASE: RhToken = {
+  chainId: BASE_CHAIN_ID,
+  address: "0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22",
+  symbol: "cbETH",
+  name: "Coinbase Wrapped Staked ETH",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/27008/large/cbeth.png",
+};
+const AERO_BASE: RhToken = {
+  chainId: BASE_CHAIN_ID,
+  address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+  symbol: "AERO",
+  name: "Aerodrome",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/31745/large/token.png",
+};
+const VIRTUAL_BASE: RhToken = {
+  chainId: BASE_CHAIN_ID,
+  address: "0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b",
+  symbol: "VIRTUAL",
+  name: "Virtual Protocol",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/34057/large/LOGOMARK.png",
+};
+const MORE_BASE_TOKENS: RhToken[] = [USDT_BASE, CBBTC_BASE, CBETH_BASE, AERO_BASE, VIRTUAL_BASE];
+
 const ETH_MAINNET: RhToken = { chainId: MAINNET_CHAIN_ID, address: NATIVE_ETH, symbol: "ETH", name: "Ethereum", decimals: 18, isNative: true };
+// Ethereum mainnet had literally nothing beyond bare native ETH before this
+// — not even WETH. Canonical WETH address verified via Relay's own
+// /currencies/v2 (term="WETH", chainId=1), matches the well-known contract.
+const WETH_MAINNET: RhToken = {
+  chainId: MAINNET_CHAIN_ID,
+  address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  symbol: "WETH",
+  name: "Wrapped Ether",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/39810/large/weth.png",
+};
+const USDC_MAINNET: RhToken = {
+  chainId: MAINNET_CHAIN_ID,
+  address: "0xA0b86991c6218b36c1D19D4a2e9Eb0cE3606eB48",
+  symbol: "USDC",
+  name: "USD Coin",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/6319/large/usdc.png",
+};
+const USDT_MAINNET: RhToken = {
+  chainId: MAINNET_CHAIN_ID,
+  address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  symbol: "USDT",
+  name: "Tether USD",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/39963/large/usdt.png",
+};
+const DAI_MAINNET: RhToken = {
+  chainId: MAINNET_CHAIN_ID,
+  address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  symbol: "DAI",
+  name: "Dai Stablecoin",
+  decimals: 18,
+  logo: "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png",
+};
+const WBTC_MAINNET: RhToken = {
+  chainId: MAINNET_CHAIN_ID,
+  address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+  symbol: "WBTC",
+  name: "Wrapped BTC",
+  decimals: 8,
+  logo: "https://coin-images.coingecko.com/coins/images/7598/large/wrapped_bitcoin_wbtc.png",
+};
+const MORE_MAINNET_TOKENS: RhToken[] = [WETH_MAINNET, USDC_MAINNET, USDT_MAINNET, DAI_MAINNET, WBTC_MAINNET];
 
 // Relay's own sentinel address for native SOL (Solana's System Program id —
 // verified live against Relay's /currencies/v2 API, not guessed).
@@ -291,6 +382,42 @@ const USDG_SOLANA: RhToken = {
   decimals: 6,
   logo: "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png",
 };
+// Global Dollar is real on Solana, not a copy-paste mistake — verified
+// live against Relay's /currencies/v2 (address lookup, not a term search)
+// right before adding these: {"chainId":792703809,"address":"2u1t...",
+// "symbol":"USDG","name":"Global Dollar","decimals":6,"verified":true}.
+// It's Paxos's multi-chain stablecoin (same "Global Dollar Network" token
+// as the Robinhood-chain USDG_TOKEN above and Ethereum's below — same
+// CoinGecko image id 51281 across all three), issued on Solana/Ethereum/
+// Base/etc, not something specific to this app.
+
+// More common Solana tokens beyond the pinned row — same sourcing as Base
+// above (Relay's defaultList for chainId 792703809, verified:true only).
+const USDT_SOLANA: RhToken = {
+  chainId: SOLANA_CHAIN_ID,
+  address: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  symbol: "USDT",
+  name: "USDT",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/325/large/Tether.png",
+};
+const PYUSD_SOLANA: RhToken = {
+  chainId: SOLANA_CHAIN_ID,
+  address: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+  symbol: "PYUSD",
+  name: "PayPal USD",
+  decimals: 6,
+  logo: "https://coin-images.coingecko.com/coins/images/31212/large/PYUSD_Logo_%282%29.png",
+};
+const CBBTC_SOLANA: RhToken = {
+  chainId: SOLANA_CHAIN_ID,
+  address: "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij",
+  symbol: "cbBTC",
+  name: "Coinbase Wrapped BTC",
+  decimals: 8,
+  logo: "https://coin-images.coingecko.com/coins/images/40143/large/cbbtc.webp",
+};
+const MORE_SOLANA_TOKENS: RhToken[] = [USDT_SOLANA, PYUSD_SOLANA, CBBTC_SOLANA];
 
 // Pinned quick-select row at the top of the picker, per chain — mirrors
 // Relay's own "Select Token" modal. Robinhood Chain's own list is
@@ -299,10 +426,23 @@ export const PINNED_TOKENS: Record<number, RhToken[]> = {
   [siteConfig.chain.chainId]: [PRINT_TOKEN, ETH_TOKEN, WETH_TOKEN, USDG_TOKEN],
   [BASE_CHAIN_ID]: [ETH_BASE, WETH_BASE, USDC_BASE],
   [SOLANA_CHAIN_ID]: [SOL_NATIVE, USDC_SOLANA, USDG_SOLANA],
-  [MAINNET_CHAIN_ID]: [ETH_MAINNET],
+  // Mainnet had only bare native ETH pinned before — WETH added so it
+  // isn't the one chain without its own wrapped-native pair pinned.
+  [MAINNET_CHAIN_ID]: [ETH_MAINNET, WETH_MAINNET],
 };
 
-export const CROSS_CHAIN_TOKENS: RhToken[] = [ETH_MAINNET, ETH_BASE, WETH_BASE, USDC_BASE, SOL_NATIVE, USDC_SOLANA, USDG_SOLANA];
+export const CROSS_CHAIN_TOKENS: RhToken[] = [
+  ETH_MAINNET,
+  ETH_BASE,
+  WETH_BASE,
+  USDC_BASE,
+  SOL_NATIVE,
+  USDC_SOLANA,
+  USDG_SOLANA,
+  ...MORE_BASE_TOKENS,
+  ...MORE_SOLANA_TOKENS,
+  ...MORE_MAINNET_TOKENS,
+];
 
 export const CURATED_TOKENS: RhToken[] = [
   ETH_TOKEN,
