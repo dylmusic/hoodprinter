@@ -226,6 +226,7 @@ const TRENDING_TOKENS: RhToken[] = [
   { chainId: siteConfig.chain.chainId, address: "0x62c71cd34a52c30d894419cbcc55db2afa8032ea", symbol: "YOLO", name: "YOLO", decimals: 18, logo: "https://assets.geckoterminal.com/fzvhldxmvphx85ls235mclk6bf3x" }, // V3
   { chainId: siteConfig.chain.chainId, address: "0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f", symbol: "HMM", name: "Thinking Cat", decimals: 18, logo: "https://assets.geckoterminal.com/fmu02lq7zai1iyp4qqwfnmu5wr1v" }, // V3
   { chainId: siteConfig.chain.chainId, address: "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18", symbol: "AI", name: "Artificial Inu", decimals: 18, logo: "https://assets.geckoterminal.com/byuw84qv9ez2sp99h8q3vzcws5iq" }, // V3
+  { chainId: siteConfig.chain.chainId, address: "0xA3BfBccD4Aeec8ac56B17FEE3e02Dd2C60722ccc", symbol: "CATSTR", name: "Cashcat Strategy", decimals: 18, logo: "https://coin-images.coingecko.com/coins/images/102174618/large/cashstrategy.jpg?1784192415" }, // V4, no direct V2/V3 WETH pool — routes via Relay
   // Deliberately NOT added: 0xc2362aff...4BA3, also symbol "GME"/name
   // "GameStop" — a real, liquid token, but a DIFFERENT contract from the
   // official Robinhood-issued GameStop stock already in RWA_MARKET_TOKENS
