@@ -424,6 +424,28 @@ and is background for if that ever happens, not the current live page.
   Dylan before adding anything; his call was to exclude it entirely rather
   than relabel it — two tokens sharing the exact "GME" symbol in the same
   picker was judged too easy to mix up, even with a disambiguating name.
+- **`scripts/add-token.mjs` — quick-add framework for new token CAs**
+  (2026-07-29, Dylan: "this needs to be a framework for adding new CAs
+  quick and easy. Then I can give you a CA to add any time"). Given an
+  address, reads `symbol`/`name`/`decimals` on-chain, checks V2
+  (`getPair`) then V3 (`getPool` across the 4 known fee tiers) pool venue
+  against WETH — the same manual check every `TRENDING_TOKENS` entry
+  above already documents doing by hand — and pulls a real logo via
+  Relay's `/currencies/v2` address lookup. Prints a ready-to-paste
+  `TRENDING_TOKENS` line plus whether it also belongs in
+  `KNOWN_V2_TOKENS` (`lib/curatedPoolSwap.ts`). Deliberately doesn't edit
+  files itself — still a manual paste + build + push, same review
+  discipline as every token added above, just with the on-chain/API
+  legwork automated. Run with `export PATH="/usr/local/opt/node@20/bin:
+  $PATH" && node scripts/add-token.mjs <address>`. First real use:
+  **CATSTR** (Cashcat Strategy,
+  `0xA3BfBccD4Aeec8ac56B17FEE3e02Dd2C60722ccc`) — the script found no V2
+  or V3 pool against WETH; DexScreener confirmed its real liquidity
+  (~$34K) is a Uniswap V4 pool, same pool type $PRINT itself uses, so it
+  was added to `TRENDING_TOKENS` only, NOT `KNOWN_V2_TOKENS` — swaps
+  touching $PRINT route through Relay (`relay-to-print`/`print-to-relay`),
+  the same fallback every other non-V2 trending token (JUGGERNAUT/
+  STONKBROKER/INDEX/DIH/YOLO/HMM) already uses.
 - **ETH icon recolored** — the two-tone diamond (`TokenIcon`'s `isNative`
   branch) used a grey-blue palette (`#8A92B2`/`#62688F`, plain Ethereum
   brand colors); Dylan wanted it in the site's own neon green instead
