@@ -236,7 +236,7 @@ export default function Home() {
             <div className="hero-ctas-top">
               {presaleActive ? (
                 <a className="btn btn-primary" href={presaleLink}>
-                  Buy $PRINT
+                  Swap
                 </a>
               ) : (
                 <a className="btn btn-primary" href="/print">
