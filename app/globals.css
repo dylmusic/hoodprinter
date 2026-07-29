@@ -3793,6 +3793,34 @@ footer {
   color: var(--green);
 }
 
+.swap-about {
+  max-width: 720px;
+  margin: 26px auto 0;
+  padding: 0 16px 90px;
+  color: var(--muted);
+}
+
+.swap-about h2 {
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.swap-about p {
+  font-size: 0.92rem;
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+
+.swap-about strong {
+  color: var(--text);
+}
+
+.swap-about a {
+  color: var(--green);
+}
+
 .ms-recents {
   margin: 0 0 4px;
 }
