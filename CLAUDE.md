@@ -1550,6 +1550,61 @@ the incident above), and the fee — so the structured data has real
 crawlable content behind it, not just a JSON-LD block with nothing on
 the page to back it.
 
+### Shareable pre-filled swap links + PRINT Swap rename (2026-07-29)
+Dylan: "how hard would it be to add the currencies into the URL so then
+people can share any trade... I can say 'buy cashcat' and send them a
+link." `lib/robinhoodTokens.ts` gained `findTokenBySymbol(symbol,
+chainId?)` (case-insensitive lookup across `CURATED_TOKENS` — every
+curated/trending/RWA/cross-chain token in one flat array already, so no
+new lookup table needed) and `chainIdFromParam(nameOrId)` (accepts a
+chain's display name or raw numeric id, for `CHAINS`). Symbols that
+exist on more than one chain (ETH/WETH/USDC/USDT) resolve to Robinhood
+Chain by default (first match in `CURATED_TOKENS`'s array order) unless
+disambiguated.
+`components/PrintDirectSwap.tsx`'s `InnerDirectSwap` reads `?from=`/
+`?to=` (plus optional `&fromChain=`/`&toChain=`) once on mount via a
+plain `new URLSearchParams(window.location.search)` — deliberately NOT
+`next/navigation`'s `useSearchParams()`, which would force `/swap` out
+of static prerendering unless wrapped in a `<Suspense>` boundary; the
+plain browser API needs neither and keeps the page `○ Static`. If only
+`to` is given and it resolves to a Solana-chain token, `from` defaults
+to native SOL instead of ETH (SOL is the natural origin for a Solana
+buy link); every other case keeps ETH as the default unless `from` is
+explicit — matches Dylan's own framing ("default can be ETH or SOL")
+once he'd also confirmed the common case is both sides being given
+explicitly, not just `to`. **Verified live against a real prod build**
+via headless CDP (not just read the code): `?to=cashcat` → ETH/CASHCAT,
+`?to=usdc&toChain=solana` → SOL/USDC (SOL-default logic fired
+correctly), `?from=cashcat&to=hoodrat` → CASHCAT/HOODRAT, plain `/swap`
+→ unchanged ETH/PRINT defaults. First two attempts at this verification
+falsely looked broken — a 5s wait after `Page.navigate` wasn't enough
+for this page's ~600kB client bundle (wagmi/RainbowKit/Relay SDK) to
+hydrate under headless Chrome with multiple accumulated tabs; bumping
+the wait to 10-14s showed every case working correctly. Not a real bug,
+just a lesson for testing this specific page: **give `/swap` generous
+hydration time in headless verification, longer than lighter pages
+need.**
+No UI for generating these links (e.g. no "copy link" button) — Dylan's
+own workflow is typing the URL by hand when he already has both tokens
+in mind, which is the common case per his own clarification mid-task.
+**Rename**: Dylan, separately, on seeing a real link preview: "social
+share title should say PRINT Swap not HOOD Printer Swap. This is called
+PRINT Swap." Every "HOOD Printer Swap"/"HOODPrinter Swap" string in
+`app/swap/page.tsx` (og:title, twitter:title, og:image alt, JSON-LD
+`WebApplication` name, FAQ questions/answers, on-page copy) renamed to
+"PRINT Swap" — the plain `<title>` tag didn't need it, it was already
+generic and never said the old name. Only `/swap`'s own copy changed —
+`/print`'s "HOOD Printer Buy Bot" branding is a different, correctly-
+named product and wasn't in scope.
+**SEO strengthened same session** (Dylan: "make sure we are SEO'd for
+having a swap and bridge from any token, any chain. specifically
+mention Robinhood, SOL, base, Ethereum"): title/description/keywords/
+FAQ now explicitly name all four chains together with "bridge" language
+throughout, not just "cross-chain swap" — added keywords like "Solana
+bridge"/"bridge to Robinhood Chain", reworded FAQ questions to "swap or
+bridge," and the `swap-about` H2 now names all four chains instead of
+just "Robinhood Chain & $PRINT."
+
 ---
 
 ## Site navigation
