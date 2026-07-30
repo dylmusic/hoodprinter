@@ -53,7 +53,17 @@ import {
   looksLikeSolanaAddress,
   type RhToken,
 } from "@/lib/robinhoodTokens";
-import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount, relayTransactionUrl } from "@/lib/relayLeg";
+import {
+  getRelayLegQuote,
+  executeRelayLeg,
+  adaptEvmWallet,
+  adaptPrintSolanaWallet,
+  quoteLastTxHash,
+  quoteStepCount,
+  relayTransactionUrl,
+  relayRequestId,
+  waitForRelaySuccess,
+} from "@/lib/relayLeg";
 import { useSolanaWallet, getSolanaBalance } from "@/lib/solanaWallet";
 import {
   isKnownV2Token,
@@ -75,6 +85,7 @@ import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
 // held back between legs of a 2-leg route (see planRoute below) so leg 2
 // always has something left to pay for its own gas.
 const FALLBACK_GAS_RESERVE_ETH = 0.0004;
+const FALLBACK_GAS_RESERVE_SOL = 0.01; // ~$1-2 of SOL, same "leave a buffer" intent as FALLBACK_GAS_RESERVE_ETH — actual Solana fees are far cheaper, this is headroom not a fee estimate
 const PRICE_POLL_MS = 15000;
 const RELAY_QUOTE_DEBOUNCE_MS = 500;
 const TXS_STORAGE_KEY = "hoodprint_swap_txs"; // separate feed from the Buy Bot's own hoodprint_txs
@@ -907,18 +918,39 @@ function InnerDirectSwap() {
       recipientAddress: isSolanaChain(toToken.chainId) ? sol.address! : address,
       chargeFee: false,
     });
-    const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) => setLegProgress({ part: 2, total: 2, label: p.label }));
-    const hash2 = quoteLastTxHash(result2, CHAIN.id);
-    const relayUrl2 = relayTransactionUrl(result2);
+    const requestId2 = relayRequestId(quote2);
+    let hash2: string | null = null;
+    let relayUrl2: string | null = relayTransactionUrl(quote2);
+    let outFormatted: string | number | null = null;
+    let ok2 = false;
+    try {
+      const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) => setLegProgress({ part: 2, total: 2, label: p.label }));
+      hash2 = quoteLastTxHash(result2, CHAIN.id);
+      relayUrl2 = relayTransactionUrl(result2) ?? relayUrl2;
+      outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted ?? null;
+      ok2 = true;
+    } catch (execErr) {
+      // Same recovery as relay-only below — execute() rejecting doesn't
+      // necessarily mean the swap didn't happen (real live bug: a
+      // SOL/relay swap threw here while Relay's backend had already
+      // completed it, and the UI both reported failure AND never
+      // recorded the trade). Check Relay's own status before giving up.
+      setLegProgress(null);
+      setStep("Checking whether it actually went through…");
+      const recovered = requestId2 ? await waitForRelaySuccess(requestId2) : null;
+      if (recovered?.status !== "success") throw execErr;
+      ok2 = true;
+      hash2 = recovered.originTxHash ?? recovered.destinationTxHash;
+      outFormatted = recovered.outputAmountFormatted;
+    }
     setTxHash(hash2);
     setLastSwapped({ amt: fromAmt, sym: "PRINT" });
-    const outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted;
     setReceivedAmt(outFormatted ? Number(outFormatted) : null);
     setReceivedIsExact(false);
     setReceivedSym(toToken.symbol);
-    if (hash2) {
+    if (ok2) {
       addTx({
-        hash: hash2,
+        hash: hash2 ?? `relay-${requestId2 ?? Date.now()}`,
         fromAmt,
         fromSym: "PRINT",
         toAmt: outFormatted ? `~${fmt(Number(outFormatted))}` : null,
@@ -930,7 +962,7 @@ function InnerDirectSwap() {
         toChainId: toToken.chainId,
       });
     }
-    return !!hash2;
+    return ok2;
   }
 
   function flip() {
@@ -954,6 +986,20 @@ function InnerDirectSwap() {
   }
 
   function setMaxAmount() {
+    // Solana's own balance never flows through wagmi's useBalance (not an
+    // EVM chain) — it's tracked separately in solFromBalance. Missing this
+    // branch meant fromToken.isNative (true for SOL too) fell into the ETH
+    // branch below, found no fromBalanceData, and silently did nothing —
+    // real report: "clicking the SOL balance didnt update my trade to my
+    // full balance." Same reserve-a-buffer-for-gas logic as the ETH case,
+    // just priced in SOL via the already-fetched fromUsdPrice instead of
+    // ethUsd.
+    if (fromIsSolana) {
+      if (solFromBalance === null) return;
+      const reserve = fromUsdPrice ? 1 / fromUsdPrice : FALLBACK_GAS_RESERVE_SOL;
+      setAmount(Math.max(0, solFromBalance - reserve).toFixed(6));
+      return;
+    }
     if (fromToken.isNative) {
       if (!fromBalanceData) return;
       const balanceEth = Number(ethers.formatEther(fromBalanceData.value));
@@ -1190,22 +1236,52 @@ function InnerDirectSwap() {
         // text, no added clutter.
         const relaySteps = quoteStepCount(quote);
         if (relaySteps > 1) setLegProgress({ part: 1, total: relaySteps, label: "Confirm in wallet…" });
-        const { data: result } = await executeRelayLeg(quote, relayWallet, (p) =>
-          relaySteps > 1 ? setLegProgress({ part: p.part, total: p.total, label: p.label }) : setStep(p.label)
-        );
+        const requestId = relayRequestId(quote);
+        let hash: string | null = null;
+        let relayUrl: string | null = relayTransactionUrl(quote);
+        let outFormatted: string | number | null = null;
+        let ok = false;
+        try {
+          const { data: result } = await executeRelayLeg(quote, relayWallet, (p) =>
+            relaySteps > 1 ? setLegProgress({ part: p.part, total: p.total, label: p.label }) : setStep(p.label)
+          );
+          hash = quoteLastTxHash(result, fromToken.chainId);
+          relayUrl = relayTransactionUrl(result) ?? relayUrl;
+          outFormatted = (result as any)?.details?.currencyOut?.amountFormatted ?? null;
+          ok = true;
+        } catch (execErr) {
+          // A real live SOL -> CASHCAT swap threw here (execute() itself
+          // rejected) even though Relay's own backend had already
+          // completed the swap — same root cause as the documented
+          // Solana blockhash-expiry issue elsewhere in this file (a
+          // signed tx, or Relay's own confirmation of it, can land AFTER
+          // our client-side wait gives up on it). Unlike relay-to-print
+          // (which can re-check via our OWN destination balance),
+          // relay-only has no leg of ours left afterward to verify
+          // against — the destination token/chain is arbitrary — so this
+          // asks Relay's own request-status API directly instead, using
+          // the requestId already known from the quote (present before
+          // execute() ever ran). Only treated as recovered on an explicit
+          // "success" status; anything else (including "couldn't
+          // determine") re-throws the original error.
+          setLegProgress(null);
+          setStep("Checking whether it actually went through…");
+          const recovered = requestId ? await waitForRelaySuccess(requestId) : null;
+          if (recovered?.status !== "success") throw execErr;
+          ok = true;
+          hash = recovered.originTxHash ?? recovered.destinationTxHash;
+          outFormatted = recovered.outputAmountFormatted;
+        }
         setLegProgress(null);
-        const hash = quoteLastTxHash(result, fromToken.chainId);
-        const relayUrl = relayTransactionUrl(result);
-        finalOk = !!hash;
+        finalOk = ok;
         setTxHash(hash);
         setLastSwapped({ amt: amount, sym: fromToken.symbol });
-        const outFormatted = (result as any)?.details?.currencyOut?.amountFormatted;
         setReceivedAmt(outFormatted ? Number(outFormatted) : null);
         setReceivedIsExact(false);
         setReceivedSym(toToken.symbol);
-        if (hash) {
+        if (ok) {
           addTx({
-            hash,
+            hash: hash ?? `relay-${requestId ?? Date.now()}`,
             fromAmt: amount,
             fromSym: fromToken.symbol,
             toAmt: outFormatted ? `~${fmt(Number(outFormatted))}` : null,

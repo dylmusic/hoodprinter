@@ -182,14 +182,81 @@ export function quoteStepCount(quote: Execute): number {
   return quote.steps?.length ?? 1;
 }
 
+/** The requestId is already present on the quote's own steps as soon as getQuote() returns, before execute() ever runs — not something only the post-execute result object has. */
+export function relayRequestId(quote: Execute): string | null {
+  return quote.steps?.find((s) => s.requestId)?.requestId ?? null;
+}
+
 // Same URL pattern Relay's own SwapWidget links to on its success screen
 // (relay-kit-ui's SwapSuccessStep.js: `${baseTransactionUrl}/transaction/${requestId}`)
 // — the requestId is already present on the quote's own steps as soon as
 // getQuote() returns, before execute() ever runs (relay-kit-ui's own
 // extractQuoteId() reads it the same way pre-execution).
 export function relayTransactionUrl(quote: Execute): string | null {
-  const requestId = quote.steps?.find((s) => s.requestId)?.requestId;
+  const requestId = relayRequestId(quote);
   return requestId ? `https://relay.link/transaction/${requestId}` : null;
+}
+
+export type RelayRequestStatus = {
+  status: string; // "success" | "failure" | "refund" | "pending" | "depositing" | ...
+  originTxHash: string | null;
+  destinationTxHash: string | null;
+  outputAmountFormatted: string | null;
+};
+
+/**
+ * Looks up a request's real status by the id already known from its quote
+ * (relayRequestId, above) — this is Relay's own ground truth, independent
+ * of whether our own execute() call locally succeeded or threw. Built
+ * after a real live SOL->CASHCAT swap threw a client-side error (execute()
+ * rejected) while the swap had genuinely completed on Relay's backend —
+ * same root cause as the documented Solana blockhash-expiry issue
+ * elsewhere in this codebase (a signed tx can land AFTER our own wait
+ * gives up on it), just for a plan (`relay-only`) with no leg of our own
+ * left afterward to verify against via a balance check, so this asks
+ * Relay directly instead. Endpoint/shape verified live against a real
+ * successful request (`api.relay.link/requests/v2?status=success&limit=1`),
+ * not guessed — `data.inTxs[0].hash`/`data.outTxs[0].hash`/
+ * `data.metadata.currencyOut.amountFormatted` are real observed fields.
+ */
+export async function checkRelayRequestStatus(requestId: string): Promise<RelayRequestStatus | null> {
+  try {
+    const res = await fetch(`https://api.relay.link/requests/v2?id=${encodeURIComponent(requestId)}`);
+    const json = await res.json();
+    const req = json?.requests?.[0];
+    if (!req?.status) return null;
+    return {
+      status: req.status,
+      originTxHash: req.data?.inTxs?.[0]?.hash ?? null,
+      destinationTxHash: req.data?.outTxs?.[0]?.hash ?? null,
+      outputAmountFormatted: req.data?.metadata?.currencyOut?.amountFormatted ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Polls checkRelayRequestStatus until it resolves definitively (success or
+ * a terminal failure state) or the timeout elapses — used as a recovery
+ * check right after execute() throws, not as the primary wait (execute()'s
+ * own onProgress already covers the normal path). Returns null if still
+ * unresolved after the timeout, which the caller should treat the same as
+ * "couldn't confirm either way," not as a confirmed failure.
+ */
+export async function waitForRelaySuccess(
+  requestId: string,
+  opts: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<RelayRequestStatus | null> {
+  const interval = opts.intervalMs ?? 3000;
+  const timeout = opts.timeoutMs ?? 20000;
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const status = await checkRelayRequestStatus(requestId);
+    if (status && status.status !== "pending" && status.status !== "depositing") return status;
+    await new Promise((r) => setTimeout(r, interval));
+  }
+  return null;
 }
 
 /** Pulls the estimated output amount (base units, as a string) off a quote for chained-leg previews. */
