@@ -1605,6 +1605,84 @@ bridge"/"bridge to Robinhood Chain", reworded FAQ questions to "swap or
 bridge," and the `swap-about` H2 now names all four chains instead of
 just "Robinhood Chain & $PRINT."
 
+### Shareable links also accept raw contract addresses (2026-07-29)
+Dylan pushed back on symbol-only links: "idk that sounds risky shouldnt
+we just use contract addresses? it would be safer and more reliable."
+Correct call on reliability, but backwards on safety — symbols are
+restricted to `CURATED_TOKENS` (our own hand-vetted list), so they can
+never resolve to an address we haven't reviewed; a raw address would
+need to trust that contract's own self-reported symbol/name (or Relay's
+metadata), which is exactly what a phishing token spoofs. Landed on
+both: symbols stay the safe default, addresses are an opt-in escape
+hatch reusing the exact same trust boundary the picker's own paste-a-CA
+box already has (`resolveCustomToken`). `lib/robinhoodTokens.ts` gained
+`looksLikeEvmAddress`/`looksLikeSolanaAddress` (standalone, so a URL
+param can auto-detect which chain an address belongs to without already
+knowing it) plus `looksLikeAddress(chainId, q)` as the existing
+chain-aware wrapper — `TokenPickerModal.tsx` dropped its own duplicate
+copy in favor of this shared one. `?to=`/`?from=` in
+`PrintDirectSwap.tsx`'s mount effect now try address-shape detection
+first (defaulting to Robinhood Chain for `0x...` or Solana for a base58
+mint, unless `&toChain=`/`&fromChain=` says otherwise) before falling
+back to the curated symbol lookup. **Verification note**: the first two
+rounds of live CDP testing showed a hard "Application error" client
+crash (React error #423) on EVERY `/swap` load, including with zero
+query params — looked like a real regression. Root cause was `pkill -f
+"next start"` silently failing to kill the actual `next-server` child
+process across several restarts, so a stale server from an earlier
+build kept answering on the port the whole time while newer builds
+never actually got served. Killing by port (`lsof -ti :4123 | xargs
+kill -9`) instead of process-name pattern fixed it — once a genuinely
+fresh server was running, all cases (symbol, address, chain-disambiguated,
+no-params) resolved cleanly with zero exceptions.
+
+### Balance refetch + mobile Transactions rework (2026-07-29)
+Two more real reports the same session:
+- **"my WETH balance didnt update to 0 after I swapped all of it."**
+  The `useBalance` calls for both sides had no explicit refetch anywhere
+  — a code comment even said "wagmi's own block-watching keeps EVM
+  balances fresh automatically," which isn't reliable enough in
+  practice. Both `doSwap()`'s and `resumeSwap()`'s `finally` blocks now
+  call `refetchFromBalance()`/`refetchToBalance()` explicitly (the
+  `refetch` each `useBalance` call already returns) — fires on every
+  attempt regardless of outcome, not just a clean success path. Solana
+  still uses the pre-existing `solBalanceNonce` nudge (wagmi can't query
+  a non-EVM chain).
+- **"look at the transactions section on mobile. needs a big rework for
+  mobile. Its all overlapping."** Confirmed live via headless CDP at a
+  real 393px width using a standalone test page built from the site's
+  own compiled CSS (no wallet connection available in-session to
+  populate real rows, and localStorage-seeded fake rows don't render
+  either — both `txs` and `pendingResumes` restore are gated on a
+  connected `address`, so a plain JS/localStorage seed without a real
+  wagmi connection never shows up; building a static HTML page against
+  the real `/_next/static/css/*.css` output sidestepped that entirely).
+  A `.pb-tx` row's ~5 children (status dot, amount, description,
+  timestamp, link chips, sometimes Resume/dismiss) were almost all
+  `flex: 0 0 auto` — never shrink — on one single non-wrapping flex
+  line: a pending-resume row's longer text alone overflowed its row by
+  ~150px, and a long token symbol (e.g. STONKBROKER, stress-tested)
+  could do the same to an ordinary completed-tx row. **Fix**: each
+  row's children now group into two child divs, `.pb-tx-main` (the
+  swap description) and `.pb-tx-meta` (timestamp/links, or
+  Resume/dismiss) — grouped in the JSX itself, not just CSS, so the
+  split works regardless of which trailing controls a given row
+  happens to have. Desktop is pixel-identical to before (still one
+  line — `.pb-tx-main`/`.pb-tx-meta` are just flex children of the same
+  `.pb-tx` row); a new `max-width: 640px` query (matching an existing
+  breakpoint already used elsewhere in this file) sets `.pb-tx` to
+  `flex-wrap: wrap`, forces each group to `flex: 1 1 100%` (its own
+  line), and switches `.pb-tx-hash` from `nowrap` to `normal` so long
+  text wraps instead of overflowing. `.pb-tx-hash-truncate` (the raw-
+  hash fallback, used when a leg's output isn't known yet) got its own
+  explicit `white-space: nowrap` so its ellipsis truncation stays
+  correct now that it can no longer rely on inheriting `nowrap` from
+  the parent. Verified live: zero horizontal overflow across 5 rows
+  (`row.scrollWidth === row.getBoundingClientRect().width` for every
+  one, including the STONKBROKER stress case) at both 393px and
+  1100px; screenshots confirm desktop is byte-for-byte the same layout
+  as before and mobile now reads as clean two-line rows.
+
 ---
 
 ## Site navigation
