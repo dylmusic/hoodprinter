@@ -1549,6 +1549,17 @@ support, why not a generic aggregator (the wrong-pool-routing story from
 the incident above), and the fee — so the structured data has real
 crawlable content behind it, not just a JSON-LD block with nothing on
 the page to back it.
+**Copy corrected 2026-07-29** (Dylan: "it should not say that because
+its a swap for everything"): the image's third chip and subhead
+originally leaned on "always the right $PRINT pool" as the headline
+differentiator — accurate but too $PRINT-specific for a page whose
+whole pitch (by this point) is any-token/any-chain. Subhead is now
+"Any token, any chain — swapped safely, every time," third chip is
+"Safe & Secure" (also swapped in for `og:title`/`twitter:title`'s
+"Safely Routed," same wording change, same reasoning). Real gotcha hit
+regenerating it: a raw `&` in SVG text content is invalid XML and
+crashed sharp's renderer (`xmlParseEntityRef: no name`) — needed
+`&amp;` instead, same escaping any SVG/XML text content always needs.
 
 ### Shareable pre-filled swap links + PRINT Swap rename (2026-07-29)
 Dylan: "how hard would it be to add the currencies into the URL so then
