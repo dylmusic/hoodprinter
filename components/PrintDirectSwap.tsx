@@ -635,13 +635,13 @@ function InnerDirectSwap() {
   const fromIsSolana = isSolanaChain(fromToken.chainId);
   const toIsSolana = isSolanaChain(toToken.chainId);
 
-  const { data: fromBalanceData } = useBalance({
+  const { data: fromBalanceData, refetch: refetchFromBalance } = useBalance({
     address,
     chainId: fromToken.chainId,
     token: fromToken.isNative ? undefined : (fromToken.address as `0x${string}`),
     query: { enabled: !!address && !fromIsSolana },
   });
-  const { data: toBalanceData } = useBalance({
+  const { data: toBalanceData, refetch: refetchToBalance } = useBalance({
     address,
     chainId: toToken.chainId,
     token: toToken.isNative ? undefined : (toToken.address as `0x${string}`),
@@ -1526,7 +1526,6 @@ function InnerDirectSwap() {
       setStep(null);
       setLegProgress(null);
       refreshPrice(); // a PRINT-pool leg just moved the price — don't show a stale estimate
-      if (fromIsSolana || toIsSolana) setSolBalanceNonce((n) => n + 1); // wagmi's own block-watching keeps EVM balances fresh automatically; Solana needs an explicit nudge
     } catch (e: any) {
       console.error("Swap failed", legContext, e);
       const detail = describeError(e);
@@ -1535,6 +1534,17 @@ function InnerDirectSwap() {
       setLegProgress(null);
     } finally {
       setSwapping(false);
+      // Refetch balances explicitly rather than trusting wagmi's block-
+      // watching to catch it on its own — a real WETH balance was seen
+      // staying stale (unchanged, not zeroed) after a full swap of the
+      // whole balance. Fires in `finally` so it runs on every attempt
+      // (success, failure, or a partial multi-leg execution that still
+      // moved funds), not just a clean success path. Solana isn't a wagmi
+      // chain, so its own balance uses the existing `solBalanceNonce` nudge
+      // instead of these refetch calls.
+      if (!fromIsSolana) refetchFromBalance();
+      if (!toIsSolana) refetchToBalance();
+      if (fromIsSolana || toIsSolana) setSolBalanceNonce((n) => n + 1);
     }
   }
 
@@ -1600,6 +1610,9 @@ function InnerDirectSwap() {
     } finally {
       setSwapping(false);
       setResuming(null);
+      if (!fromIsSolana) refetchFromBalance();
+      if (!toIsSolana) refetchToBalance();
+      if (fromIsSolana || toIsSolana) setSolBalanceNonce((n) => n + 1);
     }
   }
 
@@ -1872,57 +1885,65 @@ function InnerDirectSwap() {
           )}
           {pendingResumes.map((p) => (
             <div key={p.startedAt} className="pb-tx pending">
-              <span className="pb-tx-status" />
-              <span className="pb-tx-amt">
-                {p.amount} <ChainTag chainId={p.fromToken.chainId}>{p.fromToken.symbol}</ChainTag>
-              </span>
-              <span className="pb-tx-hash">
-                <ChainTag chainId={p.fromToken.chainId}>{p.fromToken.symbol}</ChainTag> → <ChainTag chainId={p.toToken.chainId}>{p.toToken.symbol}</ChainTag> · leg 2 not
-                finished, started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago
-              </span>
-              <button type="button" className="pb-tx-resume" disabled={swapping} onClick={() => resumeSwap(p)}>
-                {resuming === p.startedAt ? "Resuming…" : "Resume"}
-              </button>
-              <button
-                type="button"
-                className="pb-tx-link pb-tx-dismiss"
-                disabled={swapping}
-                aria-label="Dismiss"
-                onClick={() => {
-                  removePendingResume(p.startedAt);
-                  setPendingResumes((prev) => prev.filter((r) => r.startedAt !== p.startedAt));
-                }}
-              >
-                ✕
-              </button>
+              <div className="pb-tx-main">
+                <span className="pb-tx-status" />
+                <span className="pb-tx-amt">
+                  {p.amount} <ChainTag chainId={p.fromToken.chainId}>{p.fromToken.symbol}</ChainTag>
+                </span>
+                <span className="pb-tx-hash">
+                  <ChainTag chainId={p.fromToken.chainId}>{p.fromToken.symbol}</ChainTag> → <ChainTag chainId={p.toToken.chainId}>{p.toToken.symbol}</ChainTag> · leg 2
+                  not finished, started {Math.max(1, Math.round((Date.now() - p.startedAt) / 60000))}m ago
+                </span>
+              </div>
+              <div className="pb-tx-meta">
+                <button type="button" className="pb-tx-resume" disabled={swapping} onClick={() => resumeSwap(p)}>
+                  {resuming === p.startedAt ? "Resuming…" : "Resume"}
+                </button>
+                <button
+                  type="button"
+                  className="pb-tx-link pb-tx-dismiss"
+                  disabled={swapping}
+                  aria-label="Dismiss"
+                  onClick={() => {
+                    removePendingResume(p.startedAt);
+                    setPendingResumes((prev) => prev.filter((r) => r.startedAt !== p.startedAt));
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
           {txs.map((tx) => (
             <div key={tx.hash} className={`pb-tx ${tx.status}`}>
-              <span className="pb-tx-status" />
-              <span className="pb-tx-amt">
-                {tx.fromAmt} <ChainTag chainId={tx.fromChainId}>{tx.fromSym}</ChainTag>
-              </span>
-              <span className="pb-tx-hash">
-                {tx.toAmt ? (
-                  <>
-                    → {tx.toAmt} <ChainTag chainId={tx.toChainId}>{tx.toSym}</ChainTag>
-                  </>
-                ) : (
-                  <span className="pb-tx-hash-truncate">
-                    {tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}
-                  </span>
+              <div className="pb-tx-main">
+                <span className="pb-tx-status" />
+                <span className="pb-tx-amt">
+                  {tx.fromAmt} <ChainTag chainId={tx.fromChainId}>{tx.fromSym}</ChainTag>
+                </span>
+                <span className="pb-tx-hash">
+                  {tx.toAmt ? (
+                    <>
+                      → {tx.toAmt} <ChainTag chainId={tx.toChainId}>{tx.toSym}</ChainTag>
+                    </>
+                  ) : (
+                    <span className="pb-tx-hash-truncate">
+                      {tx.hash.slice(0, 10)}…{tx.hash.slice(-6)}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="pb-tx-meta">
+                <span className="pb-tx-t">{tx.t}</span>
+                {tx.relayUrl && (
+                  <a className="pb-tx-link pb-tx-relay" href={tx.relayUrl} target="_blank" rel="noopener noreferrer">
+                    Relay ↗
+                  </a>
                 )}
-              </span>
-              <span className="pb-tx-t">{tx.t}</span>
-              {tx.relayUrl && (
-                <a className="pb-tx-link pb-tx-relay" href={tx.relayUrl} target="_blank" rel="noopener noreferrer">
-                  Relay ↗
+                <a className="pb-tx-link" href={`${CHAIN.explorer}/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer">
+                  ↗
                 </a>
-              )}
-              <a className="pb-tx-link" href={`${CHAIN.explorer}/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer">
-                ↗
-              </a>
+              </div>
             </div>
           ))}
         </div>

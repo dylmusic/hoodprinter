@@ -1849,6 +1849,29 @@ footer {
   background: rgba(0, 200, 5, 0.05);
 }
 
+/* Two logical groups within a row — the swap description (dot/amount/
+   arrow) and the trailing controls (timestamp, explorer/Relay links, or
+   Resume/dismiss). On desktop these just sit inline on one row exactly
+   like before (`.pb-tx` itself is still the single flex line); the mobile
+   media query below is what actually splits them onto two lines. Grouping
+   them in markup (not just CSS) is what makes that split work regardless
+   of which trailing controls a given row happens to have — a completed
+   tx has timestamp + link chips, a pending resume has Resume + dismiss
+   instead, and both need to break at the same point. */
+.pb-tx-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pb-tx-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .pb-tx-status {
   flex: 0 0 auto;
   width: 8px;
@@ -1906,6 +1929,12 @@ footer {
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
+  /* Self-contained rather than relying on the inherited white-space from
+     .pb-tx-hash — the mobile override below sets that to `normal` so long
+     pending-resume text can wrap, which would otherwise silently break
+     this element's own ellipsis truncation (text-overflow:ellipsis does
+     nothing without nowrap). */
+  white-space: nowrap;
 }
 
 .pb-tx-t {
@@ -2027,6 +2056,42 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   .pb-tx.pending .pb-tx-status {
     animation: none;
+  }
+}
+
+/* Mobile rework — a `.pb-tx` row used to be one rigid flex line with 4-6
+   children (status dot, amount, description, timestamp, link chips,
+   sometimes Resume/dismiss too), almost all of them `flex: 0 0 auto` so
+   none of them could shrink. On a real ~360-390px phone width the sum of
+   their natural widths regularly exceeded the row, and the one flexible
+   child (.pb-tx-hash) has `white-space: nowrap` with no truncation for
+   its normal "→ amount SYMBOL" content — so instead of wrapping, content
+   just overflowed the row and visually collided with whatever sat after
+   it (confirmed live: a pending-resume row's longer "leg 2 not
+   finished..." text alone overflowed its row by ~150px at 393px wide).
+   Splits each row onto two lines instead: `.pb-tx-main` (the swap
+   description) on its own full-width line, `.pb-tx-meta` (timestamp/
+   links, or Resume/dismiss) on a second line below it, right-aligned.
+   `.pb-tx-hash` also switches from nowrap to normal so the pending-resume
+   sentence wraps within its own line rather than overflowing horizontally
+   — `.pb-tx-hash-truncate`'s own explicit white-space:nowrap (added
+   alongside this) keeps the short-hash-fallback case still truncating
+   correctly regardless. */
+@media (max-width: 640px) {
+  .pb-tx {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .pb-tx-main {
+    flex: 1 1 100%;
+  }
+  .pb-tx-hash {
+    white-space: normal;
+  }
+  .pb-tx-meta {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    padding-left: 18px; /* roughly under the amount/hash text, past the status dot + gap */
   }
 }
 
