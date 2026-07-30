@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     "$PRINT",
   ],
   openGraph: {
-    title: "PRINT Swap — Swap & Bridge Any Token, Any Chain, Safely Routed",
+    title: "PRINT Swap — Swap & Bridge Any Token, Any Chain, Safe & Secure",
     description,
     url: "https://www.hoodprinter.xyz/swap",
     siteName: siteConfig.name,
@@ -67,7 +67,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@HOODPrinterxyz",
     creator: "@HOODPrinterxyz",
-    title: "PRINT Swap — Swap & Bridge Any Token, Any Chain, Safely Routed",
+    title: "PRINT Swap — Swap & Bridge Any Token, Any Chain, Safe & Secure",
     description,
     images: ["/brand/og-swap.png"],
   },

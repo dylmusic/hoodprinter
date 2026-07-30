@@ -247,11 +247,11 @@ await renderComposite({
         <tspan fill="#ffffff">Swap</tspan><tspan fill="#00c805" dx="24">Anything</tspan>
       </text>
       <!-- subhead -->
-      <text x="74" y="388" font-family="${FONT}" font-weight="700" font-size="35" fill="#f5c518">Any token, any chain — always the right $PRINT pool.</text>
+      <text x="74" y="388" font-family="${FONT}" font-weight="700" font-size="35" fill="#f5c518">Any token, any chain — swapped safely, every time.</text>
       <!-- feature chips -->
       ${chip(70, 337, "Any token, any chain")}
       ${chip(427, 233, "4 chains live")}
-      ${chip(680, 350, "Right pool, every time", "#f5c518")}
+      ${chip(680, 240, "Safe &amp; Secure", "#f5c518")}
       <!-- url -->
       <text x="74" y="586" font-family="${FONT}" font-weight="700" font-size="28" fill="#00c805">hoodprinter.xyz/swap</text>
     </svg>`
