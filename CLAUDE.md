@@ -1784,6 +1784,39 @@ had genuinely landed.
   recovery already uses in both places, rather than a separate,
   more-alarming-sounding message for what's the same category of wait.
 
+### Address bar stays in sync with the current pair (2026-07-29)
+Dylan: "i thought we built in currency hyperlinks. Why doesnt the
+hyperlink change as I choose currencies?" The shareable-link feature
+(above) only ever READ `?from=`/`?to=` once on mount to preselect
+tokens — nothing wrote them back out as the picker changed selection,
+so copying the address bar mid-session never actually reflected what
+was currently selected, only whatever the page happened to load with.
+A new effect in `PrintDirectSwap.tsx` rewrites the URL via
+`history.replaceState` (no reload, no extra history entries — same
+technique the `mmAddToken` query-param handling elsewhere in this
+codebase already uses) whenever `fromToken`/`toToken` change. Prefers
+the plain symbol form for anything in the curated list (same "buy
+cashcat" readability the original feature was built for), falls back
+to the raw address for a custom-pasted token, and only adds
+`&fromChain=`/`&toChain=` when a side isn't on Robinhood Chain (the
+default a bare symbol/address already resolves to) — a same-chain
+Robinhood link stays as short as before this. **Guarded by a new
+`urlInitDoneRef`** so it can't fire before the existing mount-time READ
+effect has finished resolving whatever the page actually loaded
+with — without this, the write effect's very first run (fromToken/
+toToken still at their ETH/PRINT defaults, since address resolution is
+async) would clobber a real `?to=0x...` link with `?from=ETH&to=PRINT`
+before the read effect's own promise ever resolved; the ref is set
+`true` at the end of the read effect (both the synchronous "no params"
+early-return and the async resolution path), and the write effect
+no-ops entirely until then. Verified live via CDP against a real prod
+build: loading `?to=cashcat` resolves and normalizes to
+`?from=ETH&to=CASHCAT` without ever flashing the default pair in
+between (checked at both 2s and 12s post-navigation); clicking the flip
+button updates it to `?from=CASHCAT&to=ETH`; a cross-chain load
+(`?to=usdc&toChain=solana`) correctly resolves to SOL/USDC with both
+`&fromChain=solana` and `&toChain=solana` included.
+
 ---
 
 ## Site navigation
