@@ -1683,6 +1683,74 @@ Two more real reports the same session:
   1100px; screenshots confirm desktop is byte-for-byte the same layout
   as before and mobile now reads as clean two-line rows.
 
+### Relay false-failure recovery + SOL MAX fix (2026-07-29)
+Real live incident: Dylan swapped 20 SOL to CASHCAT — "it claimed it
+failed but it actually worked... it didnt record the trade in
+transactions." Root cause: `relay-only` (neither side touches $PRINT,
+e.g. SOL → CASHCAT) had zero recovery if Relay SDK's `execute()` call
+rejected — same root cause as the already-documented Solana blockhash-
+expiry issue (a signed tx, or Relay's own confirmation of it, can land
+AFTER our client-side wait gives up), just hitting a plan that had
+never been hardened against it. `relay-to-print` already survives this
+class of bug by re-checking our OWN destination ETH balance
+afterward — `relay-only` has no leg of ours left to verify against
+(destination token/chain is arbitrary), so the swap just got reported
+as failed and silently never written to the tx feed, even though it
+had genuinely landed.
+- **`lib/relayLeg.ts`**: `relayRequestId(quote)` (the id was already
+  extractable pre-execute — `relayTransactionUrl` just never exposed it
+  raw), `checkRelayRequestStatus(requestId)` /
+  `waitForRelaySuccess(requestId, opts)` — polls Relay's own
+  `https://api.relay.link/requests/v2?id=<requestId>` status endpoint,
+  which is ground truth independent of whether our own client-side
+  `execute()` call succeeded. Endpoint + exact field shape (`status`,
+  `data.inTxs[0].hash`, `data.outTxs[0].hash`,
+  `data.metadata.currencyOut.amountFormatted`) verified live against a
+  real successful request (`?status=success&limit=1`), not guessed —
+  same investigative discipline as the earlier "REAL fund-location
+  scare" incident, just automated into the actual error path instead of
+  a one-off manual check. `/requests/v3` exists too (per Relay's docs)
+  but requires an `x-api-key` header we don't send client-side; v2 works
+  unauthenticated and is what the earlier manual incident already used
+  successfully, so stuck with it rather than standing up a server route
+  just to hold `RELAY_API_KEY` (already unused dead config — see
+  earlier Swap section note).
+- **`components/PrintDirectSwap.tsx`**: both `relay-only` (in `doSwap`)
+  and `runRelayToTokenLeg2` (print-to-relay's leg 2 — identical risk,
+  identical fix) now wrap `executeRelayLeg` in its own try/catch; on
+  failure, poll Relay's request status via the id already known from
+  the quote (present before `execute()` ever ran) before concluding the
+  swap actually failed — only treated as recovered on an explicit
+  `"success"` status, anything else (including "couldn't determine
+  within the poll window") re-throws the original error so
+  `describeError`'s existing Solana-timeout-aware messaging still
+  applies. A recovered success now builds the exact same tx-feed row
+  and `finalOk`/`setReceivedAmt`/etc. state the normal success path
+  does, so a swap that really landed gets correctly recorded and shown
+  as successful instead of a false "failed" with the trade missing from
+  Transactions.
+- **SOL MAX button, same session**: "clicking the SOL balance didnt
+  update my trade to my full balance." `setMaxAmount()` only ever
+  handled `fromToken.isNative` via wagmi's `fromBalanceData` — SOL is
+  also `isNative: true`, so it fell into that branch, found
+  `fromBalanceData` always empty (wagmi can't query a non-EVM chain),
+  and silently no-opped. Added a dedicated Solana branch ahead of it
+  using `solFromBalance`, reserving ~$1 of SOL for gas
+  (`FALLBACK_GAS_RESERVE_SOL = 0.01`, same "leave a buffer" intent as
+  `FALLBACK_GAS_RESERVE_ETH` — priced via the already-fetched
+  `fromUsdPrice` when available, same pattern as the ETH branch's
+  `ethUsd`).
+- **Verification note**: build clean, live CDP smoke test on a real
+  prod build (a SOL→CASHCAT `relay-only` plan resolves with zero
+  console exceptions via `?from=sol&to=cashcat&fromChain=solana`). The
+  actual recovery code path (`execute()` throwing mid-flight, then the
+  status poll rescuing it) isn't independently re-creatable in this
+  environment without a funded wallet triggering a real failure — same
+  gap already noted elsewhere in this file for other unfundable-wallet
+  cases. The fix targets the exact mechanism a real incident pointed
+  to, using a live-verified API, rather than being an end-to-end
+  reproduction.
+
 ---
 
 ## Site navigation
