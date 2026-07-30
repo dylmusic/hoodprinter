@@ -18,7 +18,7 @@ import { siteConfig } from "@/site.config";
 // CLAUDE.md "Swap" for the full architecture and the multichain follow-up.
 // components/SwapEmbed.tsx (the old full-widget version) is untouched and
 // still here, unused, in case Relay ever adds pool-level pinning.
-const title = "Swap — Buy $PRINT & Swap Any Token on Robinhood Chain";
+const title = "Swap — Trade Any Token Across Robinhood Chain, Base, Solana & Ethereum";
 const description =
   "Swap any token across Robinhood Chain, Base, Solana, and Ethereum — including $PRINT, always routed through the correct on-chain pool. No wrong-pool slippage, no external swap site, one page for same-chain and cross-chain swaps.";
 
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     "$PRINT",
   ],
   openGraph: {
-    title: "HOOD Printer Swap — Buy $PRINT From Any Chain, Safely Routed",
+    title: "HOOD Printer Swap — Any Token, Any Chain, Safely Routed",
     description,
     url: "https://www.hoodprinter.xyz/swap",
     siteName: siteConfig.name,
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@HOODPrinterxyz",
     creator: "@HOODPrinterxyz",
-    title: "HOOD Printer Swap — Buy $PRINT From Any Chain, Safely Routed",
+    title: "HOOD Printer Swap — Any Token, Any Chain, Safely Routed",
     description,
     images: ["/brand/og-swap.png"],
   },
