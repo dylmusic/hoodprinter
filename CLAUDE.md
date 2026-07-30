@@ -1761,6 +1761,28 @@ had genuinely landed.
   cases. The fix targets the exact mechanism a real incident pointed
   to, using a live-verified API, rather than being an end-to-end
   reproduction.
+- **Follow-up, same day**: Dylan spotted the actual live symptom —
+  "what is this?" next to a screenshot showing "Depositing funds to the
+  relayer to execute the swap for CASHCAT" on screen mid-swap. Root
+  cause: `relay-only`'s single-step case fell back to a flat button
+  showing Relay's own `onProgress` `p.label` text verbatim (the branded
+  "Waiting for Confirmation" overlay was deliberately skipped for
+  1-step swaps, "no added clutter") — exactly the fallback that let
+  Relay's raw internal text reach the screen. Fixed by always rendering
+  the overlay, even for a genuine 1/1 swap, with a live ticking "(Ns)"
+  counter starting the instant the leg begins (`startElapsedLabel`,
+  same mechanism `relay-to-print`'s leg 1 already uses) — Relay's own
+  `p.label` content is now ignored entirely in both `relay-only` and
+  `runRelayToTokenLeg2`; `relay-only` still tracks Relay's real step
+  count (`progPart`/`progTotal`) for correct 1/2-2/2 display when a
+  quote genuinely needs an approve step, just never its text. Separately,
+  Dylan also rejected the recovery-poll's own message: "dont say
+  checking if it actually went through, look what we did for ETH, same
+  kind of thing just wait and load" — the "Checking whether it actually
+  went through…" text is gone, replaced with the exact same "Checking
+  for bridge…" ticking-counter copy `relay-to-print`'s Solana-timeout
+  recovery already uses in both places, rather than a separate,
+  more-alarming-sounding message for what's the same category of wait.
 
 ---
 
