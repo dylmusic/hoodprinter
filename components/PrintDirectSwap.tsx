@@ -609,12 +609,23 @@ function InnerDirectSwap() {
   // Solana (base58-shaped). If only `to` is given and it resolves to a
   // Solana token, the input defaults to native SOL instead of ETH — when
   // both are given, whatever `from` says wins, same as any other pair.
+  // Guards the URL-sync effect below from firing before this one has
+  // finished reading the URL it was loaded with — without this, the sync
+  // effect's very first run (mount, fromToken/toToken still their
+  // ETH/PRINT defaults, since the address-resolution branches above are
+  // async) would immediately overwrite a real ?to=0x... link with
+  // ?from=ETH&to=PRINT before resolveParam's promise ever resolves.
+  const urlInitDoneRef = useRef(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const fromRaw = params.get("from");
     const toRaw = params.get("to");
-    if (!fromRaw && !toRaw) return;
+    if (!fromRaw && !toRaw) {
+      urlInitDoneRef.current = true;
+      return;
+    }
 
     const toChainId = params.get("toChain") ? chainIdFromParam(params.get("toChain")!) : undefined;
     const fromChainId = params.get("fromChain") ? chainIdFromParam(params.get("fromChain")!) : undefined;
@@ -640,8 +651,49 @@ function InnerDirectSwap() {
           ? findTokenBySymbol("SOL", SOLANA_CHAIN_ID)
           : undefined;
       if (resolvedFrom) setFromToken(resolvedFrom);
+      urlInitDoneRef.current = true;
     })();
   }, []);
+
+  // Keeps the address bar itself in sync with whatever's currently
+  // selected — Dylan, after the read-only version shipped: "i thought we
+  // built in currency hyperlinks. Why doesnt the hyperlink change as I
+  // choose currencies?" The picker-driven flow only ever READ ?from=/?to=
+  // once on mount; nothing wrote them back out as the user changed
+  // selections, so the URL you'd actually copy out of the address bar
+  // never reflected your current pair. `history.replaceState` (not a
+  // real navigation — no reload, no extra history entries) rewrites the
+  // URL on every fromToken/toToken change instead. Prefers the plain
+  // symbol form for anything in the curated list (same "buy cashcat"
+  // readability the original feature was built for) and falls back to
+  // the raw address for a custom-pasted token; a &fromChain=/&toChain=
+  // is only added when the token's chain isn't Robinhood Chain (the
+  // default a bare symbol/address already resolves to), so a same-chain
+  // Robinhood link stays as short as it was before this.
+  useEffect(() => {
+    if (typeof window === "undefined" || !urlInitDoneRef.current) return;
+    const curatedFrom = findTokenBySymbol(fromToken.symbol, fromToken.chainId);
+    const curatedTo = findTokenBySymbol(toToken.symbol, toToken.chainId);
+    const fromIsCurated = curatedFrom?.address.toLowerCase() === fromToken.address.toLowerCase();
+    const toIsCurated = curatedTo?.address.toLowerCase() === toToken.address.toLowerCase();
+
+    const params = new URLSearchParams();
+    params.set("from", fromIsCurated ? fromToken.symbol : fromToken.address);
+    params.set("to", toIsCurated ? toToken.symbol : toToken.address);
+    if (fromToken.chainId !== siteConfig.chain.chainId) {
+      const c = CHAINS.find((c) => c.id === fromToken.chainId);
+      if (c) params.set("fromChain", c.name.toLowerCase());
+    }
+    if (toToken.chainId !== siteConfig.chain.chainId) {
+      const c = CHAINS.find((c) => c.id === toToken.chainId);
+      if (c) params.set("toChain", c.name.toLowerCase());
+    }
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    if (newUrl !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [fromToken.chainId, fromToken.address, fromToken.symbol, toToken.chainId, toToken.address, toToken.symbol]);
 
   const fromIsSolana = isSolanaChain(fromToken.chainId);
   const toIsSolana = isSolanaChain(toToken.chainId);
