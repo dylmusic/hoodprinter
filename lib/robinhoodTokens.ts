@@ -462,6 +462,35 @@ export function tokensForChain(chainId: number, rwaFilter: boolean): RhToken[] {
   return CURATED_TOKENS.filter((t) => t.chainId === chainId);
 }
 
+/**
+ * Symbol -> chain id, for shareable swap links (?from=SYMBOL&to=SYMBOL,
+ * optional &fromChain=/&toChain= to disambiguate a symbol that exists on
+ * more than one chain, e.g. "eth"/"usdc"/"weth"). Accepts either a chain's
+ * display name ("Solana", case-insensitive) or its raw numeric id.
+ */
+export function chainIdFromParam(param: string): number | undefined {
+  const p = param.trim().toLowerCase();
+  const byName = CHAINS.find((c) => c.name.toLowerCase() === p);
+  if (byName) return byName.id;
+  const asNum = Number(p);
+  return CHAINS.some((c) => c.id === asNum) ? asNum : undefined;
+}
+
+/**
+ * Looks up a curated token by symbol (case-insensitive) for shareable swap
+ * links — e.g. /swap?to=cashcat. `chainId`, when given, disambiguates a
+ * symbol that exists on more than one chain (ETH/WETH/USDC/USDT all do);
+ * without it, the first match in CURATED_TOKENS wins, which is Robinhood
+ * Chain for every symbol native to this site (ETH/PRINT/WETH/USDG/curated
+ * tokens all come before CROSS_CHAIN_TOKENS in that array). Returns
+ * undefined for an unknown symbol rather than guessing.
+ */
+export function findTokenBySymbol(symbol: string, chainId?: number): RhToken | undefined {
+  const s = symbol.trim().toLowerCase();
+  if (!s) return undefined;
+  return CURATED_TOKENS.find((t) => t.symbol.toLowerCase() === s && (chainId === undefined || t.chainId === chainId));
+}
+
 const erc20MetaIface = new ethers.Interface([
   "function symbol() view returns (string)",
   "function name() view returns (string)",

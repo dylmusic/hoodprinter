@@ -38,7 +38,18 @@ import {
   POOL_TAX_PCT,
   NATIVE_ETH,
 } from "@/lib/printDirectSwap";
-import { ETH_TOKEN, PRINT_TOKEN, NATIVE_SOL, isSolanaChain, tokenKey, CHAINS, type RhToken } from "@/lib/robinhoodTokens";
+import {
+  ETH_TOKEN,
+  PRINT_TOKEN,
+  NATIVE_SOL,
+  isSolanaChain,
+  tokenKey,
+  CHAINS,
+  SOLANA_CHAIN_ID,
+  findTokenBySymbol,
+  chainIdFromParam,
+  type RhToken,
+} from "@/lib/robinhoodTokens";
 import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount, relayTransactionUrl } from "@/lib/relayLeg";
 import { useSolanaWallet, getSolanaBalance } from "@/lib/solanaWallet";
 import {
@@ -565,6 +576,36 @@ function InnerDirectSwap() {
   const [fromToken, setFromToken] = useState<RhToken>(ETH_TOKEN);
   const [toToken, setToToken] = useState<RhToken>(PRINT_TOKEN);
   const [pickerSide, setPickerSide] = useState<"from" | "to" | null>(null);
+
+  // Shareable swap links — ?to=SYMBOL (e.g. ?to=cashcat) preselects the
+  // output token so "buy cashcat" can just be a link instead of talking
+  // someone through the picker; ?from=SYMBOL does the same for the input.
+  // Optional &toChain=/&fromChain= (chain name or id) disambiguate a symbol
+  // that exists on more than one chain (findTokenBySymbol defaults to
+  // Robinhood Chain's own token when one isn't given). If only `to` is
+  // given and it resolves to a Solana token, the input defaults to native
+  // SOL instead of ETH (SOL is the natural origin for a Solana buy link) —
+  // when both are given, whatever `from` says wins, same as any other pair.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const fromSym = params.get("from");
+    const toSym = params.get("to");
+    if (!fromSym && !toSym) return;
+
+    const toChainId = params.get("toChain") ? chainIdFromParam(params.get("toChain")!) : undefined;
+    const fromChainId = params.get("fromChain") ? chainIdFromParam(params.get("fromChain")!) : undefined;
+
+    const resolvedTo = toSym ? findTokenBySymbol(toSym, toChainId) : undefined;
+    if (resolvedTo) setToToken(resolvedTo);
+
+    const resolvedFrom = fromSym
+      ? findTokenBySymbol(fromSym, fromChainId)
+      : resolvedTo && isSolanaChain(resolvedTo.chainId)
+        ? findTokenBySymbol("SOL", SOLANA_CHAIN_ID)
+        : undefined;
+    if (resolvedFrom) setFromToken(resolvedFrom);
+  }, []);
 
   const fromIsSolana = isSolanaChain(fromToken.chainId);
   const toIsSolana = isSolanaChain(toToken.chainId);
