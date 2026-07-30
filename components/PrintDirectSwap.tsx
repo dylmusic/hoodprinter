@@ -907,7 +907,12 @@ function InnerDirectSwap() {
     if (leg2InputWei <= 0n) {
       throw new Error(`$PRINT → ETH landed (${ethers.formatEther(ethWei)} ETH), but not enough was left over to also cover gas for the ${toToken.symbol} swap. Try a larger amount.`);
     }
-    setLegProgress({ part: 2, total: 2, label: `Confirm ETH → ${toToken.symbol}` });
+    // Ticks from the instant we start, same as relay-only/relay-to-print's
+    // leg 1 — and never shows Relay's own raw internal step text (same
+    // real live leak: "Depositing funds to the relayer to execute the
+    // swap for..." reaching the screen unbranded).
+    let leg2Label = `Confirm ETH → ${toToken.symbol}`;
+    const ticker2 = startElapsedLabel((ms) => setLegProgress({ part: 2, total: 2, label: `${leg2Label} (${Math.round(ms / 1000)}s)` }));
     const quote2 = await getRelayLegQuote({
       chainId: CHAIN.id,
       toChainId: toToken.chainId,
@@ -924,25 +929,30 @@ function InnerDirectSwap() {
     let outFormatted: string | number | null = null;
     let ok2 = false;
     try {
-      const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), (p) => setLegProgress({ part: 2, total: 2, label: p.label }));
+      const { data: result2 } = await executeRelayLeg(quote2, adaptEvmWallet(client), () => {});
       hash2 = quoteLastTxHash(result2, CHAIN.id);
       relayUrl2 = relayTransactionUrl(result2) ?? relayUrl2;
       outFormatted = (result2 as any)?.details?.currencyOut?.amountFormatted ?? null;
       ok2 = true;
     } catch (execErr) {
-      // Same recovery as relay-only below — execute() rejecting doesn't
+      // Same recovery as relay-only above — execute() rejecting doesn't
       // necessarily mean the swap didn't happen (real live bug: a
       // SOL/relay swap threw here while Relay's backend had already
       // completed it, and the UI both reported failure AND never
-      // recorded the trade). Check Relay's own status before giving up.
-      setLegProgress(null);
-      setStep("Checking whether it actually went through…");
+      // recorded the trade). Check Relay's own status before giving up,
+      // same "Checking for bridge…" wait/counter copy as everywhere else
+      // in this file rather than an alarming "checking if it failed"
+      // message — it's the same kind of wait, just a different leg.
+      leg2Label = "Checking for bridge…";
       const recovered = requestId2 ? await waitForRelaySuccess(requestId2) : null;
       if (recovered?.status !== "success") throw execErr;
       ok2 = true;
       hash2 = recovered.originTxHash ?? recovered.destinationTxHash;
       outFormatted = recovered.outputAmountFormatted;
+    } finally {
+      ticker2.stop();
     }
+    setLegProgress(null);
     setTxHash(hash2);
     setLastSwapped({ amt: fromAmt, sym: "PRINT" });
     setReceivedAmt(outFormatted ? Number(outFormatted) : null);
@@ -1203,8 +1213,24 @@ function InnerDirectSwap() {
         // connected EVM wallet otherwise — switching chain first if the
         // EVM wallet isn't already on fromToken's chain); recipient is
         // whichever wallet matches the DESTINATION chain.
-        setStep("Confirm in wallet…");
         legContext = `${fromToken.symbol} → ${toToken.symbol} (via Relay)`;
+        // Ticks from the instant we start (same "count from submission"
+        // fix already proven for relay-to-print's leg 1 below) and NEVER
+        // shows Relay's own raw internal step text as the label — a real
+        // live SOL -> CASHCAT swap leaked "Depositing funds to the
+        // relayer to execute the swap for CASHCAT" straight to the
+        // screen, which reads as broken/unbranded, not like the rest of
+        // this UI. Always renders as the branded "Waiting for
+        // Confirmation" overlay too, even for a single-step (1/1) swap —
+        // the old flat-button fallback for 1-step swaps is exactly what
+        // let Relay's raw text reach the screen in the first place.
+        // `progPart`/`progTotal` still track Relay's own real step count
+        // (an ERC20 origin needing an approve step before its swap step
+        // shows correctly as 1/2, 2/2) — only the label text is ours.
+        let legLabel = "Confirm in wallet…";
+        let progPart = 1;
+        let progTotal = 1;
+        const ticker = startElapsedLabel((ms) => setLegProgress({ part: progPart, total: progTotal, label: `${legLabel} (${Math.round(ms / 1000)}s)` }));
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
         const recipientAddress = toIsSolana ? sol.address! : address;
         const quote = await getRelayLegQuote({
@@ -1217,6 +1243,7 @@ function InnerDirectSwap() {
           recipientAddress,
           chargeFee: true,
         });
+        progTotal = quoteStepCount(quote);
         let relayWallet;
         if (fromIsSolana) {
           const provider = sol.getProvider();
@@ -1226,25 +1253,16 @@ function InnerDirectSwap() {
           const client = await ensureEvmChain(fromToken.chainId);
           relayWallet = adaptEvmWallet(client);
         }
-        // Relay can silently split a quote into more than one step itself
-        // (an ERC20 origin needing an approve step before its swap step —
-        // real live bug: a same-chain Base cbBTC->ETH swap needed exactly
-        // this and the old flat-text progress made it look stuck/broken
-        // between the two wallet prompts). Only show the "Confirmation
-        // X/Y" overlay when Relay's own quote actually needs more than one
-        // — a plain single-signature swap keeps the existing flat button
-        // text, no added clutter.
-        const relaySteps = quoteStepCount(quote);
-        if (relaySteps > 1) setLegProgress({ part: 1, total: relaySteps, label: "Confirm in wallet…" });
         const requestId = relayRequestId(quote);
         let hash: string | null = null;
         let relayUrl: string | null = relayTransactionUrl(quote);
         let outFormatted: string | number | null = null;
         let ok = false;
         try {
-          const { data: result } = await executeRelayLeg(quote, relayWallet, (p) =>
-            relaySteps > 1 ? setLegProgress({ part: p.part, total: p.total, label: p.label }) : setStep(p.label)
-          );
+          const { data: result } = await executeRelayLeg(quote, relayWallet, (p) => {
+            progPart = p.part;
+            progTotal = p.total;
+          });
           hash = quoteLastTxHash(result, fromToken.chainId);
           relayUrl = relayTransactionUrl(result) ?? relayUrl;
           outFormatted = (result as any)?.details?.currencyOut?.amountFormatted ?? null;
@@ -1263,14 +1281,19 @@ function InnerDirectSwap() {
           // the requestId already known from the quote (present before
           // execute() ever ran). Only treated as recovered on an explicit
           // "success" status; anything else (including "couldn't
-          // determine") re-throws the original error.
-          setLegProgress(null);
-          setStep("Checking whether it actually went through…");
+          // determine") re-throws the original error. Same "Checking for
+          // bridge…" copy as relay-to-print's own wait screen, not an
+          // alarming "checking if it actually failed" message — this is
+          // the same kind of wait, just via Relay's own status API
+          // instead of our own balance.
+          legLabel = "Checking for bridge…";
           const recovered = requestId ? await waitForRelaySuccess(requestId) : null;
           if (recovered?.status !== "success") throw execErr;
           ok = true;
           hash = recovered.originTxHash ?? recovered.destinationTxHash;
           outFormatted = recovered.outputAmountFormatted;
+        } finally {
+          ticker.stop();
         }
         setLegProgress(null);
         finalOk = ok;
