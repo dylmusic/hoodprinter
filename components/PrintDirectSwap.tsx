@@ -48,6 +48,9 @@ import {
   SOLANA_CHAIN_ID,
   findTokenBySymbol,
   chainIdFromParam,
+  resolveCustomToken,
+  looksLikeEvmAddress,
+  looksLikeSolanaAddress,
   type RhToken,
 } from "@/lib/robinhoodTokens";
 import { getRelayLegQuote, executeRelayLeg, adaptEvmWallet, adaptPrintSolanaWallet, quoteLastTxHash, quoteStepCount, relayTransactionUrl } from "@/lib/relayLeg";
@@ -580,31 +583,53 @@ function InnerDirectSwap() {
   // Shareable swap links — ?to=SYMBOL (e.g. ?to=cashcat) preselects the
   // output token so "buy cashcat" can just be a link instead of talking
   // someone through the picker; ?from=SYMBOL does the same for the input.
-  // Optional &toChain=/&fromChain= (chain name or id) disambiguate a symbol
-  // that exists on more than one chain (findTokenBySymbol defaults to
-  // Robinhood Chain's own token when one isn't given). If only `to` is
-  // given and it resolves to a Solana token, the input defaults to native
-  // SOL instead of ETH (SOL is the natural origin for a Solana buy link) —
-  // when both are given, whatever `from` says wins, same as any other pair.
+  // ?to=/?from= also accept a raw contract address (0x... for any EVM
+  // chain, a base58 mint for Solana) — resolved the exact same way as
+  // pasting one into the picker (resolveCustomToken), so a token doesn't
+  // need to be in the curated list to be shareable. Symbols stay
+  // restricted to the curated list on purpose (never resolved from
+  // untrusted input), which is why they're the safer default; addresses
+  // are an opt-in escape hatch for anything else, same trust boundary the
+  // picker's own paste-a-CA box already has. Optional &toChain=/&fromChain=
+  // (chain name or id) disambiguates a symbol that exists on more than one
+  // chain, or tells an address lookup which chain to check — without it, a
+  // symbol defaults to Robinhood Chain (findTokenBySymbol's own array-order
+  // default) and an address defaults to Robinhood Chain (EVM-shaped) or
+  // Solana (base58-shaped). If only `to` is given and it resolves to a
+  // Solana token, the input defaults to native SOL instead of ETH — when
+  // both are given, whatever `from` says wins, same as any other pair.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const fromSym = params.get("from");
-    const toSym = params.get("to");
-    if (!fromSym && !toSym) return;
+    const fromRaw = params.get("from");
+    const toRaw = params.get("to");
+    if (!fromRaw && !toRaw) return;
 
     const toChainId = params.get("toChain") ? chainIdFromParam(params.get("toChain")!) : undefined;
     const fromChainId = params.get("fromChain") ? chainIdFromParam(params.get("fromChain")!) : undefined;
 
-    const resolvedTo = toSym ? findTokenBySymbol(toSym, toChainId) : undefined;
-    if (resolvedTo) setToToken(resolvedTo);
+    async function resolveParam(raw: string | null, explicitChainId: number | undefined): Promise<RhToken | undefined> {
+      if (!raw) return undefined;
+      if (looksLikeEvmAddress(raw)) {
+        return (await resolveCustomToken(explicitChainId ?? siteConfig.chain.chainId, raw)) ?? undefined;
+      }
+      if (looksLikeSolanaAddress(raw)) {
+        return (await resolveCustomToken(explicitChainId ?? SOLANA_CHAIN_ID, raw)) ?? undefined;
+      }
+      return findTokenBySymbol(raw, explicitChainId);
+    }
 
-    const resolvedFrom = fromSym
-      ? findTokenBySymbol(fromSym, fromChainId)
-      : resolvedTo && isSolanaChain(resolvedTo.chainId)
-        ? findTokenBySymbol("SOL", SOLANA_CHAIN_ID)
-        : undefined;
-    if (resolvedFrom) setFromToken(resolvedFrom);
+    (async () => {
+      const resolvedTo = await resolveParam(toRaw, toChainId);
+      if (resolvedTo) setToToken(resolvedTo);
+
+      const resolvedFrom = fromRaw
+        ? await resolveParam(fromRaw, fromChainId)
+        : resolvedTo && isSolanaChain(resolvedTo.chainId)
+          ? findTokenBySymbol("SOL", SOLANA_CHAIN_ID)
+          : undefined;
+      if (resolvedFrom) setFromToken(resolvedFrom);
+    })();
   }, []);
 
   const fromIsSolana = isSolanaChain(fromToken.chainId);

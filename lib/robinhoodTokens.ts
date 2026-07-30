@@ -525,6 +525,25 @@ async function fetchRelayTokenLogo(chainId: number, address: string): Promise<st
   }
 }
 
+// Address-shape detection: EVM chains look for a "0x..." address; Solana
+// mint addresses are base58 (no 0/O/I/l), typically 32-44 chars, with no
+// distinguishing prefix — length+charset is the best available heuristic
+// short of attempting a resolve on every input. Split into two standalone
+// checks (not just the chain-aware `looksLikeAddress` below) so shareable
+// swap links (?to=0x.../?to=<base58 mint>) can auto-detect which chain an
+// address belongs to when the link doesn't say (PrintDirectSwap.tsx) —
+// TokenPickerModal.tsx's paste-a-CA box already knows its chain from
+// context, so it only ever needs the chain-aware wrapper.
+export function looksLikeEvmAddress(q: string): boolean {
+  return q.length >= 8 && /^0x/i.test(q);
+}
+export function looksLikeSolanaAddress(q: string): boolean {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q);
+}
+export function looksLikeAddress(chainId: number, q: string): boolean {
+  return isSolanaChain(chainId) ? looksLikeSolanaAddress(q) : looksLikeEvmAddress(q);
+}
+
 /**
  * Resolves a pasted address that isn't in the curated list, for the
  * currently-selected chain. EVM chains (Robinhood/Base/Ethereum) read

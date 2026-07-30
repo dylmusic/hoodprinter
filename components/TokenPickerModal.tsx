@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CHAINS, PINNED_TOKENS, isSolanaChain, resolveCustomToken, tokenKey, tokensForChain, type RhToken } from "@/lib/robinhoodTokens";
+import {
+  CHAINS,
+  PINNED_TOKENS,
+  resolveCustomToken,
+  tokenKey,
+  tokensForChain,
+  looksLikeAddress,
+  type RhToken,
+} from "@/lib/robinhoodTokens";
 
 // Styled after Relay's own "Select Token" modal (search box + result list,
 // icon/symbol/name/truncated-address rows) so switching between this and
@@ -27,15 +35,6 @@ type Props = {
 function shortAddr(a: string) {
   if (a.length <= 12) return a;
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
-// Custom-paste detection: EVM chains look for a "0x..." address (existing
-// pattern); Solana mint addresses are base58 (no 0/O/I/l), typically
-// 32-44 chars, with no distinguishing prefix — length+charset is the best
-// available heuristic short of attempting a resolve on every keystroke.
-function looksLikeAddress(chainId: number, q: string): boolean {
-  if (isSolanaChain(chainId)) return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(q);
-  return q.length >= 8 && /^0x/i.test(q);
 }
 
 // `size` lets this render both inside the modal's row list (bigger) and
