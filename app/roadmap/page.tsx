@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     "Robinhood Chain RWA pools",
     "first Robinhood Chain multisend contract",
     "Robinhood Chain disperse contract",
+    "Uniswap V4 hooks",
   ],
   alternates: {
     canonical: "/roadmap",

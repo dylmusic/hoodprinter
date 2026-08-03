@@ -46,6 +46,8 @@ export const metadata: Metadata = {
     "PRINT Swap",
     "HOODPrinter",
     "$PRINT",
+    "Uniswap V4 hooks",
+    "V4 hooks swap",
   ],
   openGraph: {
     title: "PRINT Swap — Swap & Bridge Any Token, Any Chain, Safe & Secure",
@@ -121,6 +123,14 @@ const jsonLd = {
             text: "0.85%, taken automatically in the same transaction as your swap — there's never a separate fee transaction to sign, and no fee at all beyond standard network gas on legs that don't touch $PRINT.",
           },
         },
+        {
+          "@type": "Question",
+          name: "Does PRINT Swap use Uniswap V4 Hooks?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes — $PRINT's pool uses a Uniswap V4 Hook to enforce its 5% trade tax on-chain, the same hook architecture behind the current wave of V4 projects on Robinhood Chain. PRINT Swap is built specifically to route around the two hookless decoy pools and always hit the real, hook-secured one.",
+          },
+        },
       ],
     },
   ],
@@ -150,8 +160,8 @@ export default function SwapPage() {
         <section className="swap-about">
           <h2>The swap &amp; bridge for Robinhood Chain, Solana, Base &amp; Ethereum</h2>
           <p>
-            $PRINT&rsquo;s real liquidity lives in a Uniswap V4 pool with a
-            hook enforcing its 5% trade tax — a plain swap UI can&rsquo;t
+            $PRINT&rsquo;s real liquidity lives in a Uniswap V4 pool, with a
+            V4 Hook enforcing its 5% trade tax on-chain — a plain swap UI can&rsquo;t
             account for that, and generic DEX aggregators can&rsquo;t tell
             that pool apart from two near-empty decoy pools at the same
             token pair. PRINT Swap always routes the{" "}
@@ -210,6 +220,16 @@ export default function SwapPage() {
                 0.85%, taken automatically in the same transaction as your
                 swap — no separate fee transaction, and no fee at all on
                 legs that don&rsquo;t touch $PRINT.
+              </div>
+            </details>
+            <details className="faq-item">
+              <summary>Does PRINT Swap use Uniswap V4 Hooks?</summary>
+              <div className="faq-body">
+                Yes — $PRINT&rsquo;s pool uses a Uniswap V4 Hook to enforce
+                its 5% trade tax on-chain, the same hook architecture behind
+                the current wave of V4 projects on Robinhood Chain. PRINT
+                Swap is built specifically to route around the two hookless
+                decoy pools and always hit the real, hook-secured one.
               </div>
             </details>
           </div>

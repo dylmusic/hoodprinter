@@ -26,6 +26,7 @@ export const metadata: Metadata = {
     "ETH rewards from RWA",
     "HOODPrinter",
     "$PRINT",
+    "Uniswap V4 hooks",
   ],
   openGraph: {
     title,

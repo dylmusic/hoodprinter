@@ -33,6 +33,8 @@ export const metadata: Metadata = {
     "reflection token",
     "meme coin",
     "ETH reflections",
+    "Uniswap V4 hooks",
+    "V4 hooks token",
   ],
   alternates: {
     canonical: "/",

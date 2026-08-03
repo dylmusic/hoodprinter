@@ -1918,6 +1918,50 @@ Dylan to create the GA4 property + GSC property and supply the IDs
 
 ## Site pages & metadata
 
+### "V4 Hooks" SEO/keyword pass (2026-08-03)
+Dylan, after research surfaced that Uniswap V4 hooks are a genuinely hot
+narrative right now (X's "hook summer" — uPEG/SATO/Slonks meme-hook wave,
+UNI pumping on the back of it) with a direct Robinhood Chain tie-in
+(Uniswap v2/v3/v4/UniswapX officially live there, a governance vote in
+progress to extend fees/UNI burn to the chain, and its two dominant
+launchpads — Pons and Bankr — both shipping V4-hook fee-split mechanisms
+structurally identical to $PRINT's own tax-to-reflections design): "tastefully
+include the V4 Hooks keyword throughout the site... don't overemphasize...
+It's hot right now and it will convince people so it should be obvious but
+not the main focus of everything." $PRINT's pool genuinely does use a real
+Uniswap V4 Hook to enforce its 5% tax (see the Swap section's incident
+writeup) — this isn't a stretch, just previously under-indexed.
+**Deliberately did NOT touch**: `site.config.ts`'s `tagline`/`description`
+(the single most-reused string sitewide, used as the default meta
+description and OG copy on every untagged page) or any hero H1/subhead
+copy — those stay 100% about the ETH-reflections/RWA story per Dylan's own
+"keep in mind what this project is about, it's a lot more than just V4
+Hooks."
+**What changed instead — keywords everywhere relevant, real content only
+on the two pages where it's actually the story**:
+- `app/layout.tsx` (site-wide default keywords), `app/rwa/page.tsx`,
+  `app/roadmap/page.tsx`, `app/print/page.tsx` — added `"Uniswap V4 hooks"`
+  (+ `"V4 hooks token"` on layout) to each page's `keywords` array only, no
+  on-page copy changes. RWA specifically stays keyword-only since no
+  $PRINT/RWA pool is live yet — claiming a V4-hook narrative for a pool
+  that doesn't exist yet would overreach.
+- `app/page.tsx` (home): new FAQ entry, both the visible `<details>` list
+  and the `FAQPage` JSON-LD — "Does $PRINT use Uniswap V4 Hooks?" — placed
+  right after "What are the taxes and supply?" so it reads as a natural
+  follow-up (tax mechanics → how it's actually enforced on-chain), not a
+  bolted-on trend chase.
+- `app/swap/page.tsx`: `keywords` gained `"Uniswap V4 hooks"`/`"V4 hooks
+  swap"`; the existing `swap-about` paragraph ("a Uniswap V4 pool with a
+  hook enforcing its 5% trade tax") was reworded to explicitly say
+  "V4 Hook" as its own term rather than just implying it; a matching new
+  FAQ item ("Does PRINT Swap use Uniswap V4 Hooks?") was added to both the
+  on-page FAQ list and the `FAQPage` JSON-LD, right after the existing
+  "why not a generic aggregator" question it naturally follows from (that
+  question already explains the hookless-decoy-pool problem — the new one
+  names the mechanism).
+Verified with a full `npm run build` — clean, `/swap` still prerenders
+`○ Static`.
+
 - `app/page.tsx` (home): `PRESALE_ACTIVE=true` — nav CTA is "Buy Now" →
   `PRESALE_LINK` everywhere (not "Level Up"/airdrop framing). Hero is 3
   buttons only (Dylan: "5 is too many and crowded"): "Buy $PRINT" + "Chart"

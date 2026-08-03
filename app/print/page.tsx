@@ -25,6 +25,7 @@ export const metadata: Metadata = {
     "verified buy bot contract",
     "$PRINT",
     "HOODPrinter",
+    "Uniswap V4 hooks",
   ],
   openGraph: {
     title: `HOOD Printer Buy Bot — Auto-Buy Any Robinhood Chain Token`,

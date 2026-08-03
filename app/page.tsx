@@ -90,6 +90,18 @@ const faqs = [
     ),
   },
   {
+    q: "Does $PRINT use Uniswap V4 Hooks?",
+    a: (
+      <>
+        Yes — $PRINT&rsquo;s liquidity pool uses a{" "}
+        <strong>Uniswap V4 Hook</strong> to enforce its 5% tax entirely
+        on-chain, the same hook architecture behind the current wave of V4
+        projects on Robinhood Chain. It&rsquo;s not just narrative for us —
+        the reflections above only exist because of it.
+      </>
+    ),
+  },
+  {
     q: "Is the liquidity locked?",
     a: (
       <>
@@ -160,6 +172,14 @@ const jsonLd = {
           acceptedAnswer: {
             "@type": "Answer",
             text: "The Buy Bot is $PRINT's first utility — auto-buy any Robinhood Chain token in one click from a dedicated in-browser wallet. Hold $PRINT in that wallet and it earns ETH reflections like any other holder, and the bot spends that ETH on more buys.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Does $PRINT use Uniswap V4 Hooks?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes — $PRINT's liquidity pool uses a Uniswap V4 Hook to enforce its 5% tax entirely on-chain, the same hook architecture behind the current wave of V4 projects on Robinhood Chain.",
           },
         },
         {
