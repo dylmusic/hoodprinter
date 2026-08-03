@@ -233,7 +233,7 @@ export default function Home() {
           <p className="hero-sub">
             HOODPrinter pays 5% ETH rewards backed by real-world assets.
             Every $PRINT buy adds to the RWA pools — and pays out holders
-            in ETH.
+            in ETH. Built on V4 Hooks.
           </p>
 
           <div className="contract-box">
