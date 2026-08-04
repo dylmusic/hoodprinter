@@ -102,7 +102,19 @@ const BALANCE_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 // to anyone real for a read-only quote (verified live) — used ONLY to let
 // the preview estimate work before a wallet is connected, never for
 // execution (doSwap always requires the real connected address).
-const PREVIEW_QUOTE_ADDRESS = "0x0000000000000000000000000000000000000000";
+// NOT the zero address — real live bug, WETH->ETH specifically:
+// Relay's own /quote endpoint special-cases the "unwrap" operation and
+// rejects 0x0 as user/recipient outright ("Invalid recipient: user and
+// recipient must match for WETH to ETH unwrap", errorCode
+// USER_RECIPIENT_MISMATCH) even when both fields are identically 0x0 — a
+// real, non-mismatched pair of addresses, so the check is specifically
+// "recipient isn't the burn/zero address," not an actual user!=recipient
+// comparison. Every other pair/plan tolerates the zero address fine
+// (confirmed live pre-fix); only this one operation doesn't. Swapped to
+// the standard 0x0...dEaD placeholder, confirmed live to return a normal
+// quote for this exact pair with the zero address's own request replayed
+// verbatim otherwise.
+const PREVIEW_QUOTE_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 const CHAIN = {
   id: siteConfig.chain.chainId,
