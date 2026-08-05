@@ -414,6 +414,34 @@ function removePendingResume(startedAt: number) {
   savePendingResumes(loadPendingResumes().filter((r) => r.startedAt !== startedAt));
 }
 
+// address (lowercased) -> that wallet's own recent-swap rows. A single
+// shared {addr, rows} slot (the old format) meant switching wallets on one
+// device clobbered whichever wallet wasn't currently connected — see the
+// restore/save effects below for the real incident this fixes. Capped to
+// the 20 most-recently-touched wallets so a device that's seen many
+// different test wallets doesn't grow this key unboundedly.
+const MAX_TRACKED_WALLETS = 20;
+function loadTxsByWallet(): Record<string, SwapTxRow[]> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TXS_STORAGE_KEY) || "null");
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    // One-time migration from the old single-slot {addr, rows} format —
+    // preserves whichever wallet was last connected instead of silently
+    // dropping it the first time this loads under the new schema.
+    if ("addr" in raw && Array.isArray((raw as any).rows)) {
+      return { [String((raw as any).addr).toLowerCase()]: (raw as any).rows };
+    }
+    return raw;
+  } catch {
+    return {};
+  }
+}
+function saveTxsByWallet(all: Record<string, SwapTxRow[]>) {
+  const entries = Object.entries(all);
+  const trimmed = entries.length > MAX_TRACKED_WALLETS ? entries.slice(entries.length - MAX_TRACKED_WALLETS) : entries;
+  localStorage.setItem(TXS_STORAGE_KEY, JSON.stringify(Object.fromEntries(trimmed)));
+}
+
 /**
  * Polls a Robinhood-chain ETH balance until it rises above `preBalance` or
  * `timeoutMs` elapses — the "let the loading screen wait for the bridge"
@@ -866,15 +894,21 @@ function InnerDirectSwap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [involvesPrint]);
 
-  // Restore this wallet's recent-swap feed, same pattern as the Buy Bot's tx feed.
+  // Restore this wallet's recent-swap feed. Keyed per-address (not a single
+  // {addr, rows} slot) — real bug: the old single-slot format meant
+  // connecting a SECOND wallet on this device silently overwrote the first
+  // wallet's entire history, so reconnecting the original wallet later
+  // showed nothing (the stored `addr` no longer matched). PendingResume
+  // records already avoided this by storing an address per-row; this now
+  // matches that pattern — one map of address -> rows, each wallet's feed
+  // independent of whichever wallet was connected most recently.
   useEffect(() => {
     if (!address || txsRestoredRef.current) return;
     txsRestoredRef.current = true;
     try {
-      const saved = JSON.parse(localStorage.getItem(TXS_STORAGE_KEY) || "null");
-      if (saved && saved.addr === address && Array.isArray(saved.rows)) {
-        setTxs(saved.rows.slice(0, 25));
-      }
+      const saved = loadTxsByWallet();
+      const rows = saved[address.toLowerCase()];
+      if (Array.isArray(rows)) setTxs(rows.slice(0, 25));
     } catch {
       /* no saved feed */
     }
@@ -883,7 +917,9 @@ function InnerDirectSwap() {
   useEffect(() => {
     if (!address || !txs.length) return;
     try {
-      localStorage.setItem(TXS_STORAGE_KEY, JSON.stringify({ addr: address, rows: txs.slice(0, 25) }));
+      const all = loadTxsByWallet();
+      all[address.toLowerCase()] = txs.slice(0, 25);
+      saveTxsByWallet(all);
     } catch {
       /* storage blocked / full */
     }
