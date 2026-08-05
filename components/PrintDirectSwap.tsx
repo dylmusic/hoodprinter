@@ -2154,10 +2154,18 @@ function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
     planTotals[label] = (planTotals[label] || 0) + count;
   }
   const planSum = Object.values(planTotals).reduce((a, b) => a + b, 0);
+  // No slice — PLAN_LABELS collapses every possible plan key into only ~5
+  // distinct labels (PRINT POOL / RELAY / SELF-ROUTED / RELAY+POOL /
+  // POOL+RELAY), so this is already a small, bounded list. A real live
+  // FRONG<->PRINT trade (relay-to-print, "RELAY+POOL") went missing from
+  // this section even though its count/volume recorded fine — root cause
+  // was a `.slice(0, 4)` here silently dropping whichever of the 5 labels
+  // was least common so far, contradicting lib/stats.ts's own readSwapStats
+  // comment ("fetch all of them... so the client can merge them into
+  // display groups without silently dropping low-count routes").
   const routeMix = Object.entries(planTotals)
     .map(([label, count]) => ({ label, count, pct: planSum > 0 ? Math.round((count / planSum) * 100) : 0 }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 4);
+    .sort((a, b) => b.count - a.count);
 
   return (
     <section className="swap-term">
