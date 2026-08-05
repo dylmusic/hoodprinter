@@ -4,6 +4,16 @@ import { getRedis } from "@/lib/stats";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Bump this on every edit — lets a caller confirm the NEW code is actually
+// live (Vercel deploy propagation lag bit us once already: a POST landed
+// on a stale deployment still running the old decrement logic, applying an
+// extra unwanted decrement) before triggering the mutating POST again.
+const ROUTE_VERSION = 3;
+
+export async function GET() {
+  return NextResponse.json({ version: ROUTE_VERSION });
+}
+
 // ONE-TIME correction route. Reverses a single test POST to /api/swap made
 // while verifying the new swap:pairs:eth volume tracking (a manual
 // {wallet: 0x00...dead, plan: relay-only, fromSym: TESTA, toSym: TESTB,
