@@ -63,6 +63,7 @@ export const KNOWN_V2_TOKENS = new Set(
     "0x45242320dbb855eea8fd36804c6487e10e97fcf9", // TENDIES
     "0xdb87393727b666c43f5aecb03d8b419ba54d9b03", // SWOGE
     "0xf8bc08092c06db6148114dcf82af881f1085f92b", // WOOD
+    "0x6245e67affa44a23077f0ea7f981a8dc743a0c47", // FRONG
   ].map((a) => a.toLowerCase())
 );
 
