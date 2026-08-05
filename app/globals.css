@@ -5636,6 +5636,40 @@ footer {
   font-weight: 700;
   position: relative;
 }
+.swap-term-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.swap-term-toggle {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(0, 200, 5, 0.15);
+  border-radius: 5px;
+  padding: 2px;
+}
+.swap-term-toggle button {
+  font-family: inherit;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.swap-term-toggle button:hover {
+  color: var(--text);
+}
+.swap-term-toggle button.active {
+  background: rgba(0, 200, 5, 0.18);
+  color: var(--green);
+}
 .swap-term-bar-row {
   display: flex;
   align-items: center;

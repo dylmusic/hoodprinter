@@ -522,7 +522,7 @@ type SwapStatsShape = {
   newTradersToday: number;
   buys: number;
   sells: number;
-  topPairs: { pair: string; count: number }[];
+  topPairs: { pair: string; count: number; eth: number }[];
   planMix: { plan: string; count: number }[];
 };
 
@@ -2179,6 +2179,14 @@ function InnerDirectSwap() {
 // deliberately never computed or shown here, anywhere in this codebase.
 function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
   const loaded = !!stats;
+  // Dylan: "top pairs is just by number of trades not volume?... make a
+  // toggle... to sort by trades or volume." The server already returns
+  // both dimensions per pair (lib/stats.ts tracks a parallel swap:pairs:eth
+  // zset), so toggling is a pure client-side re-sort — no refetch.
+  const [pairSort, setPairSort] = useState<"trades" | "volume">("trades");
+  const topPairs = [...(stats?.topPairs ?? [])]
+    .sort((a, b) => (pairSort === "trades" ? b.count - a.count : b.eth - a.eth))
+    .slice(0, 5);
   const trades = stats?.trades ?? 0;
   const dirTotal = (stats?.buys ?? 0) + (stats?.sells ?? 0);
   const buyPct = dirTotal > 0 ? Math.round(((stats?.buys ?? 0) / dirTotal) * 100) : 0;
@@ -2264,16 +2272,34 @@ function SwapTerminal({ stats }: { stats: SwapStatsShape | null }) {
             </>
           )}
 
-          {stats!.topPairs.length > 0 && (
+          {topPairs.length > 0 && (
             <>
               <div className="swap-term-divider" />
-              <div className="swap-term-sub">Top Pairs</div>
-              {stats!.topPairs.map((p, i) => (
+              <div className="swap-term-sub swap-term-sub-row">
+                <span>Top Pairs</span>
+                <span className="swap-term-toggle">
+                  <button
+                    type="button"
+                    className={pairSort === "trades" ? "active" : ""}
+                    onClick={() => setPairSort("trades")}
+                  >
+                    Trades
+                  </button>
+                  <button
+                    type="button"
+                    className={pairSort === "volume" ? "active" : ""}
+                    onClick={() => setPairSort("volume")}
+                  >
+                    Volume
+                  </button>
+                </span>
+              </div>
+              {topPairs.map((p, i) => (
                 <div className="swap-term-row" key={p.pair}>
                   <span className="swap-term-key">
                     {i + 1}. {p.pair}
                   </span>
-                  <span className="swap-term-val">{p.count}</span>
+                  <span className="swap-term-val">{pairSort === "trades" ? p.count : `${fmt(p.eth)} ETH`}</span>
                 </div>
               ))}
             </>

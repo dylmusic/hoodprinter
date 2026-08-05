@@ -166,6 +166,11 @@ export async function recordMultisendRun(run: MultisendRun): Promise<void> {
 //                                             (print-buy, relay-only, etc.) —
 //                                             not surfaced in the UI yet, just
 //                                             laid down for a future breakdown
+//   swap:pairs / swap:pairs:eth              zset per "<fromSym>→<toSym>",
+//                                             score = trade count / ETH
+//                                             volume respectively — two
+//                                             separate rankings so Top
+//                                             Pairs can toggle between them
 
 export type SwapReport = {
   wallet: string;
@@ -202,6 +207,7 @@ export async function recordSwap(r: SwapReport): Promise<void> {
     redis.incrbyfloat(`stats:swap:eth:${day}`, ethValue),
     redis.zincrby("swap:plans", 1, r.plan),
     redis.zincrby("swap:pairs", 1, pair),
+    redis.zincrby("swap:pairs:eth", ethValue, pair),
   ];
   if (direction) writes.push(redis.incr(`stats:swap:${direction}s`));
   await Promise.all(writes);
@@ -221,7 +227,7 @@ export type SwapStats = {
   newTradersToday: number;
   buys: number;
   sells: number;
-  topPairs: { pair: string; count: number }[];
+  topPairs: { pair: string; count: number; eth: number }[];
   planMix: { plan: string; count: number }[];
 };
 
@@ -241,7 +247,7 @@ export async function readSwapStats(): Promise<SwapStats> {
   };
   if (!redis) return empty;
   const day = dayKey();
-  const [vals, traders, pairsFlat, plansFlat] = await Promise.all([
+  const [vals, traders, countFlat, ethFlat, plansFlat] = await Promise.all([
     redis.mget<(string | number | null)[]>(
       "stats:swap:trades",
       "stats:swap:eth",
@@ -252,17 +258,47 @@ export async function readSwapStats(): Promise<SwapStats> {
       "stats:swap:sells"
     ),
     redis.zcard("swap:traders"),
-    redis.zrange("swap:pairs", 0, 4, { rev: true, withScores: true }) as Promise<(string | number)[]>,
+    // Top pairs by TRADE COUNT and by ETH VOLUME are two different
+    // rankings (a pair traded once for a lot of ETH can rank high on
+    // volume but not count, and vice versa) -- fetched separately so the
+    // client can toggle between them without a second round trip. Dylan:
+    // "top pairs is just by number of trades not volume?... make a
+    // toggle... to sort by trades or volume."
+    redis.zrange("swap:pairs", 0, 9, { rev: true, withScores: true }) as Promise<(string | number)[]>,
+    redis.zrange("swap:pairs:eth", 0, 9, { rev: true, withScores: true }) as Promise<(string | number)[]>,
     // Only ~7 possible plan keys ever exist (see planRoute() in
     // PrintDirectSwap.tsx) -- fetch all of them, not just a top-N, so the
     // client can merge them into display groups without silently dropping
     // low-count routes.
     redis.zrange("swap:plans", 0, -1, { rev: true, withScores: true }) as Promise<(string | number)[]>,
   ]);
-  const topPairs: { pair: string; count: number }[] = [];
-  for (let i = 0; i < pairsFlat.length; i += 2) {
-    topPairs.push({ pair: String(pairsFlat[i]), count: num(pairsFlat[i + 1]) });
+  const countMap = new Map<string, number>();
+  for (let i = 0; i < countFlat.length; i += 2) countMap.set(String(countFlat[i]), num(countFlat[i + 1]));
+  const ethMap = new Map<string, number>();
+  for (let i = 0; i < ethFlat.length; i += 2) ethMap.set(String(ethFlat[i]), num(ethFlat[i + 1]));
+
+  // A pair that ranks top-10 in one dimension but not the other is missing
+  // its OTHER score entirely (not zero -- it just didn't make that
+  // ranking's cutoff). Backfill those via a single pipelined batch of
+  // ZSCORE calls rather than defaulting to 0, which would understate a
+  // real pair's count/volume.
+  const allPairs = new Set([...countMap.keys(), ...ethMap.keys()]);
+  const missingCount = [...allPairs].filter((p) => !countMap.has(p));
+  const missingEth = [...allPairs].filter((p) => !ethMap.has(p));
+  if (missingCount.length || missingEth.length) {
+    const pipeline = redis.pipeline();
+    for (const p of missingCount) pipeline.zscore("swap:pairs", p);
+    for (const p of missingEth) pipeline.zscore("swap:pairs:eth", p);
+    const results = (await pipeline.exec()) as (number | null)[];
+    missingCount.forEach((p, i) => countMap.set(p, num(results[i])));
+    missingEth.forEach((p, i) => ethMap.set(p, num(results[missingCount.length + i])));
   }
+  const topPairs: { pair: string; count: number; eth: number }[] = [...allPairs].map((pair) => ({
+    pair,
+    count: countMap.get(pair) ?? 0,
+    eth: ethMap.get(pair) ?? 0,
+  }));
+
   const planMix: { plan: string; count: number }[] = [];
   for (let i = 0; i < plansFlat.length; i += 2) {
     planMix.push({ plan: String(plansFlat[i]), count: num(plansFlat[i + 1]) });
