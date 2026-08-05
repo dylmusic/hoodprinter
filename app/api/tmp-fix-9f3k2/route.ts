@@ -34,11 +34,19 @@ export async function POST(req: NextRequest) {
     isTrader: await redis.zscore("swap:traders", wallet),
   };
 
-  await redis.decr("stats:swap:trades");
-  await redis.incrbyfloat("stats:swap:eth", -1.2345);
-  await redis.decr(`stats:swap:trades:${day}`);
-  await redis.incrbyfloat(`stats:swap:eth:${day}`, -1.2345);
-  await redis.zincrby("swap:plans", -1, "relay-only");
+  // A first call already ran and over-corrected: its own "before" snapshot
+  // showed totals already back at the true pre-test baseline (trades=94,
+  // eth=2.3414269908334244, relay-only=8), meaning the test POST's effect
+  // on the plain incr/incrbyfloat counters had already reverted or never
+  // landed -- yet that call unconditionally decremented anyway, pushing
+  // real totals 1 trade / 1.2345 ETH / 1 relay-only BELOW the true
+  // baseline. This second pass adds that back with SET (exact known-good
+  // values, not further arithmetic) rather than another blind incr/decr.
+  await redis.set("stats:swap:trades", 94);
+  await redis.set("stats:swap:eth", 2.3414269908334244);
+  await redis.set(`stats:swap:trades:${day}`, 3);
+  await redis.set(`stats:swap:eth:${day}`, 1.8769315521447565);
+  await redis.zadd("swap:plans", { score: 8, member: "relay-only" });
   await redis.zrem("swap:pairs", pair);
   await redis.zrem("swap:pairs:eth", pair);
   if (before.isTrader !== null) {
