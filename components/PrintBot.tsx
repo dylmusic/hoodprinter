@@ -76,6 +76,16 @@ const ROUTER_ABI = [
   "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] path, address to, uint deadline) payable",
 ];
 const V2_FACTORY_ABI = ["function getPair(address,address) view returns (address)"];
+const V2_PAIR_ABI = ["function getReserves() view returns (uint112,uint112,uint32)", "function token0() view returns (address)"];
+// Same floor used site-wide for this check (scripts/add-token.mjs, PRINT
+// Swap's lib/curatedPoolSwap.ts) — well above a dust/decoy pair. Real
+// incident (2026-08-05): a V2 pair existing was being treated as "trade
+// here" with zero depth check, both here and in PRINT Swap's own curated
+// router — CASHCAT/VLAD/PONS/TENDIES/SWOGE all had real liquidity migrate
+// to V3/V4 pools, leaving near-empty V2 decoys behind that this bot would
+// have silently routed real buys through (catastrophic price impact, or
+// an outright revert for the fully-drained ones).
+const MIN_V2_WETH_RESERVE = ethers.parseEther("0.05");
 const V3_FACTORY_ABI = [
   "function getPool(address,address,uint24) view returns (address)",
 ];
@@ -1034,7 +1044,19 @@ export default function PrintBot() {
     const v2 = new ethers.Contract(V2_FACTORY, V2_FACTORY_ABI, provider);
     try {
       const pairAddr: string = await v2.getPair(tokenAddr, weth);
-      if (pairAddr && pairAddr !== ZERO) return { kind: "v2" };
+      if (pairAddr && pairAddr !== ZERO) {
+        // Pair existing isn't enough — verify it actually holds real
+        // liquidity before trusting it over a V3 pool (see the incident
+        // note above). A drained pair falls through to the V3 check below
+        // exactly like "no V2 pair" would.
+        const pairContract = new ethers.Contract(pairAddr, V2_PAIR_ABI, provider);
+        const [[r0, r1], token0]: [[bigint, bigint, number], string] = await Promise.all([
+          pairContract.getReserves(),
+          pairContract.token0(),
+        ]);
+        const wethReserve = token0.toLowerCase() === weth.toLowerCase() ? r0 : r1;
+        if (wethReserve >= MIN_V2_WETH_RESERVE) return { kind: "v2" };
+      }
     } catch {
       /* fall through to v3 */
     }

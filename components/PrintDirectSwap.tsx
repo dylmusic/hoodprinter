@@ -75,6 +75,7 @@ import {
   buildPermit2ApproveTxFor,
   buildV2TokenToEthTx,
   buildV2EthToTokenTx,
+  verifyLiveV2Liquidity,
 } from "@/lib/curatedPoolSwap";
 import TokenPickerModal, { TokenIcon } from "@/components/TokenPickerModal";
 import { getTokenUsdPrice } from "@/lib/tokenUsdPrice";
@@ -1118,10 +1119,17 @@ function InnerDirectSwap() {
     const timer = setTimeout(async () => {
       try {
         if (plan === "curated-to-print") {
+          // Live depth check, not just list membership — a preview built
+          // off a decoy pool's own getAmountsOut would show a technically-
+          // real-looking number that's wildly wrong (see the 2026-08-05
+          // incident note in lib/curatedPoolSwap.ts), which is worse than
+          // an honest "no route" message.
+          await verifyLiveV2Liquidity(fromToken.address);
           const amountWei = ethers.parseUnits(amount, fromToken.decimals);
           const ethOut = await quoteV2TokenToEth(fromToken.address, amountWei, 0); // unslipped estimate for display
           if (!cancelled) setRelayPreviewEth(Number(ethers.formatEther(ethOut)));
         } else if (plan === "print-to-curated" && rate) {
+          await verifyLiveV2Liquidity(toToken.address);
           const { swapWei } = splitFee(ethers.parseUnits(amount, 18));
           const ethOut = (Number(ethers.formatUnits(swapWei, 18)) / rate) * (1 - POOL_TAX_PCT / 100);
           if (ethOut <= 0) return;
@@ -1385,6 +1393,11 @@ function InnerDirectSwap() {
         // against fromToken's known V2 pool (lib/curatedPoolSwap.ts) — no
         // Relay involved for this token at all. Conditional one-time
         // Permit2 approvals, same pattern as PRINT's own sell flow.
+        // Live depth check BEFORE spending any gas on approvals — the
+        // static KNOWN_V2_TOKENS list alone was already proven insufficient
+        // once (see lib/curatedPoolSwap.ts's 2026-08-05 incident note), so
+        // this never trusts list membership blindly for an actual execution.
+        await verifyLiveV2Liquidity(fromToken.address);
         const client = await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
         const totalTokenWei = ethers.parseUnits(amount, fromToken.decimals);
         if (await needsErc20ApprovalFor(fromToken.address, address, totalTokenWei)) {
@@ -1601,6 +1614,12 @@ function InnerDirectSwap() {
         }
       } else if (plan === "print-to-curated") {
         if (!rate) return;
+        // Checked before leg 1 (PRINT -> ETH) even fires — no point spending
+        // that leg only to discover leg 2's pool is a decoy. See the
+        // curated-to-print branch above / lib/curatedPoolSwap.ts for why
+        // this live check exists (2026-08-05 incident: list membership
+        // alone isn't safe to trust for a real execution).
+        await verifyLiveV2Liquidity(toToken.address);
         const client = await ensureEvmChain(CHAIN.id); // both legs are Robinhood Chain — planRoute() only allows this plan when fromToken/toToken both are
         const totalPrintWei = ethers.parseUnits(amount, 18);
 

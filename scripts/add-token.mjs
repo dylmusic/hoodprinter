@@ -43,6 +43,20 @@ const erc20 = new ethers.Contract(
 
 const v2Factory = new ethers.Contract(V2_FACTORY, ["function getPair(address,address) view returns (address)"], provider);
 const v3Factory = new ethers.Contract(V3_FACTORY, ["function getPool(address,address,uint24) view returns (address)"], provider);
+const v2PairAbi = ["function getReserves() view returns (uint112,uint112,uint32)", "function token0() view returns (address)"];
+
+// Real incident (FRONG, 2026-08-05): getPair() found a V2 pair against WETH
+// that existed on-chain but held ~$0.50 total — a dead/decoy pair — while
+// the token's REAL liquidity ($649K) was sitting in a V4 pool this script
+// never checks at all (no on-chain V4 pool-key enumeration; V4 pools aren't
+// discoverable the way V2/V3 factories are). Shipped once already because
+// "a pool exists" was treated as "this is the real venue" with no depth
+// check — same mistake documented for $PRINT's own three-pool incident and
+// CATSTR, just hitting this script instead of the swap router. Fixed with
+// two checks that both must pass before trusting the V2 venue: real reserve
+// depth on-chain, AND DexScreener's own aggregated pair list (which indexes
+// V2/V3/V4 alike) agreeing the V2 pair isn't dwarfed by liquidity elsewhere.
+const MIN_V2_WETH_RESERVE = ethers.parseEther("0.05"); // ~$90+ at typical ETH prices — well above a dust/decoy pair, well below any real launch
 
 async function fetchRelayLogo() {
   try {
@@ -58,19 +72,43 @@ async function fetchRelayLogo() {
   }
 }
 
-const [symbol, name, decimals, v2Pair, logo] = await Promise.all([
+async function fetchDexScreenerPairs() {
+  try {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
+    const json = await res.json();
+    const pairs = (json?.pairs ?? []).filter((p) => p.chainId === "robinhood");
+    return pairs.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0));
+  } catch {
+    return [];
+  }
+}
+
+async function v2ReserveWeth(pairAddress) {
+  const pair = new ethers.Contract(pairAddress, v2PairAbi, provider);
+  const [[r0, r1], token0] = await Promise.all([pair.getReserves(), pair.token0()]);
+  return token0.toLowerCase() === WETH.toLowerCase() ? r0 : r1;
+}
+
+const [symbol, name, decimals, v2Pair, logo, dexPairs] = await Promise.all([
   erc20.symbol().catch(() => "?"),
   erc20.name().catch(() => "?"),
   erc20.decimals().catch(() => 18n),
   v2Factory.getPair(address, WETH),
   fetchRelayLogo(),
+  fetchDexScreenerPairs(),
 ]);
 
 let venue = "none found against WETH";
 let v2 = false;
+let v2WethReserve = 0n;
 if (v2Pair !== ethers.ZeroAddress) {
-  venue = `V2 (pair ${v2Pair})`;
-  v2 = true;
+  v2WethReserve = await v2ReserveWeth(v2Pair);
+  if (v2WethReserve >= MIN_V2_WETH_RESERVE) {
+    venue = `V2 (pair ${v2Pair}, ${ethers.formatEther(v2WethReserve)} WETH reserve)`;
+    v2 = true;
+  } else {
+    venue = `V2 pair EXISTS (${v2Pair}) but only ${ethers.formatEther(v2WethReserve)} WETH reserve — treating as a decoy, NOT using it`;
+  }
 } else {
   for (const fee of V3_FEE_TIERS) {
     const pool = await v3Factory.getPool(address, WETH, fee);
@@ -81,12 +119,29 @@ if (v2Pair !== ethers.ZeroAddress) {
   }
 }
 
+const topDexPair = dexPairs[0];
+const dexLiquidityUsd = topDexPair?.liquidity?.usd ?? 0;
+const dexSaysV4 = topDexPair?.labels?.includes("v4");
+// If DexScreener's real top pair is a V4 with meaningfully more liquidity
+// than whatever this script found on-chain, trust DexScreener — this is
+// exactly the FRONG failure mode (script found a live-but-dead V2 pair,
+// DexScreener's aggregated view shows the real V4 pool that dwarfs it).
+const dexOverridesV2 = v2 && dexSaysV4 && dexLiquidityUsd > 1000;
+if (dexOverridesV2) v2 = false;
+
 console.log(`\nToken: ${symbol} — ${name} (${decimals} decimals)`);
 console.log(`Address: ${address}`);
-console.log(`Pool venue vs WETH: ${venue}`);
+console.log(`Pool venue vs WETH (on-chain V2/V3 check): ${venue}`);
+if (topDexPair) {
+  console.log(
+    `DexScreener top pair (all venues): ${topDexPair.labels?.join("/") ?? topDexPair.dexId} — $${dexLiquidityUsd.toLocaleString()} liquidity${dexOverridesV2 ? "  ⚠ OVERRIDES the V2 pair above — that V2 pair is a decoy" : ""}`
+  );
+} else {
+  console.log(`DexScreener: no pairs found (or request failed) — verify liquidity manually before shipping`);
+}
 console.log(`Logo: ${logo ?? "(none from Relay — check DexScreener manually)"}\n`);
 
-const comment = v2 ? "V2" : venue.startsWith("V3") ? "V3" : "V4 / no direct WETH pool — routes via Relay only";
+const comment = v2 ? "V2" : venue.startsWith("V3") ? "V3" : "V4 / no direct WETH pool with real liquidity — routes via Relay only";
 console.log("Paste into TRENDING_TOKENS in lib/robinhoodTokens.ts:");
 console.log(
   `  { chainId: siteConfig.chain.chainId, address: "${address}", symbol: "${symbol}", name: "${name}", decimals: ${decimals}, logo: "${logo ?? ""}" }, // ${comment}`
@@ -97,6 +152,6 @@ if (v2) {
   console.log(`    "${address.toLowerCase()}", // ${symbol}`);
 } else {
   console.log(
-    `\nNot V2 — leave out of KNOWN_V2_TOKENS. Swaps touching $PRINT route via Relay (relay-to-print/print-to-relay), same as JUGGERNAUT/STONKBROKER/etc.`
+    `\nNot using the self-routed V2 fast path${v2Pair !== ethers.ZeroAddress ? " (V2 pair exists but is a decoy — see above)" : ""}. Leave out of KNOWN_V2_TOKENS. Swaps touching $PRINT route via Relay (relay-to-print/print-to-relay), same as JUGGERNAUT/STONKBROKER/etc.`
   );
 }

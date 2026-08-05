@@ -227,7 +227,7 @@ const TRENDING_TOKENS: RhToken[] = [
   { chainId: siteConfig.chain.chainId, address: "0x7fe995a80075df3dc8ae11a9b82c7fe4202cd87f", symbol: "HMM", name: "Thinking Cat", decimals: 18, logo: "https://assets.geckoterminal.com/fmu02lq7zai1iyp4qqwfnmu5wr1v" }, // V3
   { chainId: siteConfig.chain.chainId, address: "0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18", symbol: "AI", name: "Artificial Inu", decimals: 18, logo: "https://assets.geckoterminal.com/byuw84qv9ez2sp99h8q3vzcws5iq" }, // V3
   { chainId: siteConfig.chain.chainId, address: "0xA3BfBccD4Aeec8ac56B17FEE3e02Dd2C60722ccc", symbol: "CATSTR", name: "Cashcat Strategy", decimals: 18, logo: "https://coin-images.coingecko.com/coins/images/102174618/large/cashstrategy.jpg?1784192415" }, // V4, no direct V2/V3 WETH pool — routes via Relay
-  { chainId: siteConfig.chain.chainId, address: "0x6245e67affA44a23077f0Ea7f981a8DC743a0c47", symbol: "FRONG", name: "frong", decimals: 18, logo: "https://assets.geckoterminal.com/clj6685npl15jt93yyw7tge6hm4z" }, // V2
+  { chainId: siteConfig.chain.chainId, address: "0x6245e67affA44a23077f0Ea7f981a8DC743a0c47", symbol: "FRONG", name: "frong", decimals: 18, logo: "https://cdn.dexscreener.com/cms/images/zm10U0vUz_wBxnTO?width=800&height=800&quality=95&format=auto" }, // V4 (real liquidity, ~$650K) — NOT the V2 pair add-token.mjs found, that one's a ~$0.50 decoy; routes via Relay. The Relay/GeckoTerminal logo URL 403'd (genuinely dead, not hotlink protection) — used DexScreener's own CDN image instead, verified live
   // Deliberately NOT added: 0xc2362aff...4BA3, also symbol "GME"/name
   // "GameStop" — a real, liquid token, but a DIFFERENT contract from the
   // official Robinhood-issued GameStop stock already in RWA_MARKET_TOKENS

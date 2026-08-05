@@ -52,18 +52,28 @@ const WETH_ADDR = "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73";
 // 5 V3 trending tokens (STONKBROKER/INDEX/DIH/YOLO/HMM) are NOT included —
 // no verified V3 quoter on this chain yet to compute a safe minOut against,
 // so those route through Relay when paired with $PRINT instead.
+//
+// REAL INCIDENT (2026-08-05): a V2 pair *existing* was being treated as
+// "safe to self-route" with no depth check at all — CASHCAT, VLAD, PONS,
+// TENDIES, and SWOGE all had their real liquidity migrate to V3/V4 pools
+// since they were first added, leaving their V2 pairs as near-empty decoys
+// (CASHCAT ~$54, PONS ~$3, VLAD/TENDIES/SWOGE literally $0 WETH reserve —
+// checked live via getReserves() against every KNOWN_V2_TOKENS entry, not
+// assumed). A self-routed swap against any of these would either revert
+// (zero reserve) or execute at catastrophic price impact (CASHCAT/PONS'
+// tiny-but-nonzero reserve) — a real "give someone a bad swap" bug, not
+// hypothetical. Pulled all five out. ARROW ($74K)/HOODRAT ($82K)/VIRTUAL
+// ($1.58M)/WOOD ($221K) checked the same way and are still genuinely the
+// dominant venue for their own token, so those stay. See
+// verifyLiveV2Liquidity() below for the runtime safety net added at the
+// same time — this static list alone was already proven insufficient once,
+// so execution no longer trusts it blindly either.
 export const KNOWN_V2_TOKENS = new Set(
   [
-    "0x020bfC650A365f8BB26819deAAbF3E21291018b4", // CASHCAT
     "0xf2915d1e3c1b0c769d0c756ec43f1c1f6c99cd03", // ARROW
     "0x8e62f281f282686fca6dcb39288069a93fc23f1c", // HOODRAT
-    "0x92d176ccbeeffecd8089e841d09ea17b6c22d969", // VLAD
     "0xc6911796042b15d7fa4f6cde69e245ddcd3d9c31", // VIRTUAL
-    "0x39dbed3a2bd333467115de45665cc57f813c4571", // PONS
-    "0x45242320dbb855eea8fd36804c6487e10e97fcf9", // TENDIES
-    "0xdb87393727b666c43f5aecb03d8b419ba54d9b03", // SWOGE
     "0xf8bc08092c06db6148114dcf82af881f1085f92b", // WOOD
-    "0x6245e67affa44a23077f0ea7f981a8dc743a0c47", // FRONG
   ].map((a) => a.toLowerCase())
 );
 
@@ -79,17 +89,45 @@ const v2RouterIface = new ethers.Interface([
   "function getAmountsOut(uint amountIn, address[] path) view returns (uint[] amounts)",
 ]);
 const v2FactoryIface = new ethers.Interface(["function getPair(address,address) view returns (address)"]);
+const v2PairIface = new ethers.Interface([
+  "function getReserves() view returns (uint112,uint112,uint32)",
+  "function token0() view returns (address)",
+]);
 
 const readProvider = new ethers.JsonRpcProvider(siteConfig.chain.rpcUrl);
 
-/** Confirms a V2 pair actually exists for (token, WETH) — belt-and-suspenders on top of the static KNOWN_V2_TOKENS list. */
-export async function hasV2Pool(tokenAddr: string): Promise<boolean> {
-  try {
-    const factory = new ethers.Contract(V2_FACTORY, v2FactoryIface, readProvider);
-    const pair: string = await factory.getPair(tokenAddr, WETH_ADDR);
-    return !!pair && pair !== ethers.ZeroAddress;
-  } catch {
-    return false;
+// Same floor scripts/add-token.mjs uses when first vetting a token — well
+// above a dust/decoy pair, well below any pool worth actually trading
+// against. Real incident (2026-08-05): the old hasV2Pool() only checked
+// pair *existence* (getPair != 0x0) and was never even called from
+// anywhere — the static KNOWN_V2_TOKENS list was the ONLY gate, with zero
+// runtime verification, which is exactly how 5 drained pools went
+// undetected. This is the actual safety net now: called live right before
+// a self-routed leg executes, so a token that's fine today but drains
+// tomorrow (precisely what happened to CASHCAT/VLAD/PONS/TENDIES/SWOGE)
+// gets caught at swap time instead of silently giving a bad fill.
+const MIN_V2_WETH_RESERVE = ethers.parseEther("0.05");
+
+/**
+ * Verifies the token/WETH V2 pair actually has real, tradeable depth right
+ * now — not just that it exists. Throws a clear, user-facing error if the
+ * pool is missing or too thin to trade against safely, rather than letting
+ * curated-to-print/print-to-curated quote and execute against a decoy pool.
+ */
+export async function verifyLiveV2Liquidity(tokenAddr: string): Promise<void> {
+  const factory = new ethers.Contract(V2_FACTORY, v2FactoryIface, readProvider);
+  const pair: string = await factory.getPair(tokenAddr, WETH_ADDR);
+  if (!pair || pair === ethers.ZeroAddress) {
+    throw new Error("This token's V2 pool no longer exists — please try again in a moment.");
+  }
+  const pairContract = new ethers.Contract(pair, v2PairIface, readProvider);
+  const [[r0, r1], token0]: [[bigint, bigint, number], string] = await Promise.all([
+    pairContract.getReserves(),
+    pairContract.token0(),
+  ]);
+  const wethReserve = token0.toLowerCase() === WETH_ADDR.toLowerCase() ? r0 : r1;
+  if (wethReserve < MIN_V2_WETH_RESERVE) {
+    throw new Error("This token's liquidity has moved — please try again in a moment.");
   }
 }
 
