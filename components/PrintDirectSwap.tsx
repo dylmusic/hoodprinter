@@ -16,6 +16,7 @@ import {
   type Wallet,
   type WalletList,
 } from "@rainbow-me/rainbowkit";
+import { coinbaseWallet } from "@rainbow-me/rainbowkit/wallets";
 import "@rainbow-me/rainbowkit/styles.css";
 import type { Chain } from "viem";
 import { siteConfig, WALLETCONNECT_PROJECT_ID } from "@/site.config";
@@ -248,12 +249,26 @@ const dummyWalletParams = {
   projectId: WALLETCONNECT_PROJECT_ID || "00000000000000000000000000000000",
   appName: "HOODPrinter",
 };
+// RainbowKit's own default "Popular" group includes a wallet with id "base"
+// — NOT the old Coinbase Wallet connector, but Coinbase's newer passkey-only
+// smart-wallet SDK (@base-org/account). It has `installed: true` and no
+// `downloadUrls`/mobile deep-link config at all — it's built to open a
+// browser passkey/WebAuthn popup, with no app-store fallback for a wallet
+// app. On mobile Safari that popup either never fires (lost user-gesture
+// context by the time the async SDK import resolves) or has nothing to link
+// out to (Dylan: "base button on the wallet connect doesnt actually open
+// base wallet on mobile"). Swapped for RainbowKit's own `coinbaseWallet`
+// connector — same underlying Coinbase/Base mobile app, but with real
+// `downloadUrls` + a proper mobile deep-link/QR flow, matching how every
+// other wallet button here (MetaMask, Robinhood, WalletConnect) behaves on
+// mobile.
 const walletsWithRobinhood: WalletList = getDefaultWallets().wallets.map((group) => {
-  const metaMaskIndex = group.wallets.findIndex((w) => w(dummyWalletParams).id === "metaMask");
-  if (metaMaskIndex === -1) return group;
-  const wallets = [...group.wallets];
-  wallets.splice(metaMaskIndex + 1, 0, robinhoodWallet);
-  return { ...group, wallets };
+  const wallets = group.wallets.map((w) => (w(dummyWalletParams).id === "base" ? coinbaseWallet : w));
+  const metaMaskIndex = wallets.findIndex((w) => w(dummyWalletParams).id === "metaMask");
+  if (metaMaskIndex === -1) return { ...group, wallets };
+  const withRobinhood = [...wallets];
+  withRobinhood.splice(metaMaskIndex + 1, 0, robinhoodWallet);
+  return { ...group, wallets: withRobinhood };
 });
 
 // Base + Ethereum mainnet added 2026-07-28 (Dylan: "enable base, SOL, ETH")
