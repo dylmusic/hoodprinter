@@ -755,13 +755,22 @@ function InnerDirectSwap() {
   // wagmi's useBalance can't fetch a Solana balance (not an EVM chain) —
   // fetched separately here, added after Dylan flagged it missing from the
   // "You pay"/"You receive" panels ("solana balance doesnt show in the top
-  // right where it should"). `solBalanceNonce` (bumped right after any
-  // swap involving a Solana side confirms — see doSwap) forces a refetch
-  // post-swap the same way wagmi's own block-watching keeps EVM balances
-  // fresh without an explicit dependency here.
+  // right where it should"). `solBalanceNonce` is bumped right after any
+  // swap involving a Solana side confirms (see doSwap/resumeSwap) for an
+  // instant refetch, AND ticks on its own every PRICE_POLL_MS below — a
+  // swap-only trigger left the balance stale for anything that moves SOL
+  // outside this tab's own swap flow (an external transfer, a swap done in
+  // another tab), unlike wagmi's EVM balances which block-watch on their
+  // own regardless of what caused the change ("solana balance doesnt
+  // automatically update, only updates on refresh").
   const [solFromBalance, setSolFromBalance] = useState<number | null>(null);
   const [solToBalance, setSolToBalance] = useState<number | null>(null);
   const [solBalanceNonce, setSolBalanceNonce] = useState(0);
+  useEffect(() => {
+    if (!sol.address || (!fromIsSolana && !toIsSolana)) return;
+    const interval = setInterval(() => setSolBalanceNonce((n) => n + 1), PRICE_POLL_MS);
+    return () => clearInterval(interval);
+  }, [sol.address, fromIsSolana, toIsSolana]);
   useEffect(() => {
     let cancelled = false;
     setSolFromBalance(null);
