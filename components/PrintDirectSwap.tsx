@@ -56,6 +56,7 @@ import {
 } from "@/lib/robinhoodTokens";
 import {
   getRelayLegQuote,
+  getRelayLegQuoteFeeFallback,
   executeRelayLeg,
   adaptEvmWallet,
   adaptPrintSolanaWallet,
@@ -1197,7 +1198,7 @@ function InnerDirectSwap() {
           if (!cancelled) setRelayPreviewOut(Number(ethers.formatUnits(tokenOut, toToken.decimals)));
         } else if (plan === "relay-only") {
           const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
-          const quote = await getRelayLegQuote({
+          const { quote } = await getRelayLegQuoteFeeFallback({
             chainId: fromToken.chainId,
             toChainId: toToken.chainId,
             fromCurrency: fromToken.address,
@@ -1205,7 +1206,6 @@ function InnerDirectSwap() {
             amountWei,
             userAddress: previewAddress,
             recipientAddress: previewAddressFor(toToken.chainId),
-            chargeFee: true,
           });
           const outFormatted = (quote as any)?.details?.currencyOut?.amountFormatted;
           if (!cancelled) setRelayPreviewOut(outFormatted ? Number(outFormatted) : null);
@@ -1365,7 +1365,14 @@ function InnerDirectSwap() {
         const ticker = startElapsedLabel((ms) => setLegProgress({ part: progPart, total: progTotal, label: `${legLabel} (${Math.round(ms / 1000)}s)` }));
         const amountWei = ethers.parseUnits(amount, fromToken.decimals).toString();
         const recipientAddress = toIsSolana ? sol.address! : address;
-        const quote = await getRelayLegQuote({
+        // Fee-fallback, not a plain chargeFee:true call — a real live bug
+        // (FRONG<->ETH) has Relay's own best route for some pairs fail
+        // simulation outright when our appFees is attached, at every
+        // amount, with no way to force a different aggregator for a
+        // same-chain quote. Retrying fee-free beats blocking a swap that
+        // would otherwise succeed. See getRelayLegQuoteFeeFallback for the
+        // full incident writeup.
+        const { quote, feeApplied } = await getRelayLegQuoteFeeFallback({
           chainId: fromToken.chainId,
           toChainId: toToken.chainId,
           fromCurrency: fromToken.address,
@@ -1373,8 +1380,8 @@ function InnerDirectSwap() {
           amountWei,
           userAddress: fromIsSolana ? sol.address! : address,
           recipientAddress,
-          chargeFee: true,
         });
+        if (!feeApplied) console.warn("relay-only: fee-included quote failed simulation, retried fee-free", { fromToken: fromToken.symbol, toToken: toToken.symbol });
         progTotal = quoteStepCount(quote);
         let relayWallet;
         if (fromIsSolana) {

@@ -127,6 +127,31 @@ export async function getRelayLegQuote(params: {
   });
 }
 
+/**
+ * Same as getRelayLegQuote(chargeFee: true), but with a fallback: real live
+ * bug found for FRONG<->ETH (2026-08-08) — Relay's best route for that pair
+ * uses a third-party aggregator ("magpie") whose calldata doesn't compose
+ * with Relay's own appFees insertion, so the fee-included quote fails
+ * simulation (SWAP_QUOTE_FAILED) at every amount, while the exact same
+ * quote with no fee succeeds fine. Not fixable on our end (Relay's same-
+ * chain quotes don't support includedSwapSources/excludedSwapSources to
+ * force a different aggregator — confirmed live, both return a generic
+ * "Could not process request" error). Rather than blocking a swap that
+ * would otherwise work, retries once without our 0.85% cut — losing
+ * revenue on this specific edge case beats telling someone a real trade
+ * "isn't working." Only ever used for the relay-only plan (the one place
+ * chargeFee: true is used at all).
+ */
+export async function getRelayLegQuoteFeeFallback(
+  params: Omit<Parameters<typeof getRelayLegQuote>[0], "chargeFee">
+): Promise<{ quote: Execute; feeApplied: boolean }> {
+  try {
+    return { quote: await getRelayLegQuote({ ...params, chargeFee: true }), feeApplied: true };
+  } catch {
+    return { quote: await getRelayLegQuote({ ...params, chargeFee: false }), feeApplied: false };
+  }
+}
+
 /** Adapts a connected EVM wallet client for Relay's `execute()`. */
 export function adaptEvmWallet(walletClient: WalletClient): AdaptedWallet {
   return adaptViemWallet(walletClient);
